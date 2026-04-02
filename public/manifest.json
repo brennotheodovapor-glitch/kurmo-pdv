@@ -1,0 +1,12 @@
+{
+  "name": "Kurmo PDV",
+  "short_name": "Kurmo",
+  "description": "Sistema de PDV e Delivery",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#4f46e5",
+  "icons": [
+    { "src": "/kurmo-icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
