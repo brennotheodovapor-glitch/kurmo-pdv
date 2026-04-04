@@ -1,50 +1,73 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Zap, Eye, EyeOff, LogIn } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
+import Logo from '@/components/shared/Logo'
 
 export default function LoginPage({ onLogin }: { onLogin: () => void }) {
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const [pw, setPw] = useState('')
   const [show, setShow] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const login = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!email || !password) { toast.error('Preencha email e senha'); return }
+    if (!email || !pw) { toast.error('Preencha email e senha'); return }
     setLoading(true)
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await supabase.auth.signInWithPassword({ email, password: pw })
       if (error) throw error
-      toast.success('Bem-vindo! 🎉')
+      toast.success('Acesso liberado!')
       onLogin()
     } catch (err: any) {
-      toast.error(err.message === 'Invalid login credentials' ? 'Email ou senha incorretos' : err.message)
-    } finally {
-      setLoading(false)
-    }
+      toast.error(err.message === 'Invalid login credentials' ? 'Email ou senha invalidos' : err.message)
+    } finally { setLoading(false) }
   }
 
   return (
-    <div className="min-h-screen bg-kurmo-bg flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-grid-pattern opacity-30 pointer-events-none" />
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="relative w-full max-w-sm animate-scale-in">
-        <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center mb-4 shadow-2xl glow-accent">
-            <Zap className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-display font-bold text-gradient">Kurmo PDV</h1>
-          <p className="text-kurmo-muted text-sm mt-1">Acesse sua conta</p>
+    <div style={{
+      minHeight:'100vh', background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center',
+      position:'relative', overflow:'hidden'
+    }}>
+      <div style={{
+        position:'absolute', inset:0,
+        backgroundImage:'linear-gradient(rgba(0,255,65,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,65,0.04) 1px, transparent 1px)',
+        backgroundSize:'40px 40px'
+      }}/>
+      <div style={{
+        position:'absolute', top:'30%', left:'50%', transform:'translate(-50%,-50%)',
+        width:500, height:500, borderRadius:'50%',
+        background:'radial-gradient(circle, rgba(0,255,65,0.08) 0%, transparent 70%)'
+      }}/>
+      <div className="animate-slide-in" style={{ position:'relative', width:'100%', maxWidth:380, padding:24 }}>
+        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', marginBottom:32 }}>
+          <div className="animate-pulse-neon" style={{ marginBottom:16 }}><Logo size={72}/></div>
+          <h1 className="font-bangers neon-text" style={{ fontSize:42, lineHeight:1 }}>KURMO PDV</h1>
+          <p style={{ color:'var(--muted)', fontSize:13, marginTop:6, letterSpacing:2 }}>SISTEMA DE VENDAS</p>
         </div>
-        <div className="bg-kurmo-card border border-kurmo-border rounded-2xl p-6 shadow-2xl">
-          <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <div><label className="text-xs font-medium text-kurmo-muted mb-1.5 block">Email</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" className="w-full bg-kurmo-surface border border-kurmo-border rounded-xl px-4 py-3 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent" autoFocus /></div>
-            <div><label className="text-xs font-medium text-kurmo-muted mb-1.5 block">Senha</label><div className="relative"><input type={show ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" className="w-full bg-kurmo-surface border border-kurmo-border rounded-xl px-4 py-3 pr-11 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent" /><button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-kurmo-muted">{show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button></div></div>
-            <button type="submit" disabled={loading} className="w-full py-3 rounded-xl font-bold text-white text-sm font-display disabled:opacity-50 relative overflow-hidden group mt-2" style={{background:'linear-gradient(135deg,#7c3aed,#06b6d4)'}}><div className="absolute inset-0 bg-white opacity-0 group-hover:oroacity-10" /><div className="flex items-center justify-center gap-2">{loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <LogIn className="w-4 h-4" />}{loading ? 'Entrando...' : 'Entrar'}</div></button>
+        <div style={{ background:'var(--card)', border:'1px solid var(--border)', borderRadius:16, padding:28 }}>
+          <form onSubmit={login} style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            <div>
+              <label style={{ fontSize:12, color:'var(--muted)', display:'block', marginBottom:6, letterSpacing:1 }}>EMAIL</label>
+              <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="seu@email.com" autoFocus/>
+            </div>
+            <div style={{ position:'relative' }}>
+              <label style={{ fontSize:12, color:'var(--muted)', display:'block', marginBottom:6, letterSpacing:1 }}>SENHA</label>
+              <input type={show?'text':'password'} value={pw} onChange={e=>setPw(e.target.value)} placeholder="........" style={{ paddingRight:44 }}/>
+              <button type="button" onClick={()=>setShow(!show)} style={{
+                position:'absolute', right:12, bottom:10, background:'none', border:'none', color:'var(--muted)', cursor:'pointer'
+              }}>
+                {show ? <EyeOff size={16}/> : <Eye size={16}/>}
+              </button>
+            </div>
+            <button type="submit" disabled={loading} className="btn-neon-fill" style={{ marginTop:8, fontSize:18, padding:'12px 0' }}>
+              {loading ? 'ACESSANDO...' : 'ENTRAR'}
+            </button>
           </form>
         </div>
-        <p className="text-center text-xs text-kurmo-muted mt-4">Kurmo PDV v1.0 — Use o email cadastrado no Supabase</p>
+        <p style={{ textAlign:'center', color:'var(--muted)', fontSize:11, marginTop:16, letterSpacing:1 }}>
+          KURMO PDV v2.0 - USE O EMAIL DO SUPABASE
+        </p>
       </div>
     </div>
   )
