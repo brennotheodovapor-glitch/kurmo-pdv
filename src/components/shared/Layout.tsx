@@ -1,79 +1,75 @@
+
 import { Outlet, NavLink } from 'react-router-dom'
-import {
-  ShoppingCart, History, Package, LayoutDashboard,
-  Settings, Truck, Zap, Bell, Users, BarChart3, LogOut
-} from 'lucide-react'
+import { ShoppingCart, History, Package, LayoutDashboard, Settings, Truck, Users, BarChart3, LogOut, Tag, QrCode } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
+import Logo from './Logo'
 
-const navItems = [
+const NAV = [
   { to: '/pdv', icon: ShoppingCart, label: 'PDV' },
   { to: '/delivery', icon: Truck, label: 'Delivery' },
+  { to: '/cardapio', icon: QrCode, label: 'Cardápio' },
   { to: '/historico', icon: History, label: 'Histórico' },
+  { to: '/categorias', icon: Tag, label: 'Categorias' },
   { to: '/produtos', icon: Package, label: 'Produtos' },
   { to: '/clientes', icon: Users, label: 'Clientes' },
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/relatorios', icon: BarChart3, label: 'Relatórios' },
-  { to: '/configuracoes', icon: Settings, label: 'Ajustes' },
+  { to: '/configuracoes', icon: Settings, label: 'Config' },
 ]
 
 export default function Layout({ session }: { session: any }) {
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    toast.success('Até logo!')
-  }
-
+  const logout = async () => { await supabase.auth.signOut(); toast.success('Até logo!') }
   return (
-    <div className="flex h-screen bg-kurmo-bg overflow-hidden">
-      {*/ Sidebar */}
-      <aside className="w-[72] flex flex-col items-center py-4 gap-1 bg-kurmo-surface border-r border-kurmo-border relative z-10">
-        {/* Logo */}
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center mb-4 shadow-lg glow-accent">
-          <Zap className="w-5 h-5 text-white" />
-        </div>
-
-        {navItems.map(({ to, icon: Icon, label }) => (
-          <NavLink key={to} to={to}
-            className={({ isActive }) =>
-              `group relative flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all duration-200 ${
-                isActive ? 'bg-kurmo-accentGlow text-kurmo-accentLight border border-kurmo-accent/30' : 'text-kurmo-muted hover:text-kurmo-text hover:bg-kurmo-card'
-              }`
-            }
-          >
+    <div style={{ display:'flex', height:'100vh', background:'var(--bg)', overflow:'hidden' }}>
+      <aside style={{
+        width:68, display:'flex', flexDirection:'column', alignItems:'center',
+        padding:'12px 0', gap:2, background:'var(--surface)',
+        borderRight:'1px solid var(--border)', zIndex:10,
+        boxShadow:'2px 0 20px rgba(0,255,65,0.05)'
+      }}>
+        <div style={{ marginBottom:10 }}><Logo size={42}/></div>
+        {NAV.map(({ to, icon: Icon, label }) => (
+          <NavLink key={to} to={to} title={label} style={{ width:'100%', display:'flex', justifyContent:'center' }}>
             {({ isActive }) => (
-              <>
-                <Icon className="w-5 h-5" />
-                <div className="absolute left-full ml-3 px-2 py-1 bg-kurmo-card border border-kurmo-border rounded-lg text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  {label}
-                </div>
-                {isActive && <div className="absolute right-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-kurmo-accent rounded-l-full" />}
-              </>
+              <div style={{
+                width:48, height:44, borderRadius:10, display:'flex', alignItems:'center', justifyContent:'center',
+                cursor:'pointer', transition:'all 0.2s', position:'relative',
+                color: isActive ? 'var(--neon)' : 'var(--muted)',
+                background: isActive ? 'var(--neon-glow)' : 'transparent',
+                border: isActive ? '1px solid rgba(0,255,65,0.3)' : '1px solid transparent',
+                boxShadow: isActive ? '0 0 10px var(--neon-glow)' : 'none',
+              }}>
+                <Icon size={19}/>
+                {isActive && <div style={{
+                  position:'absolute', right:0, top:'50%', transform:'translateY(-50%)',
+                  width:3, height:24, background:'var(--neon)', borderRadius:'2px 0 0 2px',
+                  boxShadow:'0 0 8px var(--neon)'
+                }}/>}
+              </div>
             )}
           </NavLink>
         ))}
-
-        <div className="mt-auto flex flex-col items-center gap-2">
+        <div style={{ marginTop:'auto', display:'flex', flexDirection:'column', alignItems:'center', gap:8 }}>
           {session?.user && (
-            <div className="group relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center text-white font-bold text-sm cursor-default">
-              {(session.user.email || 'U').charAt(0).toUpperCase()}
-              <div className="absolute left-full ml-3 px-2 py-1 bg-kurmo-card border border-kurmo-border rounded-lg text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 max-w-[160px] truncate">
-                {session.user.email}
-              </div>
+            <div title={session.user.email} style={{
+              width:34, height:34, borderRadius:'50%', background:'var(--neon)', color:'#000',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'Bangers,cursive', fontSize:16,
+              boxShadow:'0 0 10px var(--neon)'
+            }}>
+              {(session.user.email||'K').charAt(0).toUpperCase()}
             </div>
           )}
-          <button onClick={handleLogout} className="group relative w-10 h-10 rounded-xl flex items-center justify-center text-kurmo-muted hover:text-red-400 hover:bg-red-500/10 transition-all">
-            <LogOut className="w-4 h-4" />
-            <div className="absolute left-full ml-3 px-2 py-1 bg-kurmo-card border border-kurmo-border rounded-lg text-xs font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-              Sair
-            </div>
+          <button onClick={logout} title="Sair" style={{
+            width:36, height:36, borderRadius:8, border:'none', background:'transparent',
+            color:'var(--muted)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center'
+          }}>
+            <LogOut size={16}/>
           </button>
         </div>
       </aside>
-
-      {*/ Main content */}
-      <main className="flex-1 overflow-hidden">
-        <Outlet />
-      </main>
+      <main style={{ flex:1, overflow:'hidden' }}><Outlet/></main>
     </div>
   )
 }
