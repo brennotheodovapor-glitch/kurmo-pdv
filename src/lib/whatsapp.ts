@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 // WhatsApp integration via Evolution API (Railway)
 const EVOLUTION_URL = import.meta.env.VITE_EVOLUTION_API_URL || ''
 const EVOLUTION_KEY = import.meta.env.VITE_EVOLUTION_API_KEY || ''
@@ -29,21 +30,21 @@ export function buildOrderMessage(order: {
   delivery_fee?: number
 }): string {
   const statusMessages: Record<string, string> = {
-    accepted: '✅ *Pedido Confirmado!*',
-    preparing: '👨‍🍳 *Seu pedido está sendo preparado!*',
-    ready: '🎉 *Pedido pronto!*',
-    delivering: '🛵 *Saiu para entrega!*',
-    delivered: '✨ *Pedido entregue!*',
-    cancelled: '❌ *Pedido cancelado*',
+    accepted: 'â *Pedido Confirmado!*',
+    preparing: 'ð¨âð³ *Seu pedido estÃ¡ sendo preparado!*',
+    ready: 'ð *Pedido pronto!*',
+    delivering: 'ðµ *Saiu para entrega!*',
+    delivered: 'â¨ *Pedido entregue!*',
+    cancelled: 'â *Pedido cancelado*',
   }
-  const header = statusMessages[order.status] || `📦 *Atualização do pedido #${order.order_number}*`
-  const items = order.items.map(i => `  • ${i.product_name} x${i.quantity} — R$ ${i.total.toFixed(2)}`).join('\n')
+  const header = statusMessages[order.status] || `ð¦ *AtualizaÃ§Ã£o do pedido #${order.order_number}*`
+  const items = order.items.map(i => `  â¢ ${i.product_name} x${i.quantity} â R$ ${i.total.toFixed(2)}`).join('\n')
   return [
-    `*Kurmo PDV* — Pedido #${String(order.order_number).padStart(4, '0')}`,
+    `*Kurmo PDV* â Pedido #${String(order.order_number).padStart(4, '0')}`,
     '',
     header,
     '',
-    `*Olá${order.customer_name ? ', ' + order.customer_name : ''}!*`,
+    `*OlÃ¡${order.customer_name ? ', ' + order.customer_name : ''}!*`,
     '',
     '*Itens:*',
     items,
@@ -51,6 +52,6 @@ export function buildOrderMessage(order: {
     order.delivery_fee ? `Taxa de entrega: R$ ${order.delivery_fee.toFixed(2)}` : '',
     `*Total: R$ ${order.total.toFixed(2)}*`,
     '',
-    '_Obrigado por comprar conosco!_ 🙏',
+    '_Obrigado por comprar conosco!_ ð',
   ].filter(l => l !== null).join('\n')
 }
