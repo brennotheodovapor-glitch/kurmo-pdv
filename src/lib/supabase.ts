@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
@@ -32,7 +33,7 @@ export type Order = {
   customer_phone: string | null
   customer_address: string | null
   type: 'pdv' | 'delivery'
-  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivering' | 'delivered' | 'cancelled'
+  status: 'pending' | 'accepted' | 'preparing' | 'ready' | 'delivering' | 'delivered' | 'cancelled' | 'completed'
   payment_method: string
   subtotal: number
   discount: number
