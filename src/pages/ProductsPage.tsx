@@ -1,213 +1,132 @@
-import { useState } from 'react'
-import { Plus, Search, Package, Edit2, Trash2, AlertTriangle, X, Check } from 'lucide-react'
-import { currency } from '@/lib/format'
+import { useState, useRef } from 'react'
+import { Plus, Search, Edit2, Trash2, X, Check, Image, Package, AlertTriangle } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-type Product = {
-  id: string; name: string; price: number; cost_price: number
-  stock: number; category: string; active: boolean; barcode?: string
-}
-
-const INITIAL: Product[] = [
-  { id: '1', name: 'Lost Mary 600 Puffs', price: 45, cost_price: 20, stock: 30, category: 'Descartáveis', active: true },
-  { id: '2', name: 'Elfbar BC5000', price: 120, cost_price: 60, stock: 15, category: 'Descartáveis', active: true },
-  { id: '3', name: 'Uwell Caliburn G3', price: 180, cost_price: 90, stock: 8, category: 'Vapes', active: true },
-  { id: '4', name: 'Vaporesso XROS 4', price: 220, cost_price: 110, stock: 2, category: 'Vapes', active: true },
-  { id: '5', name: 'Salt Nic Mango 30ml', price: 35, cost_price: 15, stock: 50, category: 'Liquids', active: true },
-  { id: '6', name: 'Freebase Blueberry 60ml', price: 55, cost_price: 25, stock: 20, category: 'Liquids', active: true },
-  { id: '7', name: 'Coil Uwell UN2', price: 25, cost_price: 12, stock: 0, category: 'Acessórios', active: false },
-  { id: '8', name: 'Pod Caliburn A3', price: 95, cost_price: 45, stock: 12, category: 'Pods', active: true },
+type Product = { id:string; name:string; price:number; cost_price:number; stock:number; category:string; active:boolean; image_url?:string; description?:string }
+const CATS = ['Descartaveis','Vapes','Liquids','Pods','Acessorios']
+const INIT: Product[] = [
+  {id:'1',name:'Lost Mary 600 Puffs',price:45,cost_price:20,stock:30,category:'Descartaveis',active:true,description:'600 puffs, sabores variados'},
+  {id:'2',name:'Elfbar BC5000',price:120,cost_price:60,stock:15,category:'Descartaveis',active:true,description:'5000 puffs recarregavel'},
+  {id:'3',name:'Uwell Caliburn G3',price:180,cost_price:90,stock:8,category:'Vapes',active:true},
+  {id:'4',name:'Salt Nic Mango 30ml',price:35,cost_price:15,stock:50,category:'Liquids',active:true},
+  {id:'5',name:'Pod Caliburn A3',price:95,cost_price:45,stock:12,category:'Pods',active:true},
 ]
-
-const EMPTY: Omit<Product, 'id'> = { name: '', price: 0, cost_price: 0, stock: 0, category: 'Descartáveis', active: true }
-const CATEGORIES = ['Vapes', 'Pods', 'Liquids', 'Acessórios', 'Descartáveis']
-
+const EMPTY: Omit<Product,'id'> = {name:'',price:0,cost_price:0,stock:0,category:'Descartaveis',active:true,image_url:'',description:''}
+const fmt = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
+const EMO: Record<string,string> = {Descartaveis:'\u26a1',Vapes:'\ud83d\udca8',Liquids:'\ud83d\udca7',Pods:'\ud83d\udd0b',Acessorios:'\ud83d\udd27'}
 export default function ProductsPage() {
-  const [products, setProducts] = useState(INITIAL)
-  const [search, setSearch] = useState('')
-  const [catFilter, setCatFilter] = useState<string | null>(null)
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState<Product | null>(null)
-  const [form, setForm] = useState(EMPTY)
-
-  const filtered = products.filter(p => {
-    if (catFilter && p.category !== catFilter) return false
-    if (search) return p.name.toLowerCase().includes(search.toLowerCase())
-    return true
-  })
-
-  const openCreate = () => { setEditing(null); setForm(EMPTY); setShowModal(true) }
-  const openEdit = (p: Product) => { setEditing(p); setForm({ name: p.name, price: p.price, cost_price: p.cost_price, stock: p.stock, category: p.category, active: p.active }); setShowModal(true) }
-
-  const save = () => {
-    if (!form.name.trim()) { toast.error('Nome obrigatório'); return }
-    if (editing) {
-      setProducts(prev => prev.map(p => p.id === editing.id ? { ...p, ...form } : p))
-      toast.success('Produto atualizado!')
-    } else {
-      setProducts(prev => [...prev, { ...form, id: crypto.randomUUID() }])
-      toast.success('Produto cadastrado!', { icon: '📦' })
-    }
-    setShowModal(false)
+  const [products,setProducts] = useState(INIT)
+  const [search,setSearch] = useState('')
+  const [catF,setCatF] = useState<string|null>(null)
+  const [modal,setModal] = useState(false)
+  const [edit,setEdit] = useState<Product|null>(null)
+  const [form,setForm] = useState<Omit<Product,'id'>>(EMPTY)
+  const [upl,setUpl] = useState(false)
+  const [prev,setPrev] = useState<string|null>(null)
+  const fRef = useRef<HTMLInputElement>(null)
+  const filt = products.filter(p=>{ if(catF&&p.category!==catF)return false; if(search)return p.name.toLowerCase().includes(search.toLowerCase()); return true })
+  const openC = ()=>{setEdit(null);setForm(EMPTY);setPrev(null);setModal(true)}
+  const openE = (p:Product)=>{setEdit(p);setForm({...p});setPrev(p.image_url||null);setModal(true)}
+  const handleImg = async (e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file=e.target.files?.[0]; if(!file)return
+    const r=new FileReader(); r.onload=ev=>setPrev(ev.target?.result as string); r.readAsDataURL(file)
+    setUpl(true)
+    try{
+      const ext=file.name.split('.').pop()
+      const fn='products/'+Date.now()+'.'+ext
+      const {data,error}=await supabase.storage.from('product-images').upload(fn,file,{upsert:true})
+      if(!error&&data){
+        const {data:{publicUrl}}=supabase.storage.from('product-images').getPublicUrl(fn)
+        setForm(f=>({...f,image_url:publicUrl})); toast.success('Foto enviada!')
+      } else { toast('Foto carregada localmente') }
+    } catch { toast('Preview local') } finally { setUpl(false) }
   }
-
-  const remove = (id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id))
-    toast.success('Produto removido')
+  const save = ()=>{
+    if(!form.name.trim()){toast.error('Nome obrigatorio');retur}
+    if(edit){setProducts(p=>p.map(i=>i.id===edit.id?{...i,...form}:i));toast.success('Atualizado!')}
+    else{setProducts(p=>[...p,{...form,id:crypto.randomUUID()}]);toast.success('Cadastrado!')}
+    setModal(false)
   }
-
-  const margin = (p: Product) => p.price > 0 ? ((p.price - p.cost_price) / p.price * 100).toFixed(0) : '0'
-
+  const del=(id:string)=>{setProducts(p=>p.filter(i=>i.id!==id));toast.success('Removido')}
+  const mar=(p:Product)=>p.price>0?((p.price-p.cost_price)/p.price*100).toFixed(0):'0'
   return (
-    <div className="h-full flex flex-col bg-kurmo-bg">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-kurmo-border bg-kurmo-surface flex items-center gap-4">
-        <h1 className="font-display font-bold text-xl text-kurmo-text">Produtos</h1>
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kurmo-muted" />
-          <input
-            value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar produto..."
-            className="w-full max-w-sm bg-kurmo-card border border-kurmo-border rounded-xl pl-9 pr-4 py-2 text-sm text-kurmo-text placeholder:text-kurmo-muted focus:outline-none focus:border-kurmo-accent"
-          />
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
+      <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+        <Package size={20} color="var(--neon)"/>
+        <h1 className="font-bangers neon-text-sm" style={{fontSize:26}}>PRODUTOS</h1>
+        <div style={{position:'relative',flex:1,maxWidth:280}}>
+          <Search size={14} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." style={{paddingLeft:32}}/>
         </div>
-        <div className="flex gap-2">
-          {CATEGORIES.map(c => (
-            <button key={c} onClick={() => setCatFilter(c === catFilter ? null : c)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${catFilter === c ? 'bg-kurmo-accent text-white' : 'bg-kurmo-card border border-kurmo-border text-kurmo-muted hover:text-kurmo-text'}`}>
-              {c}
-            </button>
-          ))}
+        <div style={{display:'flex',gap:6}}>
+          {CATS.map(c=>(<button key={c} onClick={()=>setCatF(4===catF?null:c)} style={{padding:'6px 12px',borderRadius:8,border:catF===c?'1px solid var(--neon)':'1px solid var(--border)',background:catF===c?'var(--neon-glow)':'transparent',color:catF===c?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:12}}>{EMO[c]} {c}</button>))}
         </div>
-        <button onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-kurmo-accent hover:bg-violet-500 text-white text-sm font-medium transition-all ml-auto">
-          <Plus className="w-4 h-4" /> Novo produto
+        <button onClick={openC} className="btn-neon-fill" style={{marginLeft:'auto',fontSize:13,padding:'8px 16px'}}>
+          <Plus size={14} style={{display:'inline',marginRight:6}}/>NOVO PRODUTO
         </button>
       </div>
-
-      {/* Table */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="bg-kurmo-card border border-kurmo-border rounded-2xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-kurmo-border">
-                {['Produto', 'Categoria', 'Preço', 'Custo', 'Margem', 'Estoque', 'Status', ''].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-kurmo-muted uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(p => (
-                <tr key={p.id} className="border-b border-kurmo-border/50 hover:bg-kurmo-surface/50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-lg bg-kurmo-surface flex items-center justify-center text-sm">
-                        {p.category === 'Descartáveis' ? '⚡' : p.category === 'Vapes' ? '💨' : p.category === 'Liquids' ? '💧' : p.category === 'Pods' ? '🔋' : '🔧'}
-                      </div>
-                      <span className="text-sm font-medium text-kurmo-text">{p.name}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-kurmo-muted">{p.category}</td>
-                  <td className="px-4 py-3 text-sm font-mono font-bold text-kurmo-accentLight">{currency(p.price)}</td>
-                  <td className="px-4 py-3 text-sm font-mono text-kurmo-muted">{currency(p.cost_price)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${parseInt(margin(p)) >= 40 ? 'bg-green-500/15 text-green-400' : parseInt(margin(p)) >= 25 ? 'bg-yellow-500/15 text-yellow-400' : 'bg-red-500/15 text-red-400'}`}>
-                      {margin(p)}%
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`flex items-center gap-1 text-xs ${p.stock === 0 ? 'text-red-400' : p.stock <= 5 ? 'text-orange-400' : 'text-kurmo-muted'}`}>
-                      {p.stock <= 5 && p.stock > 0 && <AlertTriangle className="w-3 h-3" />}
-                      {p.stock} un
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${p.active ? 'bg-green-500/15 text-green-400' : 'bg-kurmo-surface text-kurmo-muted'}`}>
-                      {p.active ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
-                      <button onClick={() => openEdit(p)} className="w-7 h-7 rounded-lg flex items-center justify-center text-kurmo-muted hover:text-kurmo-accentLight hover:bg-kurmo-accentGlow transition-all">
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => remove(p.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-kurmo-muted hover:text-red-400 hover:bg-red-500/10 transition-all">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+        <div className="card" style={{overflow:'hidden'}}>
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <thead><tr style={{borderBottom:'1px solid var(--border)'}}>
+                {['PRODUTO','CAT','PRECO','CUSTO','MARGEM','ESTOQUE','STATUS',''].map(h=>(<th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1}}>{h}</th>))}
+            </tr></thead>
+            <tbody>{filt.map(p=>(<tr key={p.id} style={{borderBottom:'1px solid rgba(26,46,26,0.5)'}}>
+              <td style={{padding:'10px 14px'}}>
+                <div style={{display:'flex',alignItems:'center',gap:10}}>
+                  {p.image_url?(<img src={p.image_url} alt={p.name} style={{width:36,height:36,borderRadius:8,objectFit:'cover',border:'1px solid var(--border)'}}/>):(<div style={{width:36,height:36,borderRadius:8,background:'var(--surface)',border:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>{EMO[p.category]||'\ud83d\udce6'}</div>)}
+                  <div><p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{p.name}</p>{p.description&&<p style={{fontSize:11,color:'var(--muted)'}}>{p.description}</p>}</div>
+                </div>
+              </td>
+              <td style={{padding:'10px 14px',fontSize:12,color:'var(--muted)'}}>{p.category}</td>
+              <td style={{padding:'10px 14px',fontFamily:'JetBrains Mono,monospace',fontSize:13,fontWeight:600,color:'var(--neon)'}}>{fmt(p.price)}</td>
+              <td style={{padding:'10px 14px',fontFamily:'JetBrains Mono,monospace',fontSize:12,color:'var(--muted)'}}>{fmt(p.cost_price)}</td>
+              <td style={{padding:'10px 14px'}}><span style={{fontSize:11,fontWeight:700,padding:'3px 8px',borderRadius:20,background:parseInt(mar(p))>=40?'rgba(0,255,65,0.1)':parseInt(mar(p))>=25?'rgba(255,170,0,0.1)':'rgba(255,51,51,0.1)',color:parseInt(mar(p))>=40?'var(--neon)':parseInt(mar(p))>=25?'#ffaa00':'#ff3333'}}>{mar(p)}%</span></td>
+              <td style={{padding:'10px 14px',fontSize:12,color:p.stock===0?'#ff3333':p.stock<=5?'#ffaa00':'var(--muted)'}}>{p.stock<=5&&p.stock>0&&<AlertTriangle size={12} style={{display:'inline',marginRight:3}}/>}{p.stock} un</td>
+              <td style={{padding:'10px 14px'}}><span style={{fontSize:11,padding:'3px 8px',borderRadius:20,background:p.active?'rgba(0,255,65,0.1)':'rgba(77,122,77,0.1)',color:p.active?'var(--neon)':'var(--muted)'}}>{p.active?'ATIVO':'INATIVO'}</span></td>
+              <td style={{padding:'10px 14px'}}><div style={{display:'flex',gap:6}}>
+                <button onClick={()=>openE(p)} style={{width:30,height:30,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Edit2 size={13}/></button>
+                <button onClick={()=>del(p.id)} style={{width:30,height:30,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={13}/></button>
+              </div></td>
+            </tr>))}</tbody>
           </table>
-          {filtered.length === 0 && (
-            <div className="py-12 flex flex-col items-center text-kurmo-muted">
-              <Package className="w-8 h-8 mb-2 opacity-40" />
-              <p className="text-sm">Nenhum produto encontrado</p>
-            </div>
-          )}
+          {filt.length===0&&<div style={{padding:48,display:'flex',flexDirection:'column',alignItems:'center',color:'var(--muted)'}}><Package size={32} style={{marginBottom:8,opacity:0.4}}/><p style={{fontSize:13}}>Nenhum produto encontrado</p></div>}
         </div>
       </div>
-
-      {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
-          <div className="bg-kurmo-card border border-kurmo-border rounded-2xl p-6 w-full max-w-md mx-4 animate-scale-in">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="font-display font-bold text-lg text-kurmo-text">{editing ? 'Editar produto' : 'Novo produto'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-kurmo-muted hover:text-kurmo-text transition-colors">
-                <X className="w-5 h-5" />
-              </button>
+      {modal&&(
+        <div className="animate-fade-in" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}>
+          <div className="animate-slide-in card" style={{width:'100%',maxWidth:520,padding:28,margin:16,border:'1px solid var(--border-bright)',boxShadow:'0 0 40px rgba(0,255,65,0.15)'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+              <h2 className="font-bangers neon-text-sm" style={{fontSize:24}}>{edit?'EDITAR':'NOVO'} PRODUTO</h2>
+              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={20}/></button>
             </div>
-            <div className="flex flex-col gap-3">
-              <div>
-                <label className="text-xs text-kurmo-muted mb-1 block">Nome</label>
-                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full bg-kurmo-surface border border-kurmo-border rounded-xl px-3 py-2.5 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent" placeholder="Nome do produto" />
+            <div style={{display:'flex',gap:16}}>
+              <div style={{flexShrink:0}}>
+                <div onClick={()=>fRef.current?.click()} style={{width:100,height:100,borderRadius:12,border:'2px dashed var(--border)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',overflow:'hidden',background:'var(--surface)'}}>
+                 {prev?<img src={prev} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:(<><Image size={24} color="var(--muted)" style={{marginBottom:4}}/><p style={{fontSize:10,color:'var(--muted)',textAlign:'center'}}>{upl?'Enviando...':'+ Foto'}</p></>)}
+                </div>
+                <input ref={fRef} type="file" accept="image/*" onChange={handleImg} style={{display:'none'}}/>
+                {prev&&<button onClick={()=>{setPrev(null);setForm(f=>({...f,image_url:''}))}} style={{fontSize:10,color:'#ff3333',background:'none',border:'none',cursor:'pointer',width:'100%',marginTop:4}}>Remover</button>}
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-kurmo-muted mb-1 block">Preço de venda</label>
-                  <input type="number" value={form.price} onChange={e => setForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
-                    className="w-full bg-kurmo-surface border border-kurmo-border rounded-xl px-3 py-2.5 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent" />
-                </div>
-                <div>
-                  <label className="text-xs text-kurmo-muted mb-1 block">Preço de custo</label>
-                  <input type="number" value={form.cost_price} onChange={e => setForm(f => ({ ...f, cost_price: parseFloat(e.target.value) || 0 }))}
-                    className="w-full bg-kurmo-surface border border-kurmo-border rounded-xl px-3 py-2.5 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent" />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs text-kurmo-muted mb-1 block">Estoque</label>
-                  <input type="number" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: parseInt(e.target.value) || 0 }))}
-                    className="w-full bg-kurmo-surface border border-kurmo-border rounded-xl px-3 py-2.5 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent" />
-                </div>
-                <div>
-                  <label className="text-xs text-kurmo-muted mb-1 block">Categoria</label>
-                  <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    className="w-full bg-kurmo-surface border border-kurmo-border rounded-xl px-3 py-2.5 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent">
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+              <div style={{flex:1,display:'flex',flexDirection:'column',gap:12}}>
+                <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>NOME</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Ex: Elfbar BC5000"/></div>
+                <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom5,letterSpacing:1}}>DESCRIC@</label><input value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Descricao do produto"/></div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                  <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom5,letterSpacing:1}}>PRECO VENDA</label><input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:parseFloat(e.target.value)||0}))}/></div>
+                  <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>PRECO CUSTO</label><input type="number" value={form.cost_price} onChange={e=>setForm(f=>({...f,cost_price:parseFloat(e.target.value)||0}))}/></div>
+                  <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom5,letterSpacing:1}}>ESTOQUE</label><input type="number" value={form.stock} onChange={e=>setForm(f=>({...f,stock:parseInt(e.target.value)||0}))}/></div>
+                  <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>CATEGORIA</label><select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>{CATS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                 </div>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <div onClick={() => setForm(f => ({ ...f, active: !f.active }))}
-                  className={`w-10 h-6 rounded-full relative transition-colors ${form.active ? 'bg-kurmo-accent' : 'bg-kurmo-surface border border-kurmo-border'}`}>
-                  <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${form.active ? 'translate-x-5' : 'translate-x-1'}`} />
-                </div>
-                <span className="text-sm text-kurmo-muted">Produto ativo</span>
-              </label>
-              <div className="flex gap-3 mt-2">
-                <button onClick={() => setShowModal(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-kurmo-border text-kurmo-muted hover:text-kurmo-text transition-colors text-sm">
-                  Cancelar
-                </button>
-                <button onClick={save}
-                  className="flex-1 py-2.5 rounded-xl bg-kurmo-accent hover:bg-violet-500 text-white font-medium text-sm transition-colors flex items-center justify-center gap-2">
-                  <Check className="w-4 h-4" /> Salvar
-                </button>
-              </div>
+            </div>
+            {form.price>0&&form.cost_price>0&&(<div style={{marginTop:12,padding:'10px 14px',background:'var(--surface)',borderRadius:8,display:'flex',justifyContent:'space-between'}}>
+              <span style={{fontSize:12,color:'var(--muted)'}}>Margem de lucro</span>
+              <span style={{fontSize:13,fontWeight:700,color:((form.price-form.cost_price)/form.price*100)>=40?'var(--neon)':'#ffaa00',fontFamily:'JetBrains Mono,monospace'}}>{((form.price-form.cost_price)/form.price*100).toFixed(1)}% - Lucro: {fmt(form.price-form.cost_price)}</span>
+            </div>)}
+            <div style={{display:'flex',gap:10,marginTop:16}}>
+              <button onClick={()=>setModal(false)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,coursive',fontSize:15}}>CANCELAR</button>
+              <button onClick={save} className="btn-neon-fill" style={{flex:2,fontSize:15}}><Check size={14} style={{display:'inline',marginRight:6}}/>SALVAR PRODUTO</button>
             </div>
           </div>
         </div>
