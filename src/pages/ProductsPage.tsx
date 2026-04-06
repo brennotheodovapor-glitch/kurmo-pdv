@@ -60,7 +60,7 @@ export default function ProductsPage() {
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." style={{paddingLeft:32}}/>
         </div>
         <div style={{display:'flex',gap:6}}>
-          {CATS.map(c=>(<button key={c} onClick={()=>setCatF(4===catF?null:c)} style={{padding:'6px 12px',borderRadius:8,border:catF===c?'1px solid var(--neon)':'1px solid var(--border)',background:catF===c?'var(--neon-glow)':'transparent',color:catF===c?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:12}}>{EMO[c]} {c}</button>))}
+          {CATS.map(c=>(<button key={c} onClick={()=>setCatF(c===catF?null:c)} style={{padding:'6px 12px',borderRadius:8,border:catF===c?'1px solid var(--neon)':'1px solid var(--border)',background:catF===c?'var(--neon-glow)':'transparent',color:catF===c?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:12}}>{EMO[c]} {c}</button>))}
         </div>
         <button onClick={openC} className="btn-neon-fill" style={{marginLeft:'auto',fontSize:13,padding:'8px 16px'}}>
           <Plus size={14} style={{display:'inline',marginRight:6}}/>NOVO PRODUTO
