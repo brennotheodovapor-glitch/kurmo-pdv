@@ -43,7 +43,7 @@ export default function ProductsPage() {
     } catch { toast('Preview local') } finally { setUpl(false) }
   }
   const save = ()=>{
-    if(!form.name.trim()){toast.error('Nome obrigatorio');retur}
+    if(!form.name.trim()){toast.error('Nome obrigatorio');return}
     if(edit){setProducts(p=>p.map(i=>i.id===edit.id?{...i,...form}:i));toast.success('Atualizado!')}
     else{setProducts(p=>[...p,{...form,id:crypto.randomUUID()}]);toast.success('Cadastrado!')}
     setModal(false)
@@ -111,11 +111,11 @@ export default function ProductsPage() {
               </div>
               <div style={{flex:1,display:'flex',flexDirection:'column',gap:12}}>
                 <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>NOME</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Ex: Elfbar BC5000"/></div>
-                <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom5,letterSpacing:1}}>DESCRIC@</label><input value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Descricao do produto"/></div>
+                <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>DESCRIC@</label><input value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Descricao do produto"/></div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                  <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom5,letterSpacing:1}}>PRECO VENDA</label><input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:parseFloat(e.target.value)||0}))}/></div>
+                  <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>PRECO VENDA</label><input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:parseFloat(e.target.value)||0}))}/></div>
                   <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>PRECO CUSTO</label><input type="number" value={form.cost_price} onChange={e=>setForm(f=>({...f,cost_price:parseFloat(e.target.value)||0}))}/></div>
-                  <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom5,letterSpacing:1}}>ESTOQUE</label><input type="number" value={form.stock} onChange={e=>setForm(f=>({...f,stock:parseInt(e.target.value)||0}))}/></div>
+                  <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>ESTOQUE</label><input type="number" value={form.stock} onChange={e=>setForm(f=>({...f,stock:parseInt(e.target.value)||0}))}/></div>
                   <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>CATEGORIA</label><select value={form.category} onChange={e=>setForm(f=>({...f,category:e.target.value}))}>{CATS.map(c=><option key={c} value={c}>{c}</option>)}</select></div>
                 </div>
               </div>
