@@ -1,142 +1,143 @@
-import { useState } from 'react'
-import { Search, Filter, Download, Eye, TrendingUp, ChevronDown, X } from 'lucide-react'
-import { currency, datetime, orderNumber } from '@/lib/format'
+import { useState, useEffect } from 'react'
+import { History, Search, X, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import toast from 'react-hot-toast'
 
-type Sale = {
-  id: string; order_number: number; customer_name: string | null
-  type: 'pdv' | 'delivery'; payment_method: string
-  total: number; items_count: number; created_at: string
-  status: 'completed' | 'cancelled'
-}
-
-const MOCK_SALES: Sale[] = [
-  { id: '1', order_number: 132, customer_name: 'João Silva', type: 'delivery', payment_method: 'pix', total: 175, items_count: 2, created_at: new Date(Date.now() - 30 * 60000).toISOString(), status: 'completed' },
-  { id: '2', order_number: 131, customer_name: null, type: 'pdv', payment_method: 'dinheiro', total: 45, items_count: 1, created_at: new Date(Date.now() - 2 * 3600000).toISOString(), status: 'completed' },
-  { id: '3', order_number: 130, customer_name: 'Maria Costa', type: 'delivery', payment_method: 'cartao_credito', total: 220, items_count: 3, created_at: new Date(Date.now() - 3 * 3600000).toISOString(), status: 'completed' },
-  { id: '4', order_number: 129, customer_name: null, type: 'pdv', payment_method: 'pix', total: 120, items_count: 1, created_at: new Date(Date.now() - 5 * 3600000).toISOString(), status: 'completed' },
-  { id: '5', order_number: 128, customer_name: 'Pedro Souza', type: 'delivery', payment_method: 'pix', total: 89, items_count: 1, created_at: new Date(Date.now() - 6 * 3600000).toISOString(), status: 'cancelled' },
-  { id: '6', order_number: 127, customer_name: null, type: 'pdv', payment_method: 'cartao_debito', total: 55, items_count: 1, created_at: new Date(Date.now() - 7 * 3600000).toISOString(), status: 'completed' },
-  { id: '7', order_number: 126, customer_name: null, type: 'pdv', payment_method: 'dinheiro', total: 35, items_count: 1, created_at: new Date(Date.now() - 8 * 3600000).toISOString(), status: 'completed' },
-  { id: '8', order_number: 125, customer_name: 'Ana Lima', type: 'delivery', payment_method: 'pix', total: 310, items_count: 4, created_at: new Date(Date.now() - 24 * 3600000).toISOString(), status: 'completed' },
-]
-
-const PM_LABELS: Record<string, string> = {
-  pix: 'PIX', dinheiro: 'Dinheiro',
-  cartao_debito: 'Débito', cartao_credito: 'Crédito'
-}
-
-const PM_COLORS: Record<string, string> = {
-  pix: '#10b981', dinheiro: '#f59e0b',
-  cartao_debito: '#06b6d4', cartao_credito: '#7c3aed'
-}
+type Order = {id:string;order_number:number;seller_id:string|null;customer_name:string|null;type:string;status:string;subtotal:number;discount:number;total:number;created_at:string;cancel_reason:string|null;sellers?:{name:string}|null}
+const fmt = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
 
 export default function HistoryPage() {
-  const [search, setSearch] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'all' | 'pdv' | 'delivery'>('all')
+  const [orders,setOrders] = useState<Order[]>([])
+  const [loading,setLoading] = useState(true)
+  const [search,setSearch] = useState('')
+  const [expanded,setExpanded] = useState<string|null>(null)
+  const [cancelModal,setCancelModal] = useState<Order|null>(null)
+  const [cancelReason,setCancelReason] = useState('')
+  const [itemsCache,setItemsCache] = useState<Record<string,any[]>>({})
+  const [paymentsCache,setPaymentsCache] = useState<Record<string,any[]>>({})
 
-  const completed = MOCK_SALES.filter(s => s.status === 'completed')
-  const totalRevenue = completed.reduce((s, o) => s + o.total, 0)
-  const avgTicket = completed.length ? totalRevenue / completed.length : 0
+  useEffect(()=>{loadOrders()},[])
 
-  const filtered = MOCK_SALES.filter(s => {
-    if (typeFilter !== 'all' && s.type !== typeFilter) return false
-    if (search) {
-      const q = search.toLowerCase()
-      return s.customer_name?.toLowerCase().includes(q) || String(s.order_number).includes(q) || s.total.toFixed(2).includes(q)
+  async function loadOrders() {
+    setLoading(true)
+    const {data} = await supabase.from('orders').select('*,sellers(name)').order('created_at',{ascending:false}).limit(300)
+    setOrders(data||[]); setLoading(false)
+  }
+
+  async function expandOrder(id:string) {
+    if(expanded===id){setExpanded(null);return}
+    setExpanded(id)
+    if(!itemsCache[id]) {
+      const [{data:items},{data:payments}] = await Promise.all([
+        supabase.from('order_items').select('*').eq('order_id',id),
+        supabase.from('order_payments').select('*').eq('order_id',id)
+      ])
+      setItemsCache(c=>({...c,[id]:items||[]}))
+      setPaymentsCache(c=>({...c,[id]:payments||[]}))
     }
-    return true
-  })
+  }
+
+  async function cancelOrder() {
+    if(!cancelModal) return
+    if(!cancelReason.trim()){toast.error('Informe o motivo do cancelamento');return}
+    const {error} = await supabase.from('orders').update({status:'cancelled',cancel_reason:cancelReason,cancelled_at:new Date().toISOString()}).eq('id',cancelModal.id)
+    if(error){toast.error('Erro: '+error.message);return}
+    toast.success('Venda cancelada')
+    setCancelModal(null); setCancelReason(''); loadOrders()
+  }
+
+  const filtered = orders.filter(o=>(o.customer_name||'').toLowerCase().includes(search.toLowerCase())||String(o.order_number).includes(search))
+  const statusColor = (s:string) => s==='completed'?'#00ff41':s==='cancelled'?'#ff3333':'#ffaa00'
+  const statusLabel = (s:string) => s==='completed'?'PAGO':s==='cancelled'?'CANCELADO':'PENDENTE'
+
+  const totals = {
+    completed: orders.filter(o=>o.status==='completed').reduce((s,o)=>s+o.total,0),
+    count: orders.filter(o=>o.status==='completed').length,
+    cancelled: orders.filter(o=>o.status==='cancelled').length,
+  }
 
   return (
-    <div className="h-full flex flex-col bg-kurmo-bg">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-kurmo-border bg-kurmo-surface">
-        <div className="flex items-center gap-4">
-          <h1 className="font-display font-bold text-xl text-kurmo-text">Histórico</h1>
-          <div className="flex gap-1">
-            {(['all', 'pdv', 'delivery'] as const).map(t => (
-              <button key={t} onClick={() => setTypeFilter(t)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${typeFilter === t ? 'bg-kurmo-accent text-white' : 'bg-kurmo-card border border-kurmo-border text-kurmo-muted hover:text-kurmo-text'}`}>
-                {t === 'all' ? 'Todos' : t.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kurmo-muted" />
-            <input value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar por cliente, nº ou valor..."
-              className="w-full bg-kurmo-card border border-kurmo-border rounded-xl pl-9 pr-4 py-2 text-sm text-kurmo-text placeholder:text-kurmo-muted focus:outline-none focus:border-kurmo-accent" />
-            {search && <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2"><X className="w-4 h-4 text-kurmo-muted" /></button>}
-          </div>
-          <button className="ml-auto flex items-center gap-2 px-3 py-2 rounded-xl border border-kurmo-border text-kurmo-muted hover:text-kurmo-text hover:border-kurmo-accent/50 transition-all text-xs">
-            <Download className="w-3.5 h-3.5" /> Exportar
-          </button>
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
+      <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+        <History size={20} color="var(--neon)"/>
+        <h1 className="font-bangers neon-text-sm" style={{fontSize:26}}>HISTORICO</h1>
+        <div style={{position:'relative',flex:1,maxWidth:280}}>
+          <Search size={14} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar cliente ou #numero..." style={{paddingLeft:32}}/>
+        </div>
+        <div style={{display:'flex',gap:12,marginLeft:'auto'}}>
+          <div style={{textAlign:'center'}}><p style={{fontSize:18,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(totals.completed)}</p><p style={{fontSize:10,color:'var(--muted)'}}>TOTAL VENDAS</p></div>
+          <div style={{textAlign:'center'}}><p style={{fontSize:18,fontWeight:700,color:'var(--white)',fontFamily:'JetBrains Mono,monospace'}}>{totals.count}</p><p style={{fontSize:10,color:'var(--muted)'}}>VENDAS</p></div>
+          <div style={{textAlign:'center'}}><p style={{fontSize:18,fontWeight:700,color:'#ff3333',fontFamily:'JetBrains Mono,monospace'}}>{totals.cancelled}</p><p style={{fontSize:10,color:'var(--muted)'}}>CANCELADAS</p></div>
         </div>
       </div>
-
-      {/* Summary */}
-      <div className="px-6 py-3 border-b border-kurmo-border bg-kurmo-surface flex gap-6">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-green-400" />
-          <span className="text-xs text-kurmo-muted">Total hoje:</span>
-          <span className="text-sm font-bold font-mono text-green-400">{currency(totalRevenue)}</span>
-        </div>
-        <div>
-          <span className="text-xs text-kurmo-muted">Vendas: </span>
-          <span className="text-sm font-bold text-kurmo-text">{completed.length}</span>
-        </div>
-        <div>
-          <span className="text-xs text-kurmo-muted">Ticket médio: </span>
-          <span className="text-sm font-bold font-mono text-kurmo-accentLight">{currency(avgTicket)}</span>
-        </div>
-      </div>
-
-      {/* Table */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="bg-kurmo-card border border-kurmo-border rounded-2xl overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-kurmo-border">
-                {['Pedido', 'Cliente', 'Canal', 'Pagamento', 'Itens', 'Total', 'Horário', 'Status'].map(h => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-kurmo-muted uppercase tracking-wide">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(sale => (
-                <tr key={sale.id} className={`border-b border-kurmo-border/50 hover:bg-kurmo-surface/50 transition-colors ${sale.status === 'cancelled' ? 'opacity-50' : ''}`}>
-                  <td className="px-4 py-3 font-mono text-xs text-kurmo-muted">{orderNumber(sale.order_number)}</td>
-                  <td className="px-4 py-3 text-sm text-kurmo-text">{sale.customer_name || <span className="text-kurmo-muted italic">Não identificado</span>}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${sale.type === 'pdv' ? 'bg-violet-500/15 text-violet-400' : 'bg-cyan-500/15 text-cyan-400'}`}>
-                      {sale.type === 'pdv' ? 'PDV' : 'Delivery'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ color: PM_COLORS[sale.payment_method], background: PM_COLORS[sale.payment_method] + '20' }}>
-                      {PM_LABELS[sale.payment_method]}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-kurmo-muted">{sale.items_count} item{sale.items_count > 1 ? 's' : ''}</td>
-                  <td className="px-4 py-3 font-mono font-bold text-sm text-kurmo-accentLight">{currency(sale.total)}</td>
-                  <td className="px-4 py-3 text-xs text-kurmo-muted">{datetime(sale.created_at)}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${sale.status === 'completed' ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400'}`}>
-                      {sale.status === 'completed' ? 'Concluída' : 'Cancelada'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="py-12 flex flex-col items-center text-kurmo-muted">
-              <Search className="w-8 h-8 mb-2 opacity-40" />
-              <p className="text-sm">Nenhuma venda encontrada</p>
+      <div style={{flex:1,overflowY:'auto',padding:'12px 20px'}}>
+        {loading ? <div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div> :
+        filtered.length===0 ? <div style={{textAlign:'center',padding:48,color:'var(--muted)'}}><History size={36} style={{opacity:0.3,marginBottom:8}}/><p>Nenhuma venda encontrada</p></div> :
+        filtered.map(o=>(
+          <div key={o.id} className="card" style={{marginBottom:8,overflow:'hidden',opacity:o.status==='cancelled'?0.7:1}}>
+            <div onClick={()=>expandOrder(o.id)} style={{padding:'11px 16px',display:'flex',alignItems:'center',gap:10,cursor:'pointer'}}>
+              <span style={{fontFamily:'JetBrains Mono,monospace',fontSize:13,color:'var(--neon)',minWidth:36}}>#{o.order_number}</span>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{o.customer_name||'Cliente Avulso'}</p>
+                <p style={{fontSize:11,color:'var(--muted)'}}>{(o.sellers as any)?.name||'Sem vendedor'} · {new Date(o.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</p>
+              </div>
+              <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,background:statusColor(o.status)+'20',color:statusColor(o.status),whiteSpace:'nowrap'}}>{statusLabel(o.status)}</span>
+              <span style={{fontSize:15,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',minWidth:80,textAlign:'right'}}>{fmt(o.total)}</span>
+              {o.status==='completed' && (
+                <button onClick={e=>{e.stopPropagation();setCancelModal(o)}} style={{padding:'4px 8px',borderRadius:6,border:'1px solid #ff3333',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',fontSize:10,fontFamily:'Bangers,cursive',whiteSpace:'nowrap'}}>
+                  CANCELAR
+                </button>
+              )}
+              {expanded===o.id ? <ChevronUp size={15} color="var(--muted)"/> : <ChevronDown size={15} color="var(--muted)"/>}
             </div>
-          )}
-        </div>
+            {expanded===o.id && (
+              <div style={{padding:'0 16px 14px',borderTop:'1px solid var(--border)'}}>
+                {o.cancel_reason && <div style={{margin:'8px 0',padding:'8px 12px',background:'rgba(255,51,51,0.08)',borderRadius:8,fontSize:12,color:'#ff3333',display:'flex',alignItems:'center',gap:6}}><AlertTriangle size={12}/>Cancelado: {o.cancel_reason}</div>}
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginTop:10}}>
+                  <div>
+                    <p style={{fontSize:10,color:'var(--muted)',letterSpacing:1,marginBottom:6}}>ITENS</p>
+                    {(itemsCache[o.id]||[]).map(i=>(
+                      <div key={i.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}>
+                        <span style={{color:'var(--text)'}}>{i.quantity}x {i.product_name}</span>
+                        <span style={{color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(i.total_price)}</span>
+                      </div>
+                    ))}
+                    {o.discount>0 && <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginTop:4,paddingTop:4,borderTop:'1px solid var(--border)'}}><span style={{color:'var(--muted)'}}>Desconto</span><span style={{color:'#ff3333'}}>-{fmt(o.discount)}</span></div>}
+                  </div>
+                  <div>
+                    <p style={{fontSize:10,color:'var(--muted)',letterSpacing:1,marginBottom:6}}>PAGAMENTOS</p>
+                    {(paymentsCache[o.id]||[]).map(p=>(
+                      <div key={p.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:3}}>
+                        <span style={{color:'var(--text)',textTransform:'capitalize'}}>{p.method}</span>
+                        <span style={{color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(p.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
       </div>
+
+      {cancelModal && (
+        <div className="animate-fade-in" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}>
+          <div className="card" style={{width:'100%',maxWidth:420,padding:24,margin:16,border:'1px solid #ff3333',boxShadow:'0 0 30px rgba(255,51,51,0.2)'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <AlertTriangle size={20} color="#ff3333"/>
+              <h2 className="font-bangers" style={{fontSize:20,color:'#ff3333'}}>CANCELAR VENDA #{cancelModal.order_number}</h2>
+            </div>
+            <p style={{fontSize:13,color:'var(--muted)',marginBottom:4}}>Valor: <strong style={{color:'var(--neon)'}}>{fmt(cancelModal.total)}</strong></p>
+            <p style={{fontSize:12,color:'var(--muted)',marginBottom:10}}>Esta acao nao pode ser desfeita. Informe o motivo:</p>
+            <textarea value={cancelReason} onChange={e=>setCancelReason(e.target.value)} placeholder="Ex: Pedido duplicado, cliente desistiu..." rows={3} style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text)',borderRadius:8,padding:'10px 12px',fontSize:13,resize:'none',outline:'none',boxSizing:'border-box'}}/>
+            <div style={{display:'flex',gap:10,marginTop:14}}>
+              <button onClick={()=>{setCancelModal(null);setCancelReason('')}} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>VOLTAR</button>
+              <button onClick={cancelOrder} style={{flex:2,padding:10,borderRadius:8,border:'none',background:'#ff3333',color:'white',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CONFIRMAR CANCELAMENTO</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
