@@ -61,7 +61,7 @@ export default function MenuPage() {
         </div>
         <div style={{ flex:1 }}>
           <h2 className="font-bangers" style={{ fontSize:20, color:'var(--white-dim)', marginBottom:16 }}>
-            PRODUTOS NO CARDAPIO Ã¢â¬â {PRODUCTS.filter(p=>p.active).length} itens
+            PRODUTOS NO CARDAPIO ÃÂ¢Ã¢ÂÂ¬Ã¢ÂÂ {PRODUCTS.filter(p=>p.active).length} itens
           </h2>
           {cats.map(cat => (
             <div key={cat} style={{ marginBottom:20 }}>
@@ -75,7 +75,7 @@ export default function MenuPage() {
                   <div key={p.id} className="card card-hover" style={{ padding:14 }}>
                     {p.image_url ? (<img src={p.image_url} alt={p.name} style={{ width:'100%', height:90, objectFit:'cover', borderRadius:8, marginBottom:10 }}/>) : (
                       <div style={{ width:'100%', height:90, borderRadius:8, background:'var(--surface)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, marginBottom:10 }}>
-                        {cat === 'Descartaveis' ? 'Ã¢Å¡Â¡' : '\uD83D\uDCA8'}
+                        {cat === 'Descartaveis' ? 'ÃÂ¢ÃÂ¡ÃÂ¡' : '\uD83D\uDCA8'}
                       </div>
                     )}
                     <p style={{ fontWeight:600, fontSize:13, color:'var(--white)', marginBottom:4 }}>{p.name}</p>
@@ -94,14 +94,14 @@ export default function MenuPage() {
           <div style={{ width:390, height:700, background:'#111', borderRadius:40, overflow:'hidden', border:'8px solid #333', boxShadow:'0 0 60px rgba(0,255,65,0.2)' }}>
             <div style={{ height:'100%', overflowY:'auto', background:'#0a0f0a', padding:20 }}>
               <div style={{ textAlign:'center', marginBottom:20 }}>
-                <h1 style={{ fontFamily:'Bangers,cursive', fontSize:32, color:'|#00ff41', textShadow:'0 0 15px #00ff41' }}>KURMMââAPEQâ</h1>
+                <h1 style={{ fontFamily:'Bangers,cursive', fontSize:32, color:'|#00ff41', textShadow:'0 0 15px #00ff41' }}>KURMMÃ¢ÂÂÃ¢ÂÂAPEQÃ¢ÂÂ</h1>
                 <p style={{ color:'#4d7a4d', fontSize:13 }}>Cardapio Digital</p>
               </div>
               {cats.map(cat=>(
                 <div key={cat} style={{ marginBottom:20 }}>
                   <p style={{ color:'#00ff41', fontSize:11, letterSpacing:2, marginBottom:10 }}>{cat.toUpperCase()}</p>
                   {PRODUCTS.filter(p=>p.active&&p.category===cat).map(p=>(
-                    <div key={p.id} style={{ background:'|#111811', border:'1px solid #1a2e1a', borderRadius:12, padding:14, marginBottom10, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div key={p.id} style={{ background:'|#111811', border:'1px solid #1a2e1a', borderRadius:12, padding:14, marginBottom:10, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                       <div>
                         <p style={{ color:'#e8f5e9', fontWeight:600, fontSize:14, marginBottom:2 }}>{p.name}</p>
                         <p style={{ color:'#4d7a4d', fontSize:12 }}>{p.description}</p>
