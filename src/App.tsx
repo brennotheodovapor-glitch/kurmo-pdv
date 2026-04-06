@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -14,18 +13,14 @@ import DashboardPage from '@/pages/DashboardPage'
 import SettingsPage from '@/pages/SettingsPage'
 import CustomersPage from '@/pages/CustomersPage'
 import ReportsPage from '@/pages/ReportsPage'
+import SellersPage from '@/pages/SellersPage'
+import CommissionsPage from '@/pages/CommissionsPage'
 
 export default function App() {
   const [session, setSession] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const url = import.meta.env.VITE_SUPABASE_URL || ''
-    if (!url || url.includes('your-project')) {
-      setSession({ user: { email: 'demo@kurmo.app', id: 'demo' } })
-      setLoading(false)
-      return
-    }
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setLoading(false) })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
     return () => subscription.unsubscribe()
@@ -33,8 +28,8 @@ export default function App() {
 
   if (loading) return (
     <div style={{ minHeight:'100vh', background:'var(--bg)', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16 }}>
-      <div style={{ fontSize:48, animation:'neon-pulse 1s ease infinite' }}>⚡</div>
-      <p style={{ fontFamily:'Bangers,cursive', fontSize:24, color:'var(--neon)', letterSpacing:2, textShadow:'0 0 15px var(--neon)' }}>KURMO PDV</p>
+      <div style={{ fontSize:56, animation:'neon-pulse 1s ease-in-out infinite' }}>⚡</div>
+      <p style={{ fontFamily:'Bangers,cursive', fontSize:22, color:'var(--neon)', letterSpacing:3 }}>KURMO PDV</p>
     </div>
   )
 
@@ -50,6 +45,8 @@ export default function App() {
         <Route path="historico" element={<HistoryPage />} />
         <Route path="categorias" element={<CategoriesPage />} />
         <Route path="produtos" element={<ProductsPage />} />
+        <Route path="vendedores" element={<SellersPage />} />
+        <Route path="comissoes" element={<CommissionsPage />} />
         <Route path="clientes" element={<CustomersPage />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="relatorios" element={<ReportsPage />} />
