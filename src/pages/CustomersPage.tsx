@@ -1,52 +1,104 @@
 import { useState } from 'react'
-import { Search, Plus, Phone, ShoppingBag, TrendingUp, X, Check, Edit2, Trash2 } from 'lucide-react'
-import { currency } from '@/lib/format'
+import { Users, Plus, Search, Edit2, Trash2, X, Check, Phone, Mail } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-type Customer = {
-  id: string; name: string; phone: string; address: string
-  total_orders: number; total_spent: number; last_order: string | null; notes: string
-}
-
-const MOCK: Customer[] = [
-  { id: '1', name: 'João Silva', phone: '27999887766', address: 'Rua das Flores, 123', total_orders: 12, total_spent: 1450, last_order: new Date(Date.now() - 2*86400000).toISOString(), notes: '' },
-  { id: '2', name: 'Maria Costa', phone: '27988776655', address: 'Av. Central, 456', total_orders: 5, total_spent: 620, last_order: new Date(Date.now() - 7*86400000).toISOString(), notes: 'Prefere entrega à tarde' },
-  { id: '3', name: 'Pedro Souza', phone: '27977665544', address: 'Rua Mares, 789', total_orders: 3, total_spent: 280, last_order: new Date(Date.now() - 14*86400000).toISOString(), notes: '' },
+type Customer = {id:string;name:string;phone:string;email:string;orders:number;total:number;lastOrder:string}
+const INIT:Customer[]=[
+  {id:'1',name:'Joao Silva',phone:'(27)99123-4567',email:'joao@email.com',orders:8,total:640,lastOrder:'2024-03-15'},
+  {id:'2',name:'Maria Santos',phone:'(27)98765-4321',email:'maria@email.com',orders:5,total:375,lastOrder:'2024-03-10'},
+  {id:'3',name:'Carlos Lima',phone:'(27)97654-3210',email:'carlos@email.com',orders:12,total:960,lastOrder:'2024-03-14'},
+  {id:'4',name:'Ana Costa',phone:'(27)96543-2109',email:'ana@email.com',orders:3,total:225,lastOrder:'2024-03-08'},
+  {id:'5',name:'Pedro Nunes',phone:'(27)95432-1098',email:'pedro@email.com',orders:7,total:560,lastOrder:'2024-03-13'},
 ]
+const EMPTY={name:'',phone:'',email:'',orders:0,total:0,lastOrder:new Date().toISOString().split('T')[0]}
+const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
 
-const EMPTY = { id: '', name: '', phone: '', address: '', total_orders: 0, total_spent: 0, last_order: null, notes: '' }
-
-export default function CustomersPage() {
-  const [customers, setCustomers] = useState(MOCK)
-  const [search, setSearch] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState<Customer | null>(null)
-  const [form, setForm] = useState(EMPTY)
-
-  const filtered = customers.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search))
-  const openCreate = () => { setEditing(null); setForm(EMPTY); setShowModal(true) }
-  const openEdit = (c: Customer) => { setEditing(c); setForm(c); setShowModal(true) }
-  const save = () => {
-    if (!form.name.trim()) { toast.error('Nome obrigatório'); return }
-    if (editing) { setCustomers(p => p.map(c => c.id === editing.id ? { ...c, ...form } : c)); toast.success('Cliente atualizado!') }
-    else { setCustomers(p => [...p, { ...form, id: crypto.randomUUID() }]); toast.success('Cliente cadastrado!', { icon: '👤' }) }
-    setShowModal(false)
+export default function CustomersPage(){
+  const[customers,setCustomers]=useState(INIT)
+  const[search,setSearch]=useState('')
+  const[modal,setModal]=useState(false)
+  const[edit,setEdit]=useState<Customer|null>(null)
+  const[form,setForm]=useState(EMPTY)
+  const filt=customers.filter(c=>c.name.toLowerCase().includes(search.toLowerCase())||c.phone.includes(search)||c.email.includes(search))
+  const openC=()=>{setEdit(null);setForm(EMPTY);setModal(true)}
+  const openE=(c:Customer)=>{setEdit(c);setForm({...c});setModal(true)}
+  const save=()=>{
+    if(!form.name.trim()){toast.error('Nome obrigatorio');return}
+    if(edit){setCustomers(p=>p.map(i=>i.id===edit.id?{...i,...form}:i));toast.success('Atualizado!')}
+    else{setCustomers(p=>[...p,{...form,id:crypto.randomUUID()}]);toast.success('Cadastrado!')}
+    setModal(false)
   }
-  const remove = (id: string) => { setCustomers(p => p.filter(c => c.id !== id)); toast.success('Cliente removido') }
-  const days = (d: string | null) => { if (!d) return '—'; const diff = Math.floor((Date.now() - new Date(d).getTime()) / 86400000); return diff === 0 ? 'Hoje' : diff === 1 ? 'Ontem' : `${diff} dias atrás` }
-  return (
-    <div className="h-full flex flex-col bg-kurmo-bg">
-      <div className="px-6 py-4 border-b border-kurmo-border bg-kurmo-surface flex items-center gap-4">
-        <h1 className="font-display font-bold text-xl text-kurmo-text">Clientes</h1>
-        <div className="relative flex-1 max-w-sm"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kurmo-muted" /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou telefone..." className="w-full bg-kurmo-card border border-kurmo-border rounded-xl pl-9 pr-4 py-2 text-sm text-kurmo-text placeholder:text-kurmo-muted focus:outline-none focus:border-kurmo-accent" /></div>
-        <div className="ml-auto flex gap-4 text-sm"><div className="bg-kurmo-card border border-kurmo-border rounded-xl px-4 py-2"><span className="text-kurmo-muted">Total: </span><span className="font-bold text-kurmo-text">{customers.length}</span></div><div className="bg-kurmo-card border border-kurmo-border rounded-xl px-4 py-2"><span className="text-kurmo-muted">Receita: </span><span className="font-bold font-mono text-green-400">{currency(customers.reduce((s, c) => s + c.total_spent, 0))}</span></div></div>
-        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-kurmo-accent hover:bg-violet-500 text-white text-sm font-medium transition-all"><Plus className="w-4 h-4" /> Novo cliente</button>
+  const del=(id:string)=>{setCustomers(p=>p.filter(i=>i.id!==id));toast.success('Removido')}
+  return(
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
+      <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:12}}>
+        <Users size={20} color="var(--neon)"/>
+        <h1 className="font-bangers neon-text-sm" style={{fontSize:26}}>CLIENTES</h1>
+        <div style={{position:'relative',flex:1,maxWidth:280}}>
+          <Search size={14} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar cliente..." style={{paddingLeft:32}}/>
+        </div>
+        <span style={{marginLeft:'auto',fontSize:12,color:'var(--muted)'}}>{filt.length} clientes</span>
+        <button onClick={openC} className="btn-neon-fill" style={{fontSize:13,padding:'8px 16px'}}>
+          <Plus size={14} style={{display:'inline',marginRight:6}}/>NOVO CLIENTE
+        </button>
       </div>
-      <div className="flex-1 overflow-y-auto p-6"><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filtered.map(c => (<div key={c.id} className="bg-kurmo-card border border-kurmo-border rounded-2xl p-5 flex flex-col gap-3 hover:border-kurmo-accent/40 transition-all"><div className="flex items-start justify-between"><div className="flex items-center gap-3"><div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-600 to-cyan-500 flex items-center justify-center text-white font-bold text-sm font-display">{c.name.charAt(0).toUpperCase()}</div><div><p className="font-semibold text-kurmo-text">{c.name}</p><p className="text-xs text-kurmo-muted flex items-center gap-1"><Phone className="w-3 h-3" />{c.phone}</p></div></div><div className="flex gap-1"><button onClick={() => openEdit(c)} className="w7 h-7 rounded-lg flex items-center justify-center text-kurmo-muted hover:text-kurmo-accentLight hover:bg-kurmo-accentGlow transition-all"><Edit2 className="w-3.5 h-3.5" /></button><button onClick={() => remove(c.id)} className="w-7 h-7 rounded-lg flex items-center justify-center text-kurmo-muted hover:text-red-400 hover:bg-red-500/10 transition-all"><Trash2 className="w5 h-5" /></button></div></div><div className="grid grid-cols-3 gap-2 border-t border-kurmo-border pt-3"><div className="text-center"><p className="text-lg font-bold font-mono text-kurmo-accentLight">{c.total_orders}</p><p className="text-[10px] text-kurmo-muted">Pedidos</p></div><div className="text-center"><p className="text-sm font-bold font-mono text-green-400">{currency(c.total_spent)}</p><p className="text-[10px] text-kurmo-muted">Total gasto</p></div><div className="text-center"><p className="text-xs font-medium text-kurmo-text">{days(c.last_order)}</p><p className="text-[10px] text-kurmo-muted">Último pedido</p></div></div>{c.notes && <p className="text-xs text-kurmo-muted italic border-t border-kurmo-border pt-2">💬 {c.notes}</p>}</div>))}
-        {0, filtered.length === 0 && <div className="col-span-full flex flex-col items-center justify-center py-16 text-kurmo-muted"><Search className="w-10 h-10 mb-3 opacity-40" /><p>Nenhum cliente encontrado</p></div>}
-      </div></div>
-      {showModal && (<div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"><div className="bg-kurmo-card border border-kurmo-border rounded-2xl p-6 w-full max-w-md mx-4"><div className="flex items-center justify-between mb-5"><h2 className="font-display font-bold text-lg text-kurmo-text">{editing ? 'Editar cliente' : 'Novo cliente'}</h2><button onClick={() => setShowModal(false)} className="text-kurmo-muted"><X className="w-5 h-5" /></button></div><div className="flex flex-col gap-3">{[['Nome','name','text','Nome completo'],['WhatsApp','phone','tel','(27) 99999-9999'],['Endereço','address','text','Rua, número - Bairro']].map(([label,key,type,placeholder]) => (<div key={key}><label className="text-xs text-kurmo-muted mb-1 block">{label}</label><input type={type} value={(form as any)[key]} placeholder={placeholder} onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))} className="w-full bg-kurmo-surface border border-kurmo-border rounded-xl px-3 py-2.5 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent" /></div>))}<div><label className="text-xs text-kurmo-muted mb-1 block">Observações</label><textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Ex: Prefere entrega à tarde..." className="w5 h-20 bg-kurmo-surface border border-kurmo-border rounded-xl px-3 py-2.5 text-sm text-kurmo-text focus:outline-none focus:border-kurmo-accent resize-none" /></div><div className="flex gap-3 mt-2"><button onClick={() => setShowModal(false)} className="flex-1 py-2.5 rounded-xl border border-kurmo-border text-kurmo-muted text-sm">Cancelar</button><button onClick={save} className="flex-1 py-2.5 rounded-xl bg-kurmo-accent hover:bg-violet-500 text-white font-medium text-sm transition-colors flex items-center justify-center gap-2"><Check className="w-4 h-4" /> Salvar</button></div></div></div></div>)}
+      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+        <div className="card" style={{overflow:'hidden'}}>
+          <table style={{width:'100%',borderCollapse:'collapse'}}>
+            <thead><tr style={{borderBottom:'1px solid var(--border)'}}>
+              {['CLIENTE','TELEFONE','EMAIL','PEDIDOS','TOTAL','ULTIMO PEDIDO',''].map(h=>(
+                <th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>{filt.map(c=>(
+              <tr key={c.id} style={{borderBottom:'1px solid rgba(26,46,26,0.5)'}}>
+                <td style={{padding:'10px 14px'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10}}>
+                    <div style={{width:36,height:36,borderRadius:'50%',background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Bangers,cursive',fontSize:16,color:'var(--neon)'}}>
+                      {c.name.charAt(0)}
+                    </div>
+                    <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{c.name}</p>
+                  </div>
+                </td>
+                <td style={{padding:'10px 14px',fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:6,paddingTop:22}}>
+                  <Phone size={12}/>{c.phone}
+                </td>
+                <td style={{padding:'10px 14px',fontSize:12,color:'var(--muted)'}}>{c.email}</td>
+                <td style={{padding:'10px 14px',fontSize:13,fontWeight:600,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{c.orders}</td>
+                <td style={{padding:'10px 14px',fontSize:13,fontWeight:600,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(c.total)}</td>
+                <td style={{padding:'10px 14px',fontSize:12,color:'var(--muted)'}}>{c.lastOrder}</td>
+                <td style={{padding:'10px 14px'}}>
+                  <div style={{display:'flex',gap:6}}>
+                    <button onClick={()=>openE(c)} style={{width:30,height:30,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Edit2 size={13}/></button>
+                    <button onClick={()=>del(c.id)} style={{width:30,height:30,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={13}/></button>
+                  </div>
+                </td>
+              </tr>
+            ))}</tbody>
+          </table>
+          {filt.length===0&&<div style={{padding:48,display:'flex',flexDirection:'column',alignItems:'center',color:'var(--muted)'}}><Users size={32} style={{marginBottom:8,opacity:0.4}}/><p>Nenhum cliente encontrado</p></div>}
+        </div>
+      </div>
+      {modal&&(
+        <div className="animate-fade-in" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}>
+          <div className="animate-slide-in card" style={{width:'100%',maxWidth:460,padding:28,margin:16,border:'1px solid var(--border-bright)',boxShadow:'0 0 40px rgba(0,255,65,0.15)'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
+              <h2 className="font-bangers neon-text-sm" style={{fontSize:24}}>{edit?'EDITAR':'NOVO'} CLIENTE</h2>
+              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={20}/></button>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:12}}>
+              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>NOME</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Nome completo"/></div>
+              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>TELEFONE</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="(27) 99999-9999"/></div>
+              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>EMAIL</label><input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="email@exemplo.com"/></div>
+            </div>
+            <div style={{display:'flex',gap:10,marginTop:20}}>
+              <button onClick={()=>setModal(false)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15}}>CANCELAR</button>
+              <button onClick={save} className="btn-neon-fill" style={{flex:2,fontSize:15}}><Check size={14} style={{display:'inline',marginRight:6}}/>SALVAR</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
