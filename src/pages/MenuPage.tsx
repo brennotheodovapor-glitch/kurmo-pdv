@@ -61,7 +61,7 @@ export default function MenuPage() {
         </div>
         <div style={{ flex:1 }}>
           <h2 className="font-bangers" style={{ fontSize:20, color:'var(--white-dim)', marginBottom:16 }}>
-            PRODUTOS NO CARDAPIO — {PRODUCTS.filter(p=>p.active).length} itens
+            PRODUTOS NO CARDAPIO Ã¢â¬â {PRODUCTS.filter(p=>p.active).length} itens
           </h2>
           {cats.map(cat => (
             <div key={cat} style={{ marginBottom:20 }}>
@@ -75,7 +75,7 @@ export default function MenuPage() {
                   <div key={p.id} className="card card-hover" style={{ padding:14 }}>
                     {p.image_url ? (<img src={p.image_url} alt={p.name} style={{ width:'100%', height:90, objectFit:'cover', borderRadius:8, marginBottom:10 }}/>) : (
                       <div style={{ width:'100%', height:90, borderRadius:8, background:'var(--surface)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:32, marginBottom:10 }}>
-                        {'category' === 'Descartaveis' ? '⚡' : '\uD83D\uDCA8'}
+                        {cat === 'Descartaveis' ? 'Ã¢Å¡Â¡' : '\uD83D\uDCA8'}
                       </div>
                     )}
                     <p style={{ fontWeight:600, fontSize:13, color:'var(--white)', marginBottom:4 }}>{p.name}</p>
@@ -94,7 +94,7 @@ export default function MenuPage() {
           <div style={{ width:390, height:700, background:'#111', borderRadius:40, overflow:'hidden', border:'8px solid #333', boxShadow:'0 0 60px rgba(0,255,65,0.2)' }}>
             <div style={{ height:'100%', overflowY:'auto', background:'#0a0f0a', padding:20 }}>
               <div style={{ textAlign:'center', marginBottom:20 }}>
-                <h1 style={{ fontFamily:'Bangers,cursive', fontSize:32, color:'|#00ff41', textShadow:'0 0 15px #00ff41' }}>KURMM��APEQ�</h1>
+                <h1 style={{ fontFamily:'Bangers,cursive', fontSize:32, color:'|#00ff41', textShadow:'0 0 15px #00ff41' }}>KURMMââAPEQâ</h1>
                 <p style={{ color:'#4d7a4d', fontSize:13 }}>Cardapio Digital</p>
               </div>
               {cats.map(cat=>(
