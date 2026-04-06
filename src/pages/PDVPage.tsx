@@ -1,391 +1,169 @@
-import { useState, useCallback, useEffect } from 'react'
-import { Search, X, Plus, Minus, Trash2, ShoppingBag, Tag, User, MessageSquare, Percent, DollarSign, CreditCard, Banknote, QrCode, Zap } from 'lucide-react'
-import { useCartStore } from '@/store/cartStore'
-import { currency } from '@/lib/format'
-import { supabase, type Product, type Category } from '@/lib/supabase'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useEffect, useRef } from 'react'
+import { Plus, Minus, Trash2, ShoppingCart, X, Check, Search, AlertTriangle } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-const MOCK_CATEGORIES: Category[] = [
-  { id: '1', name: 'Vapes', color: '#7c3aed', icon: '💨' },
-  { id: '2', name: 'Pods', color: '#06b6d4', icon: '🔋' },
-  { id: '3', name: 'Liquids', color: '#10b981', icon: '💧' },
-  { id: '4', name: 'Acessórios', color: '#f59e0b', icon: '🔧' },
-  { id: '5', name: 'Descartáveis', color: '#ef4444', icon: '⚡' },
-]
-
-const MOCK_PRODUCTS: Product[] = [
-  { id: '1', name: 'Lost Mary 600 Puffs', price: 45, cost_price: 20, stock: 30, category_id: '5', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '2', name: 'Elfbar BC5000', price: 120, cost_price: 60, stock: 15, category_id: '5', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '3', name: 'Uwell Caliburn G3', price: 180, cost_price: 90, stock: 8, category_id: '1', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '4', name: 'Vaporesso XROS 4', price: 220, cost_price: 110, stock: 5, category_id: '1', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '5', name: 'Salt Nic Mango 30ml', price: 35, cost_price: 15, stock: 50, category_id: '3', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '6', name: 'Freebase Blueberry 60ml', price: 55, cost_price: 25, stock: 20, category_id: '3', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '7', name: 'Coil Uwell UN2', price: 25, cost_price: 12, stock: 40, category_id: '4', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '8', name: 'Pod Caliburn A3', price: 95, cost_price: 45, stock: 12, category_id: '2', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '9', name: 'Smok Nord 5', price: 199, cost_price: 95, stock: 7, category_id: '1', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '10', name: 'Ice Blast Menthol 35ml', price: 38, cost_price: 18, stock: 35, category_id: '3', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '11', name: 'Geek Vape Aegis Hero 2', price: 250, cost_price: 130, stock: 4, category_id: '1', image_url: null, barcode: null, active: true, created_at: '' },
-  { id: '12', name: 'Elf Bar Pi 9000', price: 89, cost_price: 40, stock: 22, category_id: '5', image_url: null, barcode: null, active: true, created_at: '' },
-]
-
-const PAYMENT_METHODS = [
-  { id: 'pix', label: 'PIX', icon: QrCode, color: '#10b981' },
-  { id: 'dinheiro', label: 'Dinheiro', icon: Banknote, color: '#f59e0b' },
-  { id: 'cartao_debito', label: 'Débito', icon: CreditCard, color: '#06b6d4' },
-  { id: 'cartao_credito', label: 'Crédito', icon: CreditCard, color: '#7c3aed' },
-]
-
-function ProductCard({ product, onAdd }: { product: Product; onAdd: (p: Product) => void }) {
-  const colors = ['#7c3aed', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#ec4899']
-  const color = colors[parseInt(product.id) % colors.length]
-  const emoji = ['💨', '🔋', '💧', '⚡', '🌿', '❄️', '🍭', '🔥'][parseInt(product.id) % 8]
-
-  return (
-    <button
-      onClick={() => onAdd(product)}
-      className="group relative bg-kurmo-card border border-kurmo-border rounded-2xl p-4 text-left hover:border-opacity-60 transition-all duration-200 hover:scale-[1.02] hover:shadow-lg active:scale-[0.98] flex flex-col gap-2"
-      style={{ '--hover-color': color } as React.CSSProperties}
-    >
-      {/* Stock badge */}
-      {product.stock <= 5 && (
-        <div className="absolute top-2 right-2 text-[10px] bg-red-500/20 text-red-400 border border-red-500/30 rounded-full px-2 py-0.5 font-medium">
-          {product.stock === 0 ? 'Sem estoque' : `${product.stock} restantes`}
-        </div>
-      )}
-
-      {/* Product image / emoji */}
-      <div
-        className="w-full h-16 rounded-xl flex items-center justify-center text-2xl mb-1 transition-all"
-        style={{ background: `${color}15`, border: `1px solid ${color}30` }}
-      >
-        {emoji}
-      </div>
-
-      <div className="text-xs font-medium text-kurmo-text leading-tight">{product.name}</div>
-      <div className="text-kurmo-accentLight font-bold font-mono text-sm">{currency(product.price)}</div>
-
-      {/* Add overlay */}
-      <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity">
-        <div className="w-10 h-10 rounded-full bg-kurmo-accent flex items-center justify-center">
-          <Plus className="w-5 h-5 text-white" />
-        </div>
-      </div>
-    </button>
-  )
-}
+type Product = {id:string;name:string;price:number;stock:number;image_url?:string}
+type CartItem = Product & {qty:number}
+type Seller = {id:string;name:string}
+type Payment = {method:string;amount:number}
+const METHODS = [{key:'pix',label:'PIX',icon:'📱'},{key:'dinheiro',label:'Dinheiro',icon:'💵'},{key:'debito',label:'Débito',icon:'💳'},{key:'credito',label:'Crédito',icon:'💳 '}]
+const fmt = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
 
 export default function PDVPage() {
-  const [search, setSearch] = useState('')
-  const [activeCategory, setActiveCategory] = useState<string | null>(null)
-  const [showDiscount, setShowDiscount] = useState(false)
-  const [discountInput, setDiscountInput] = useState('')
-  const [showCustomer, setShowCustomer] = useState(false)
-  const [nameInput, setNameInput] = useState('')
-  const [phoneInput, setPhoneInput] = useState('')
-  const [showNotes, setShowNotes] = useState(false)
+  const [products,setProducts] = useState<Product[]>([])
+  const [sellers,setSellers] = useState<Seller[]>([])
+  const [cart,setCart] = useState<CartItem[]>([])
+  const [search,setSearch] = useState('')
+  const [sellerId,setSellerId] = useState('')
+  const [customerName,setCustomerName] = useState('')
+  const [discount,setDiscount] = useState(0)
+  const [payments,setPayments] = useState<Payment[]>([{method:'pix',amount:0}])
+  const [processing,setProcessing] = useState(false)
+  const searchRef = useRef<HTMLInputElement>(null)
 
-  const cart = useCartStore()
+  useEffect(()=>{loadData()},[])
 
-  const products = MOCK_PRODUCTS.filter(p => {
-    if (!p.active) return false
-    if (activeCategory && p.category_id !== activeCategory) return false
-    if (search) return p.name.toLowerCase().includes(search.toLowerCase())
-    return true
-  })
-
-  const handleAddProduct = useCallback((p: Product) => {
-    cart.addItem({ id: p.id, name: p.name, price: p.price })
-    toast.success(`${p.name} adicionado`, { duration: 1000, icon: '🛒' })
-  }, [cart])
-
-  const handleFinalize = async () => {
-    if (cart.items.length === 0) { toast.error('Carrinho vazio'); return }
-    if (!cart.paymentMethod) { toast.error('Selecione forma de pagamento'); return }
-
-    // In production, save to Supabase here
-    toast.success('Venda finalizada com sucesso!', { icon: '🎉', duration: 3000 })
-    cart.clearCart()
+  async function loadData() {
+    const [p,s] = await Promise.all([
+      supabase.from('products').select('*').eq('active',true).order('name'),
+      supabase.from('sellers').select('id,name').eq('active',true).order('name')
+    ])
+    setProducts(p.data||[])
+    setSellers(s.data||[])
+    if((s.data||[]).length===1) setSellerId(s.data![0].id)
   }
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'F2') document.getElementById('pdv-search')?.focus()
-      if (e.key === 'F10') handleFinalize()
-      if (e.key === 'Escape') setSearch('')
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [cart])
+  const filtered = products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()))
+  const subtotal = cart.reduce((s,i)=>s+i.price*i.qty,0)
+  const total = Math.max(0,subtotal-discount)
+  const paidTotal = payments.reduce((s,p)=>s+p.amount,0)
+  const remaining = total - paidTotal
+  const change = paidTotal > total ? paidTotal-total : 0
 
-  const subtotal = cart.getSubtotal()
-  const total = cart.getTotal()
-  const discount = subtotal - total
+  const addToCart = (p:Product) => {
+    setCart(c=>{
+      const ex = c.find(i=>i.id===p.id)
+      if(ex) return c.map(i=>i.id===p.id?{...i,qty:i.qty+1}:i)
+      return [...c,{...p,qty:1}]
+    })
+    toast.success(p.name, {duration:800, icon:'🛒'})
+  }
+  const updateQty = (id:string,delta:number) => setCart(c=>c.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+delta)}:i).filter(i=>i.qty>0))
+  const setPayField = (i:number,field:string,val:any) => setPayments(p=>p.map((pm,j)=>j===i?{...pm,[field]:val}:pm))
+  const fillRemaining = (i:number) => {
+    const other = payments.reduce((s,p,j)=>j!==i?s+p.amount:s,0)
+    setPayments(p=>p.map((pm,j)=>j===i?{...pm,amount:Math.max(0,+(total-other).toFixed(2))}:pm))
+  }
+
+  async function finishSale() {
+    if(cart.length===0){toast.error('Carrinho vazio');return}
+    if(!sellerId && sellers.length>0){toast.error('Selecione o vendedor');return}
+    if(remaining>0.01){toast.error('Pagamento insuficiente. Faltam '+fmt(remaining));return}
+    setProcessing(true)
+    try {
+      const {data:order,error:oErr} = await supabase.from('orders').insert({
+        seller_id:sellerId||null, customer_name:customerName||null,
+        type:'pdv', status:'completed', subtotal, discount, total
+      }).select().single()
+      if(oErr) throw oErr
+      await supabase.from('order_items').insert(cart.map(i=>({order_id:order.id,product_id:i.id,product_name:i.name,quantity:i.qty,unit_price:i.price,total_price:+(i.price*i.qty).toFixed(2)})))
+      await supabase.from('order_payments').insert(payments.filter(p=>p.amount>0).map(p=>({order_id:order.id,method:p.method,amount:p.amount})))
+      for(const item of cart) await supabase.from('products').update({stock:Math.max(0,(item.stock||0)-item.qty)}).eq('id',item.id)
+      toast.success('Venda #'+order.order_number+' finalizada! '+fmt(total))
+      if(change>0.01) toast('Troco: '+fmt(change), {icon:'💰', duration:4000})
+      setCart([]); setDiscount(0); setCustomerName(''); setPayments([{method:'pix',amount:0}])
+      loadData(); searchRef.current?.focus()
+    } catch(e:any) { toast.error('Erro: '+e.message) }
+    finally { setProcessing(false) }
+  }
 
   return (
-    <div className="flex h-full bg-kurmo-bg">
-      {/* Left: Products */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden border-r border-kurmo-border">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-kurmo-border bg-kurmo-surface">
-          <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-kurmo-muted" />
-              <input
-                id="pdv-search"
-                type="text"
-                placeholder="Buscar produto... (F2)"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full bg-kurmo-card border border-kurmo-border rounded-xl pl-10 pr-4 py-2.5 text-sm text-kurmo-text placeholder:text-kurmo-muted focus:outline-none focus:border-kurmo-accent transition-colors"
-              />
-              {search && (
-                <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <X className="w-4 h-4 text-kurmo-muted hover:text-kurmo-text" />
-                </button>
-              )}
-            </div>
+    <div style={{height:'100%',display:'flex',background:'var(--bg)',overflow:'hidden'}}>
+      <div style={{flex:1,display:'flex',flexDirection:'column',borderRight:'1px solid var(--border)',minWidth:0}}>
+        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
+          <ShoppingCart size={18} color="var(--neon)"/>
+          <h1 className="font-bangers neon-text-sm" style={{fontSize:22}}>PDV</h1>
+          <div style={{position:'relative',flex:1,minWidth:200}}>
+            <Search size={14} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
+            <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." style={{paddingLeft:32}}/>
           </div>
-
-          {/* Categories */}
-          <div className="flex gap-2 mt-3 overflow-x-auto pb-1">
-            <button
-              onClick={() => setActiveCategory(null)}
-              className={`flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${!activeCategory ? 'bg-kurmo-accent text-white' : 'bg-kurmo-card text-kurmo-muted hover:text-kurmo-text border border-kurmo-border'}`}
-            >
-              Todos
-            </button>
-            {MOCK_CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id === activeCategory ? null : cat.id)}
-                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${cat.id === activeCategory ? 'text-white border' : 'bg-kurmo-card text-kurmo-muted hover:text-kurmo-text border border-kurmo-border'}`}
-                style={cat.id === activeCategory ? { background: cat.color, borderColor: cat.color } : {}}
-              >
-                <span>{cat.icon}</span>{cat.name}
-              </button>
-            ))}
-          </div>
+          {sellers.length>0 && (
+            <select value={sellerId} onChange={e=>setSellerId(e.target.value)} style={{maxWidth:180,fontSize:13,border:!sellerId?'1px solid #ffaa00':'1px solid var(--border)'}}>
+              <option value="">Selecionar vendedor...</option>
+              {sellers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
+            </select>
+          )}
         </div>
-
-        {/* Products Grid */}
-        <div className="flex-1 overflow-y-auto p-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {products.map(p => (
-              <ProductCard key={p.id} product={p} onAdd={handleAddProduct} />
-            ))}
-            {products.length === 0 && (
-              <div className="col-span-full flex flex-col items-center justify-center py-16 text-kurmo-muted">
-                <Search className="w-10 h-10 mb-3 opacity-40" />
-                <p>Nenhum produto encontrado</p>
-              </div>
-            )}
-          </div>
+        <div style={{flex:1,overflowY:'auto',padding:12,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:8,alignContent:'start'}}>
+          {filtered.map(p=>(
+            <button key={p.id} onClick={()=>addToCart(p)} disabled={p.stock===0} style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:10,cursor:p.stock===0?'not-allowed':'pointer',textAlign:'left',transition:'all 0.15s',opacity:p.stock===0?0.4:1}} className="card-hover">
+              {p.image_url ? <img src={p.image_url} alt={p.name} style={{width:'100%',height:72,objectFit:'cover',borderRadius:8,marginBottom:6}}/> : <div style={{width:'100%',height:72,background:'var(--surface)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,marginBottom:6}}>📦</div>}
+              <p style={{fontSize:11,fontWeight:600,color:'var(--white)',lineHeight:1.3,marginBottom:3}}>{p.name}</p>
+              <p style={{fontSize:13,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(p.price)}</p>
+              <p style={{fontSize:10,color:p.stock<=5&&p.stock>0?'#ffaa00':p.stock===0?'#ff3333':'var(--muted)'}}>{p.stock===0?'SEM ESTOQUE':'Estoque: '+p.stock}</p>
+            </button>
+          ))}
+          {filtered.length===0 && <div style={{gridColumn:'1/-1',textAlign:'center',padding:48,color:'var(--muted)'}}>Nenhum produto encontrado</div>}
         </div>
       </div>
 
-      {/* Right: Cart */}
-      <div className="w-[340px] flex flex-col h-full bg-kurmo-surface">
-        {/* Cart Header */}
-        <div className="px-5 py-4 border-b border-kurmo-border flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-kurmo-accentLight" />
-            <span className="font-semibold text-kurmo-text font-display">Carrinho</span>
-            {cart.items.length > 0 && (
-              <span className="w-5 h-5 bg-kurmo-accent rounded-full text-white text-xs flex items-center justify-center font-bold">
-                {cart.items.length}
-              </span>
-            )}
-          </div>
-          {cart.items.length > 0 && (
-            <button onClick={cart.clearCart} className="text-kurmo-muted hover:text-red-400 transition-colors">
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
+      <div style={{width:340,display:'flex',flexDirection:'column',background:'var(--surface)',flexShrink:0}}>
+        <div style={{padding:'10px 14px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+          <span className="font-bangers" style={{fontSize:18,color:'var(--neon)'}}>CARRINHO {cart.length>0?'('+cart.reduce((s,i)=>s+i.qty,0)+')':''}</span>
+          {cart.length>0 && <button onClick={()=>setCart([])} style={{background:'none',border:'none',color:'#ff3333',cursor:'pointer',fontSize:11,fontFamily:'Bangers,cursive'}}>LIMPAR</button>}
         </div>
-
-        {/* Customer */}
-        <div className="px-5 py-3 border-b border-kurmo-border">
-          {cart.customerName ? (
-            <div className="flex items-center gap-2 bg-kurmo-accentGlow border border-kurmo-accent/30 rounded-xl px-3 py-2">
-              <User className="w-4 h-4 text-kurmo-accentLight" />
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-kurmo-text truncate">{cart.customerName}</p>
-                {cart.customerPhone && <p className="text-xs text-kurmo-muted">{cart.customerPhone}</p>}
+        <div style={{flex:1,overflowY:'auto',padding:'6px 12px'}}>
+          {cart.length===0 ? <div style={{textAlign:'center',padding:48,color:'var(--muted)'}}><ShoppingCart size={36} style={{marginBottom:8,opacity:0.3}}/><p style={{fontSize:12}}>Clique nos produtos para adicionar</p></div>
+          : cart.map(item=>(
+            <div key={item.id} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 0',borderBottom:'1px solid rgba(26,46,26,0.5)'}}>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:12,fontWeight:600,color:'var(--white)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.name}</p>
+                <p style={{fontSize:11,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(item.price)} × {item.qty} = {fmt(item.price*item.qty)}</p>
               </div>
-              <button onClick={() => { cart.setCustomer('', ''); setNameInput(''); setPhoneInput('') }}>
-                <X className="w-3 h-3 text-kurmo-muted" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowCustomer(!showCustomer)}
-              className="w-full flex items-center gap-2 text-kurmo-muted hover:text-kurmo-accentLight transition-colors text-sm"
-            >
-              <User className="w-4 h-4" />
-              <span>+ Adicionar cliente</span>
-            </button>
-          )}
-          {showCustomer && !cart.customerName && (
-            <div className="mt-2 flex flex-col gap-2 animate-slide-up">
-              <input
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                placeholder="Nome do cliente"
-                className="bg-kurmo-card border border-kurmo-border rounded-xl px-3 py-2 text-sm text-kurmo-text placeholder:text-kurmo-muted focus:outline-none focus:border-kurmo-accent w-full"
-              />
-              <input
-                value={phoneInput}
-                onChange={e => setPhoneInput(e.target.value)}
-                placeholder="WhatsApp (opcional)"
-                className="bg-kurmo-card border border-kurmo-border rounded-xl px-3 py-2 text-sm text-kurmo-text placeholder:text-kurmo-muted focus:outline-none focus:border-kurmo-accent w-full"
-              />
-              <button
-                onClick={() => { cart.setCustomer(nameInput, phoneInput); setShowCustomer(false) }}
-                className="bg-kurmo-accent hover:bg-violet-500 text-white rounded-xl py-2 text-sm font-medium transition-colors"
-              >
-                Confirmar
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Cart Items */}
-        <div className="flex-1 overflow-y-auto px-5 py-3 flex flex-col gap-2">
-          {cart.items.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center py-10 text-kurmo-muted">
-              <ShoppingBag className="w-10 h-10 mb-3 opacity-30" />
-              <p className="text-sm">Carrinho vazio</p>
-              <p className="text-xs mt-1 opacity-60">Clique nos produtos para adicionar</p>
-            </div>
-          ) : (
-            cart.items.map(item => (
-              <div key={item.id} className="flex items-center gap-3 bg-kurmo-card border border-kurmo-border rounded-xl p-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-kurmo-text truncate">{item.product_name}</p>
-                  <p className="text-xs text-kurmo-accentLight font-mono">{currency(item.price)}</p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => cart.updateQuantity(item.product_id, item.quantity - 1)}
-                    className="w-6 h-6 rounded-lg bg-kurmo-surface border border-kurmo-border flex items-center justify-center hover:border-red-500/50 hover:text-red-400 transition-all"
-                  >
-                    <Minus className="w-3 h-3" />
-                  </button>
-                  <span className="w-7 text-center text-sm font-bold font-mono text-kurmo-text">{item.quantity}</span>
-                  <button
-                    onClick={() => cart.updateQuantity(item.product_id, item.quantity + 1)}
-                    className="w-6 h-6 rounded-lg bg-kurmo-surface border border-kurmo-border flex items-center justify-center hover:border-green-500/50 hover:text-green-400 transition-all"
-                  >
-                    <Plus className="w-3 h-3" />
-                  </button>
-                </div>
-                <span className="text-xs font-bold font-mono text-kurmo-text w-16 text-right">{currency(item.total)}</span>
+              <div style={{display:'flex',alignItems:'center',gap:3}}>
+                <button onClick={()=>updateQty(item.id,-1)} style={{width:22,height:22,borderRadius:5,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Minus size={11}/></button>
+                <span style={{fontSize:13,fontWeight:700,color:'var(--white)',width:22,textAlign:'center'}}>{item.qty}</span>
+                <button onClick={()=>updateQty(item.id,1)} style={{width:22,height:22,borderRadius:5,border:'1px solid var(--neon)',background:'var(--neon-glow)',color:'var(--neon)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Plus size={11}/></button>
+                <button onClick={()=>setCart(c=>c.filter(i=>i.id!==item.id))} style={{width:22,height:22,borderRadius:5,border:'none',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',marginLeft:2}}><X size={11}/></button>
               </div>
-            ))
-          )}
+            </div>
+          ))}
         </div>
 
-        {/* Actions */}
-        {cart.items.length > 0 && (
-          <div className="px-5 py-3 border-t border-kurmo-border flex gap-2">
-            <button
-              onClick={() => setShowDiscount(!showDiscount)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-kurmo-card border border-kurmo-border text-kurmo-muted hover:text-kurmo-orange hover:border-orange-500/30 transition-all text-xs"
-            >
-              <Tag className="w-3.5 h-3.5" />
-              Desconto
-            </button>
-            <button
-              onClick={() => setShowNotes(!showNotes)}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-kurmo-card border border-kurmo-border text-kurmo-muted hover:text-kurmo-cyan hover:border-cyan-500/30 transition-all text-xs"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              Nota
-            </button>
+        <div style={{padding:'10px 14px',borderTop:'1px solid var(--border)'}}>
+          <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder="Nome do cliente (opcional)" style={{marginBottom:8,fontSize:12}}/>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--muted)',marginBottom:3}}><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+            <span style={{fontSize:12,color:'var(--muted)'}}>Desconto R$</span>
+            <input type="number" min="0" value={discount||''} onChange={e=>setDiscount(parseFloat(e.target.value)||0)} style={{width:80,textAlign:'right',fontSize:12,padding:'4px 6px'}}/>
           </div>
-        )}
-
-        {showDiscount && (
-          <div className="px-5 pb-3 flex gap-2 animate-slide-up">
-            <input
-              value={discountInput}
-              onChange={e => setDiscountInput(e.target.value)}
-              placeholder="Valor"
-              type="number"
-              className="flex-1 bg-kurmo-card border border-kurmo-border rounded-xl px-3 py-2 text-sm text-kurmo-text placeholder:text-kurmo-muted focus:outline-none focus:border-orange-500"
-            />
-            <button
-              onClick={() => { cart.setDiscount(parseFloat(discountInput) || 0, 'fixed'); setShowDiscount(false) }}
-              className="px-3 py-2 rounded-xl bg-orange-500/20 border border-orange-500/30 text-orange-400 text-xs font-medium hover:bg-orange-500/30 transition-all"
-            >
-              <DollarSign className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => { cart.setDiscount(parseFloat(discountInput) || 0, 'percent'); setShowDiscount(false) }}
-              className="px-3 py-2 rounded-xl bg-orange-500/20 border border-orange-500/30 text-orange-400 text-xs font-medium hover:bg-orange-500/30 transition-all"
-            >
-              <Percent className="w-4 h-4" />
-            </button>
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:17,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',padding:'6px 0',borderTop:'1px solid var(--border)',marginBottom:8}}>
+            <span>TOTAL</span><span>{fmt(total)}</span>
           </div>
-        )}
 
-        {/* Payment */}
-        <div className="px-5 py-3 border-t border-kurmo-border">
-          <p className="text-xs text-kurmo-muted mb-2 font-medium">Forma de pagamento</p>
-          <div className="grid grid-cols-2 gap-2">
-            {PAYMENT_METHODS.map(pm => (
-              <button
-                key={pm.id}
-                onClick={() => cart.setPayment(pm.id)}
-                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border text-xs font-medium transition-all ${
-                  cart.paymentMethod === pm.id
-                    ? 'text-white border-transparent'
-                    : 'bg-kurmo-card border-kurmo-border text-kurmo-muted hover:text-kurmo-text'
-                }`}
-                style={cart.paymentMethod === pm.id ? { background: pm.color + 'cc', borderColor: pm.color } : {}}
-              >
-                <pm.icon className="w-3.5 h-3.5" />
-                {pm.label}
-              </button>
+          <div style={{marginBottom:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:5}}>
+              <span style={{fontSize:10,color:'var(--muted)',letterSpacing:1}}>FORMA DE PAGAMENTO</span>
+              <button onClick={()=>setPayments(p=>[...p,{method:'dinheiro',amount:0}])} style={{fontSize:10,color:'var(--neon)',background:'none',border:'none',cursor:'pointer'}}>+ Adicionar</button>
+            </div>
+            {payments.map((pm,i)=>(
+              <div key={i} style={{display:'flex',gap:5,marginBottom:5,alignItems:'center'}}>
+                <select value={pm.method} onChange={e=>setPayField(i,'method',e.target.value)} style={{flex:1,fontSize:11,padding:'5px 6px'}}>
+                  {METHODS.map(m=><option key={m.key} value={m.key}>{m.icon} {m.label}</option>)}
+                </select>
+                <input type="number" min="0" step="0.01" value={pm.amount||''} onChange={e=>setPayField(i,'amount',parseFloat(e.target.value)||0)} placeholder="0,00" style={{width:80,fontSize:11,textAlign:'right',padding:'5px 6px'}}/>
+                <button onClick={()=>fillRemaining(i)} title="Preencher restante" style={{fontSize:9,color:'var(--neon)',background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',borderRadius:5,padding:'4px 5px',cursor:'pointer',whiteSpace:'nowrap'}}>Resto</button>
+                {payments.length>1 && <button onClick={()=>setPayments(p=>p.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#ff3333',cursor:'pointer',padding:2}}><X size={12}/></button>}
+              </div>
             ))}
+            {remaining>0.01 && <p style={{fontSize:10,color:'#ff3333',display:'flex',alignItems:'center',gap:3}}><AlertTriangle size={10}/>Faltam {fmt(remaining)}</p>}
+            {change>0.01 && <p style={{fontSize:11,color:'#10b981',fontWeight:700}}>💰 Troco: {fmt(change)}</p>}
           </div>
-        </div>
 
-        {/* Totals */}
-        <div className="px-5 py-3 border-t border-kurmo-border space-y-1">
-          <div className="flex justify-between text-xs text-kurmo-muted">
-            <span>Subtotal</span>
-            <span className="font-mono">{currency(subtotal)}</span>
-          </div>
-          {discount > 0 && (
-            <div className="flex justify-between text-xs text-orange-400">
-              <span>Desconto</span>
-              <span className="font-mono">-{currency(discount)}</span>
-            </div>
-          )}
-          <div className="flex justify-between text-base font-bold text-kurmo-text pt-1 border-t border-kurmo-border">
-            <span className="font-display">Total</span>
-            <span className="font-mono text-gradient">{currency(total)}</span>
-          </div>
-        </div>
-
-        {/* Finalize button */}
-        <div className="px-5 pb-5 pt-2">
-          <button
-            onClick={handleFinalize}
-            disabled={cart.items.length === 0}
-            className="w-full py-3.5 rounded-2xl font-bold text-white transition-all duration-200 text-sm font-display disabled:opacity-40 disabled:cursor-not-allowed relative overflow-hidden group"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #06b6d4)' }}
-          >
-            <div className="absolute inset-0 bg-white opacity-0 group-hover:opacity-10 transition-opacity" />
-            <div className="relative flex items-center justify-center gap-2">
-              <Zap className="w-4 h-4" />
-              Finalizar Venda (F10)
-            </div>
+          <button onClick={finishSale} className="btn-neon-fill" disabled={processing||cart.length===0||remaining>0.01} style={{width:'100%',fontSize:14,padding:'11px',opacity:cart.length===0||remaining>0.01?0.5:1}}>
+            {processing?'Processando...':<><Check size={14} style={{display:'inline',marginRight:6}}/>FINALIZAR VENDA</>}
           </button>
-          <p className="text-center text-xs text-kurmo-muted mt-2">F2 = Buscar • Esc = Limpar</p>
         </div>
       </div>
     </div>
