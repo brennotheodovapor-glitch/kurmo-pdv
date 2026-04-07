@@ -1,8 +1,8 @@
-import{useState,useEffect}from 'react'
+import{useState}from 'react'
 import{Outlet,NavLink,useNavigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
 import Logo from './Logo'
-import{ShoppingCart,Package,Tag,Users,BarChart3,Settings,History,Truck,QrCode,LayoutDashboard,LogOut,Menu,X,Percent,UserCheck}from 'lucide-react'
+import{ShoppingCart,Package,Tag,Users,BarChart3,Settings,History,Truck,QrCode,LayoutDashboard,LogOut,ChevronLeft,ChevronRight,Percent,UserCheck,Menu,X}from 'lucide-react'
 
 const ADMIN_NAV=[
   {to:'/pdv',icon:ShoppingCart,label:'PDV'},
@@ -14,6 +14,7 @@ const ADMIN_NAV=[
   {to:'/comissoes',icon:Percent,label:'Comissoes'},
   {to:'/produtos',icon:Package,label:'Produtos'},
   {to:'/categorias',icon:Tag,label:'Categorias'},
+  {to:'/cardapio',icon:QrCode,label:'Cardapio'},
   {to:'/clientes',icon:Users,label:'Clientes'},
   {to:'/configuracoes',icon:Settings,label:'Config'},
 ]
@@ -23,68 +24,68 @@ const SELLER_NAV=[
   {to:'/historico',icon:History,label:'Historico'},
 ]
 
-export default function Layout({session,userRole}:{session:any;userRole:string}){
-  const[open,setOpen]=useState(false)
+export default function Layout({session,profile}:{session:any;profile:any}){
+  const[collapsed,setCollapsed]=useState(false)
+  const[mobileOpen,setMobileOpen]=useState(false)
   const navigate=useNavigate()
-  const NAV=userRole==='admin'?ADMIN_NAV:SELLER_NAV
-
+  const isAdmin=profile?.role==='admin'
+  const NAV=isAdmin?ADMIN_NAV:SELLER_NAV
   async function logout(){await supabase.auth.signOut();navigate('/')}
 
-  return(
-    <div style={{display:'flex',height:'100dvh',overflow:'hidden',background:'var(--bg)'}}>
-      {/* Mobile overlay */}
-      {open&&<div onClick={()=>setOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:40,display:'none'}} className="mobile-overlay"/>}
+  const SideContent=()=>(
+    <>
+      <div style={{padding:collapsed?'12px 10px':'12px 14px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10,justifyContent:collapsed?'center':'flex-start',flexShrink:0}}>
+        <Logo size={28}/>
+        {!collapsed&&<div><p style={{fontFamily:'Bangers,cursive',fontSize:14,color:'var(--neon)',letterSpacing:2,lineHeight:1}}>KURMO PDV</p><p style={{fontSize:9,color:'var(--muted)',letterSpacing:1}}>{isAdmin?'ADMINISTRADOR':'VENDEDOR'}</p></div>}
+      </div>
+      <nav style={{flex:1,overflowY:'auto',padding:'5px'}}>
+        {NAV.map(({to,icon:Icon,label})=>(<NavLink key={to} to={to} onClick={()=>setMobileOpen(false)} title={collapsed?label:undefined} style={({isActive})=>({display:'flex',alignItems:'center',gap:9,padding:'10px 9px',borderRadius:8,marginBottom:2,textDecoration:'none',color:isActive?'var(--neon)':'var(--muted)',background:isActive?'var(--neon-glow)':'transparent',border:isActive?'1px solid rgba(0,255,65,0.2)':'1px solid transparent',transition:'all 0.15s',justifyContent:collapsed?'center':'flex-start'})}>
+          <Icon size={18} style={{flexShrink:0}}/>{!collapsed&&<span style={{fontSize:13,fontFamily:'Bangers,cursive',letterSpacing:'0.03em',whiteSpace:'nowrap'}}>{label}</span>}
+        </NavLink>))}
+      </nav>
+      <div style={{padding:'5px',borderTop:'1px solid var(--border)',flexShrink:0}}>
+        {!collapsed&&<p style={{fontSize:9,color:'var(--muted)',padding:'0 8px 4px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.name||session?.user?.email}</p>}
+        <button onClick={logout} style={{display:'flex',alignItems:'center',gap:8,padding:'9px',borderRadius:8,background:'transparent',border:'1px solid transparent',color:'var(--muted)',cursor:'pointer',width:'100%',justifyContent:collapsed?'center':'flex-start'}}>
+          <LogOut size={16}/>{!collapsed&&<span style={{fontSize:12,fontFamily:'Bangers,cursive'}}>SAIR</span>}
+        </button>
+        <button onClick={()=>setCollapsed(!collapsed)} style={{display:'none',alignItems:'center',gap:8,padding:'7px 9px',borderRadius:8,background:'transparent',border:'1px solid var(--border)',color:'var(--muted)',cursor:'pointer',width:'100%',marginTop:3,justifyContent:collapsed?'center':'flex-start'}} className="desktop-only">
+          {collapsed?<ChevronRight size={15}/>:<><ChevronLeft size={15}/><span style={{fontSize:11,fontFamily:'Bangers,cursive'}}>RECOLHER</span></>}
+        </button>
+      </div>
+    </>
+  )
 
-      {/* Sidebar */}
-      <aside className="sidebar" style={{width:190,flexShrink:0,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',transition:'transform 0.25s',zIndex:50}}>
-        <div style={{padding:'12px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10}}>
-          <Logo size={28}/>
-          <div style={{flex:1,minWidth:0}}>
-            <p style={{fontFamily:'Bangers,cursive',fontSize:14,color:'var(--neon)',letterSpacing:2,lineHeight:1}}>KURMO PDV</p>
-            <p style={{fontSize:9,color:'var(--muted)',letterSpacing:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{userRole==='admin'?'ADMINISTRADOR':'VENDEDOR'}</p>
-          </div>
-          <button onClick={()=>setOpen(false)} className="mobile-close-btn" style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',display:'none'}}>
-            <X size={18}/>
-          </button>
-        </div>
-        <nav style={{flex:1,overflowY:'auto',padding:'6px'}}>
-          {NAV.map(({to,icon:Icon,label})=>(
-            <NavLink key={to} to={to} onClick={()=>setOpen(false)} style={({isActive})=>({display:'flex',alignItems:'center',gap:10,padding:'10px 10px',borderRadius:8,marginBottom:3,textDecoration:'none',color:isActive?'var(--neon)':'var(--muted)',background:isActive?'var(--neon-glow)':'transparent',border:isActive?'1px solid rgba(0,255,65,0.2)':'1px solid transparent',transition:'all 0.15s',fontSize:13,fontFamily:'Bangers,cursive',letterSpacing:'0.05em'})}>
-              <Icon size={17} style={{flexShrink:0}}/><span>{label}</span>
-            </NavLink>
-          ))}
-        </nav>
-        <div style={{padding:'6px',borderTop:'1px solid var(--border)'}}>
-          <p style={{fontSize:9,color:'var(--muted)',padding:'0 8px 5px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{session?.user?.email}</p>
-          <button onClick={logout} style={{display:'flex',alignItems:'center',gap:8,padding:'9px 10px',borderRadius:8,background:'transparent',border:'1px solid transparent',color:'var(--muted)',cursor:'pointer',width:'100%',fontSize:12,fontFamily:'Bangers,cursive'}}>
-            <LogOut size={15}/>SAIR
-          </button>
-        </div>
+  return(
+    <div style={{display:'flex',height:'100vh',overflow:'hidden',background:'var(--bg)'}}>
+      {/* Desktop sidebar */}
+      <aside className="sidebar-desktop" style={{width:collapsed?60:198,flexShrink:0,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',transition:'width 0.2s',overflow:'hidden'}}>
+        <SideContent/>
+        <button onClick={()=>setCollapsed(!collapsed)} style={{position:'absolute',display:'flex',alignItems:'center',gap:6,padding:'5px 8px',borderRadius:7,background:'var(--surface)',border:'1px solid var(--border)',color:'var(--muted)',cursor:'pointer',bottom:56,left:collapsed?8:150,transition:'left 0.2s',zIndex:10,fontSize:10}}>
+          {collapsed?<ChevronRight size={13}/>:<><ChevronLeft size={13}/></>}
+        </button>
+      </aside>
+
+      {/* Mobile overlay */}
+      {mobileOpen&&<div onClick={()=>setMobileOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:40,display:'none'}} className="mobile-overlay"/>}
+      
+      {/* Mobile drawer */}
+      <aside className="sidebar-mobile" style={{position:'fixed',top:0,left:mobileOpen?0:-220,width:210,height:'100vh',background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',transition:'left 0.25s',zIndex:50,overflow:'hidden'}}>
+        <SideContent/>
       </aside>
 
       {/* Main */}
       <div style={{flex:1,display:'flex',flexDirection:'column',overflow:'hidden',minWidth:0}}>
         {/* Mobile topbar */}
-        <div className="mobile-topbar" style={{display:'none',padding:'10px 14px',background:'var(--surface)',borderBottom:'1px solid var(--border)',alignItems:'center',gap:12,flexShrink:0}}>
-          <button onClick={()=>setOpen(true)} style={{background:'none',border:'none',color:'var(--neon)',cursor:'pointer',padding:4}}>
-            <Menu size={22}/>
+        <div className="mobile-topbar" style={{display:'none',alignItems:'center',gap:10,padding:'10px 14px',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}}>
+          <button onClick={()=>setMobileOpen(!mobileOpen)} style={{background:'none',border:'none',color:'var(--neon)',cursor:'pointer',padding:4}}>
+            {mobileOpen?<X size={22}/>:<Menu size={22}/>}
           </button>
-          <Logo size={22}/>
+          <Logo size={24}/>
           <span style={{fontFamily:'Bangers,cursive',fontSize:16,color:'var(--neon)',letterSpacing:2}}>KURMO PDV</span>
+          <span style={{marginLeft:'auto',fontSize:10,color:'var(--muted)',maxWidth:100,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{profile?.name||''}</span>
         </div>
-        <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
-          <Outlet/>
-        </main>
+        <main style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}><Outlet/></main>
       </div>
-
-      <style>{`
-        @media(max-width:768px){
-          .sidebar{position:fixed;top:0;left:0;height:100dvh;transform:translateX(0);z-index:50!important;}
-          .mobile-topbar{display:flex!important;}
-          .mobile-overlay{display:block!important;}
-          .mobile-close-btn{display:block!important;}
-        }
-      `}</style>
     </div>
   )
 }
