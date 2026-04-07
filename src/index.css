@@ -155,3 +155,51 @@ input::placeholder { color: var(--muted); }
   .komisso-grid { grid-template-columns: 1fr !important; }
   .stats-grid { grid-template-columns: 1fr 1fr !important; }
 }
+
+
+/* ===== MOBILE RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .sidebar-desktop { display: none !important; }
+  .mobile-topbar { display: flex !important; }
+  .mobile-overlay { display: block !important; }
+  
+  /* PDV mobile - stack vertically */
+  .pdv-layout { flex-direction: column !important; }
+  .pdv-cart { width: 100% !important; max-height: 45vh; border-right: none !important; border-top: 1px solid var(--border); }
+  .pdv-products { min-height: 55vh; }
+  
+  /* Cards grid - 2 cols on mobile */
+  .product-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  
+  /* Table responsive - hide some cols */
+  .hide-mobile { display: none !important; }
+  
+  /* Modals full screen on mobile */
+  .modal-card { margin: 0 !important; border-radius: 16px 16px 0 0 !important; max-width: 100% !important; position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; }
+  
+  /* Buttons full width */
+  .btn-full-mobile { width: 100% !important; }
+  
+  /* Font adjustments */
+  .neon-text-sm { font-size: 20px !important; }
+  
+  /* Commission page */
+  .kpi-grid { grid-template-columns: 1fr !important; }
+  
+  /* Sellers grid */  
+  .sellers-grid { grid-template-columns: 1fr !important; }
+  
+  /* History compact */
+  .history-meta { flex-wrap: wrap !important; gap: 4px !important; }
+}
+
+@media (max-width: 480px) {
+  .product-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .kpi-grid { grid-template-columns: 1fr !important; }
+}
+
+/* Desktop sidebar collapse button */
+@media (min-width: 769px) {
+  .mobile-topbar { display: none !important; }
+  .sidebar-mobile { display: none !important; }
+}
