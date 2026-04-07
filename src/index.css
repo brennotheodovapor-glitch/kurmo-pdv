@@ -121,3 +121,37 @@ input::placeholder { color: var(--muted); }
   box-shadow: 0 0 25px var(--neon), 0 0 50px var(--neon-glow);
   transform: translateY(-1px);
 }
+
+
+/* ============ MOBILE RESPONSIVE ============ */
+@media (max-width: 768px) {
+  /* PDV mobile */
+  .pdv-container { flex-direction: column !important; }
+  .pdv-products { border-right: none !important; border-bottom: 1px solid var(--border) !important; max-height: 50dvh; }
+  .pdv-cart { width: 100% !important; max-height: 50dvh; }
+  
+  /* Tables scroll */
+  table { font-size: 11px !important; }
+  th, td { padding: 8px 10px !important; }
+  
+  /* Cards grid */
+  .card-grid { grid-template-columns: 1fr !important; }
+  
+  /* Buttons */
+  .btn-neon-fill { font-size: 13px !important; }
+  
+  /* Modal fullscreen on mobile */
+  .modal-content { margin: 0 !important; max-width: 100% !important; border-radius: 16px 16px 0 0 !important; position: fixed !important; bottom: 0 !important; max-height: 92dvh !important; overflow-y: auto !important; }
+  
+  /* Input sizes */
+  input, select, textarea { font-size: 16px !important; } /* prevent zoom on iOS */
+  
+  /* Hide sidebar by default on mobile */
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+}
+
+@media (max-width: 480px) {
+  .komisso-grid { grid-template-columns: 1fr !important; }
+  .stats-grid { grid-template-columns: 1fr 1fr !important; }
+}
