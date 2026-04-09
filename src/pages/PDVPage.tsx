@@ -7,10 +7,11 @@ type Product = {id:string;name:string;price:number;stock:number;image_url?:strin
 type CartItem = Product & {qty:number}
 type Seller = {id:string;name:string}
 type Payment = {method:string;amount:number}
-const METHODS = [{key:'pix',label:'PIX',icon:'📱'},{key:'dinheiro',label:'Dinheiro',icon:'💵'},{key:'debito',label:'Débito',icon:'💳'},{key:'credito',label:'Crédito',icon:'💳 '}]
+const METHODS = [{key:'pix',label:'PIX',icon:'ð±'},{key:'dinheiro',label:'Dinheiro',icon:'ðµ'},{key:'debito',label:'DÃ©bito',icon:'ð³'},{key:'credito',label:'CrÃ©dito',icon:'ð³ '}]
 const fmt = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
 
-export default function PDVPage() {
+type Props={sellerId?:string;sellerName?:string}
+export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName}:Props={}) {
   const [products,setProducts] = useState<Product[]>([])
   const [sellers,setSellers] = useState<Seller[]>([])
   const [cart,setCart] = useState<CartItem[]>([])
@@ -47,7 +48,7 @@ export default function PDVPage() {
       if(ex) return c.map(i=>i.id===p.id?{...i,qty:i.qty+1}:i)
       return [...c,{...p,qty:1}]
     })
-    toast.success(p.name, {duration:800, icon:'🛒'})
+    toast.success(p.name, {duration:800, icon:'ð'})
   }
   const updateQty = (id:string,delta:number) => setCart(c=>c.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+delta)}:i).filter(i=>i.qty>0))
   const setPayField = (i:number,field:string,val:any) => setPayments(p=>p.map((pm,j)=>j===i?{...pm,[field]:val}:pm))
@@ -71,7 +72,7 @@ export default function PDVPage() {
       await supabase.from('order_payments').insert(payments.filter(p=>p.amount>0).map(p=>({order_id:order.id,method:p.method,amount:p.amount})))
       for(const item of cart) await supabase.from('products').update({stock:Math.max(0,(item.stock||0)-item.qty)}).eq('id',item.id)
       toast.success('Venda #'+order.order_number+' finalizada! '+fmt(total))
-      if(change>0.01) toast('Troco: '+fmt(change), {icon:'💰', duration:4000})
+      if(change>0.01) toast('Troco: '+fmt(change), {icon:'ð°', duration:4000})
       setCart([]); setDiscount(0); setCustomerName(''); setPayments([{method:'pix',amount:0}])
       loadData(); searchRef.current?.focus()
     } catch(e:any) { toast.error('Erro: '+e.message) }
@@ -98,7 +99,7 @@ export default function PDVPage() {
         <div style={{flex:1,overflowY:'auto',padding:12,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:8,alignContent:'start'}}>
           {filtered.map(p=>(
             <button key={p.id} onClick={()=>addToCart(p)} disabled={p.stock===0} style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:10,cursor:p.stock===0?'not-allowed':'pointer',textAlign:'left',transition:'all 0.15s',opacity:p.stock===0?0.4:1}} className="card-hover">
-              {p.image_url ? <img src={p.image_url} alt={p.name} style={{width:'100%',height:72,objectFit:'cover',borderRadius:8,marginBottom:6}}/> : <div style={{width:'100%',height:72,background:'var(--surface)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,marginBottom:6}}>📦</div>}
+              {p.image_url ? <img src={p.image_url} alt={p.name} style={{width:'100%',height:72,objectFit:'cover',borderRadius:8,marginBottom:6}}/> : <div style={{width:'100%',height:72,background:'var(--surface)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,marginBottom:6}}>ð¦</div>}
               <p style={{fontSize:11,fontWeight:600,color:'var(--white)',lineHeight:1.3,marginBottom:3}}>{p.name}</p>
               <p style={{fontSize:13,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(p.price)}</p>
               <p style={{fontSize:10,color:p.stock<=5&&p.stock>0?'#ffaa00':p.stock===0?'#ff3333':'var(--muted)'}}>{p.stock===0?'SEM ESTOQUE':'Estoque: '+p.stock}</p>
@@ -119,7 +120,7 @@ export default function PDVPage() {
             <div key={item.id} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 0',borderBottom:'1px solid rgba(26,46,26,0.5)'}}>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:12,fontWeight:600,color:'var(--white)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.name}</p>
-                <p style={{fontSize:11,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(item.price)} × {item.qty} = {fmt(item.price*item.qty)}</p>
+                <p style={{fontSize:11,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(item.price)} Ã {item.qty} = {fmt(item.price*item.qty)}</p>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:3}}>
                 <button onClick={()=>updateQty(item.id,-1)} style={{width:22,height:22,borderRadius:5,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Minus size={11}/></button>
@@ -158,7 +159,7 @@ export default function PDVPage() {
               </div>
             ))}
             {remaining>0.01 && <p style={{fontSize:10,color:'#ff3333',display:'flex',alignItems:'center',gap:3}}><AlertTriangle size={10}/>Faltam {fmt(remaining)}</p>}
-            {change>0.01 && <p style={{fontSize:11,color:'#10b981',fontWeight:700}}>💰 Troco: {fmt(change)}</p>}
+            {change>0.01 && <p style={{fontSize:11,color:'#10b981',fontWeight:700}}>ð° Troco: {fmt(change)}</p>}
           </div>
 
           <button onClick={finishSale} className="btn-neon-fill" disabled={processing||cart.length===0||remaining>0.01} style={{width:'100%',fontSize:14,padding:'11px',opacity:cart.length===0||remaining>0.01?0.5:1}}>
