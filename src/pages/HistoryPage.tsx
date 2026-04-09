@@ -6,7 +6,8 @@ import toast from 'react-hot-toast'
 type Order = {id:string;order_number:number;seller_id:string|null;customer_name:string|null;type:string;status:string;subtotal:number;discount:number;total:number;created_at:string;cancel_reason:string|null;sellers?:{name:string}|null}
 const fmt = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
 
-export default function HistoryPage() {
+type Props={sellerId?:string|null}
+export default function HistoryPage({sellerId:filterSellerId}:Props={}) {
   const [orders,setOrders] = useState<Order[]>([])
   const [loading,setLoading] = useState(true)
   const [search,setSearch] = useState('')
@@ -20,7 +21,7 @@ export default function HistoryPage() {
 
   async function loadOrders() {
     setLoading(true)
-    const {data} = await supabase.from('orders').select('*,sellers(name)').order('created_at',{ascending:false}).limit(300)
+    const {data} = await supabase.from('orders').select('*,sellers(name)').order('created_at',{ascending:false}).limit(300)['then' in supabase?'then':'then'](x=>x)
     setOrders(data||[]); setLoading(false)
   }
 
@@ -80,7 +81,7 @@ export default function HistoryPage() {
               <span style={{fontFamily:'JetBrains Mono,monospace',fontSize:13,color:'var(--neon)',minWidth:36}}>#{o.order_number}</span>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{o.customer_name||'Cliente Avulso'}</p>
-                <p style={{fontSize:11,color:'var(--muted)'}}>{(o.sellers as any)?.name||'Sem vendedor'} · {new Date(o.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</p>
+                <p style={{fontSize:11,color:'var(--muted)'}}>{(o.sellers as any)?.name||'Sem vendedor'} Â· {new Date(o.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})}</p>
               </div>
               <span style={{fontSize:10,fontWeight:700,padding:'3px 8px',borderRadius:20,background:statusColor(o.status)+'20',color:statusColor(o.status),whiteSpace:'nowrap'}}>{statusLabel(o.status)}</span>
               <span style={{fontSize:15,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',minWidth:80,textAlign:'right'}}>{fmt(o.total)}</span>
