@@ -65,7 +65,7 @@ export default function ProductsPage(){
         </div>
         <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
           <button onClick={()=>setCatFilter(null)} style={{padding:'4px 9px',borderRadius:8,border:!catFilter?'1px solid var(--neon)':'1px solid var(--border)',background:!catFilter?'var(--neon-glow)':'transparent',color:!catFilter?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:11}}>Todos</button>
-          {categories.map(c=><button key={c.id} onClick={()=>setCatFilter(c.id===catFilter?null:c.id)} style={{padding:'4px 9px',borderRadius:8,border:catFilter===c.id?'1px solid var(--neon)':'1px solid var(--border)',background:catFilter===c.id?'var(--neon-glow)':'transparent',color:catFilter===c.id?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:11}}>{c.icon}</button>)}
+          {categories.map(c=><button key={c.id} onClick={()=>setCatFilter(c.id===catFilter?null:c.id)} style={{padding:'4px 9px',borderRadius:8,border:catFilter===c.id?'1px solid var(--neon)':'1px solid var(--border)',background:catFilter===c.id?'var(--neon-glow)':'transparent',color:catFilter===c.id?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:11}}></button>)}
         </div>
         <button onClick={openC} className="btn-neon-fill" style={{fontSize:12,padding:'7px 14px'}}><Plus size={13} style={{display:'inline',marginRight:5}}/>NOVO</button>
       </div>
@@ -125,7 +125,7 @@ export default function ProductsPage(){
                 <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:4}}>CATEGORIA</label>
                   <select value={form.category_id||''} onChange={e=>setForm(f=>({...f,category_id:e.target.value||null}))}>
                     <option value="">Sem categoria</option>
-                    {categories.map(c=><option key={c.id} value={c.id}>{c.icon} {c.name}</option>)}
+                    {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
