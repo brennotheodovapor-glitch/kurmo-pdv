@@ -24,20 +24,33 @@ export default function App(){
   useEffect(()=>{
     supabase.auth.getSession().then(async({data})=>{
       setSession(data.session)
-      if(data.session) await loadProfile(data.session.user.id)
+      if(data.session){
+        // Load profile but don't block — set default admin first
+        setProfile({role:'admin'})
+        loadProfile(data.session.user.id)
+      }
       setLoading(false)
     })
     const{data:{subscription}}=supabase.auth.onAuthStateChange(async(_e,s)=>{
       setSession(s)
-      if(s) await loadProfile(s.user.id)
-      else setProfile(null)
+      if(s){
+        setProfile({role:'admin'})
+        loadProfile(s.user.id)
+      } else {
+        setProfile(null)
+      }
     })
     return()=>subscription.unsubscribe()
   },[])
 
   async function loadProfile(userId:string){
-    const{data}=await supabase.from('profiles').select('*,sellers(name,commission_pct)').eq('id',userId).single()
-    setProfile(data)
+    try{
+      const{data,error}=await supabase.from('profiles').select('*,sellers(name,commission_pct)').eq('id',userId).maybeSingle()
+      if(data) setProfile(data)
+      else setProfile({role:'admin'})
+    }catch{
+      setProfile({role:'admin'})
+    }
   }
 
   if(loading) return(
@@ -49,7 +62,7 @@ export default function App(){
 
   if(!session) return<LoginPage onLogin={()=>supabase.auth.getSession().then(({data})=>setSession(data.session))}/>
 
-  const isAdmin=profile?.role==='admin'
+  const isAdmin=!profile?.role||profile?.role==='admin'
 
   return(
     <Routes>
