@@ -153,7 +153,7 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
                 <select value={pm.method} onChange={e=>setPayField(i,'method',e.target.value)} style={{flex:1,fontSize:11,padding:'5px 6px'}}>
                   {METHODS.map(m=><option key={m.key} value={m.key}>{m.icon} {m.label}</option>)}
                 </select>
-                <input type="number" min="0" step="0.01" value={pm.amount===0?'':pm.amount} onChange={e=>setPayField(i,'amount',e.target.value===''?0:parseFloat(e.target.value)||0)} placeholder="0,00" placeholder="0,00" style={{width:80,fontSize:11,textAlign:'right',padding:'5px 6px'}}/>
+                <input type="number" min="0" step="0.01" value={pm.amount===0?'':pm.amount} onChange={e=>setPayField(i,'amount',e.target.value===''?0:parseFloat(e.target.value)||0)} placeholder="0,00" style={{width:80,fontSize:11,textAlign:'right',padding:'5px 6px'}}/>
                 <button onClick={()=>fillRemaining(i)} title="Preencher restante" style={{fontSize:9,color:'var(--neon)',background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',borderRadius:5,padding:'4px 5px',cursor:'pointer',whiteSpace:'nowrap'}}>Resto</button>
                 {payments.length>1 && <button onClick={()=>setPayments(p=>p.filter((_,j)=>j!==i))} style={{background:'none',border:'none',color:'#ff3333',cursor:'pointer',padding:2}}><X size={12}/></button>}
               </div>
