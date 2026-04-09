@@ -7,7 +7,12 @@ type Product = {id:string;name:string;price:number;stock:number;image_url?:strin
 type CartItem = Product & {qty:number}
 type Seller = {id:string;name:string}
 type Payment = {method:string;amount:number}
-const METHODS = [{key:'pix',label:'PIX',icon:'Ã°ÂÂÂ±'},{key:'dinheiro',label:'Dinheiro',icon:'Ã°ÂÂÂµ'},{key:'debito',label:'DÃÂ©bito',icon:'Ã°ÂÂÂ³'},{key:'credito',label:'CrÃÂ©dito',icon:'Ã°ÂÂÂ³ '}]
+const METHODS = [
+  {key:'pix',    label:'PIX'},
+  {key:'dinheiro',label:'Dinheiro'},
+  {key:'debito', label:'Debito'},
+  {key:'credito', label:'Credito'},
+]
 const fmt = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
 
 type Props={sellerId?:string;sellerName?:string}
@@ -151,7 +156,7 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
             {payments.map((pm,i)=>(
               <div key={i} style={{display:'flex',gap:5,marginBottom:5,alignItems:'center'}}>
                 <select value={pm.method} onChange={e=>setPayField(i,'method',e.target.value)} style={{flex:1,fontSize:11,padding:'5px 6px'}}>
-                  {METHODS.map(m=><option key={m.key} value={m.key}>{m.icon} {m.label}</option>)}
+                  {METHODS.map(m=><option key={m.key} value={m.key}>{m.label}</option>)}
                 </select>
                 <input type="number" min="0" step="0.01" value={pm.amount===0?'':pm.amount} onChange={e=>setPayField(i,'amount',e.target.value===''?0:parseFloat(e.target.value)||0)} placeholder="0,00" style={{width:80,fontSize:11,textAlign:'right',padding:'5px 6px'}}/>
                 <button onClick={()=>fillRemaining(i)} title="Preencher restante" style={{fontSize:9,color:'var(--neon)',background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',borderRadius:5,padding:'4px 5px',cursor:'pointer',whiteSpace:'nowrap'}}>Resto</button>
