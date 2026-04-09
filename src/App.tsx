@@ -15,6 +15,7 @@ import CustomersPage from '@/pages/CustomersPage'
 import ReportsPage from '@/pages/ReportsPage'
 import SellersPage from '@/pages/SellersPage'
 import CommissionsPage from '@/pages/CommissionsPage'
+import PublicMenuPage from '@/pages/PublicMenuPage'
 
 export default function App(){
   const[session,setSession]=useState<any>(null)
@@ -24,33 +25,28 @@ export default function App(){
   useEffect(()=>{
     supabase.auth.getSession().then(async({data})=>{
       setSession(data.session)
-      if(data.session){
-        // Load profile but don't block — set default admin first
-        setProfile({role:'admin'})
-        loadProfile(data.session.user.id)
-      }
+      if(data.session){setProfile({role:'admin'});loadProfile(data.session.user.id)}
       setLoading(false)
     })
     const{data:{subscription}}=supabase.auth.onAuthStateChange(async(_e,s)=>{
       setSession(s)
-      if(s){
-        setProfile({role:'admin'})
-        loadProfile(s.user.id)
-      } else {
-        setProfile(null)
-      }
+      if(s){setProfile({role:'admin'});loadProfile(s.user.id)}
+      else setProfile(null)
     })
     return()=>subscription.unsubscribe()
   },[])
 
   async function loadProfile(userId:string){
     try{
-      const{data,error}=await supabase.from('profiles').select('*,sellers(name,commission_pct)').eq('id',userId).maybeSingle()
-      if(data) setProfile(data)
+      const{data}=await supabase.from('profiles').select('*,sellers(name,commission_pct)').eq('id',userId).maybeSingle()
+      if(data)setProfile(data)
       else setProfile({role:'admin'})
-    }catch{
-      setProfile({role:'admin'})
-    }
+    }catch{setProfile({role:'admin'})}
+  }
+
+  // Public menu - no auth required
+  if(window.location.pathname==='/menu'||window.location.pathname.startsWith('/menu')){
+    return<Routes><Route path="/menu" element={<PublicMenuPage/>}/><Route path="/menu/*" element={<PublicMenuPage/>}/></Routes>
   }
 
   if(loading) return(
@@ -66,6 +62,8 @@ export default function App(){
 
   return(
     <Routes>
+      <Route path="/menu" element={<PublicMenuPage/>}/>
+      <Route path="/menu/*" element={<PublicMenuPage/>}/>
       <Route path="/" element={<Layout session={session} profile={profile}/>}>
         <Route index element={<Navigate to="/pdv" replace/>}/>
         <Route path="pdv" element={<PDVPage sellerId={profile?.seller_id} sellerName={profile?.sellers?.name}/>}/>
