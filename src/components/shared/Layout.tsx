@@ -60,9 +60,7 @@ export default function Layout({session,profile}:{session:any;profile:any}){
       {/* Desktop sidebar */}
       <aside className="sidebar-desktop" style={{width:collapsed?60:198,flexShrink:0,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',transition:'width 0.2s',overflow:'hidden'}}>
         <SideContent/>
-        <button onClick={()=>setCollapsed(!collapsed)} style={{position:'absolute',display:'flex',alignItems:'center',gap:6,padding:'5px 8px',borderRadius:7,background:'var(--surface)',border:'1px solid var(--border)',color:'var(--muted)',cursor:'pointer',bottom:56,left:collapsed?8:150,transition:'left 0.2s',zIndex:10,fontSize:10}}>
-          {collapsed?<ChevronRight size={13}/>:<><ChevronLeft size={13}/></>}
-        </button>
+        
       </aside>
 
       {/* Mobile overlay */}
