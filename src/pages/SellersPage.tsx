@@ -67,7 +67,7 @@ export default function SellersPage(){
                       <p style={{fontWeight:700,color:'var(--white)',fontSize:14}}>{s.name}</p>
                       <div style={{display:'flex',gap:5,marginTop:3,flexWrap:'wrap'}}>
                         <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:s.active?'rgba(0,255,65,0.1)':'rgba(255,51,51,0.1)',color:s.active?'var(--neon)':'#ff3333'}}>{s.active?'ATIVO':'INATIVO'}</span>
-                        <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:s.auth_user_id?'rgba(6,182,212,0.1)':'rgba(100,116,139,0.1)',color:s.auth_user_id?'#06b6d4':'var(--muted)'}}>{s.auth_user_id?'✓ LOGIN':'SEM LOGIN'}</span>
+                        <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:s.auth_user_id?'rgba(6,182,212,0.1)':'rgba(100,116,139,0.1)',color:s.auth_user_id?'#06b6d4':'var(--muted)'}}>{s.auth_user_id?'â LOGIN':'SEM LOGIN'}</span>
                       </div>
                     </div>
                   </div>
@@ -110,7 +110,7 @@ export default function SellersPage(){
               <div>
                 <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:4,letterSpacing:1}}>COMISSAO (%)</label>
                 <div style={{position:'relative'}}>
-                  <input type="number" min="0" max="100" step="0.5" value={form.commission_pct} onChange={e=>setForm(f=>({...f,commission_pct:parseFloat(e.target.value)||0}))} style={{paddingRight:36}}/>
+                  <input type="number" min="0" max="100" step="0.5" value={form.commission_pct===0?'':form.commission_pct} onChange={e=>setForm(f=>({...f,commission_pct:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder="0" style={{paddingRight:36}}/>
                   <Percent size={13} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',color:'var(--neon)'}}/>
                 </div>
               </div>
