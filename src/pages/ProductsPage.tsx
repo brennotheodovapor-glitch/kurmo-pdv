@@ -85,11 +85,11 @@ export default function ProductsPage(){
                 <tr key={p.id} style={{borderBottom:'1px solid rgba(26,46,26,0.5)'}}>
                   <td style={{padding:'9px 12px'}}>
                     <div style={{display:'flex',alignItems:'center',gap:9}}>
-                      {p.image_url?<img src={p.image_url} alt={p.name} style={{width:34,height:34,borderRadius:7,objectFit:'cover',border:'1px solid var(--border)',flexShrink:0}}/>:<div style={{width:34,height:34,borderRadius:7,background:'var(--surface)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>{getCat(p.category_id)?.icon||'📦'}</div>}
+                      {p.image_url?<img src={p.image_url} alt={p.name} style={{width:34,height:34,borderRadius:7,objectFit:'cover',border:'1px solid var(--border)',flexShrink:0}}/>:<div style={{width:34,height:34,borderRadius:7,background:'var(--surface)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0}}>{getCat(p.category_id)?.icon||'ð¦'}</div>}
                       <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{p.name}</p>
                     </div>
                   </td>
-                  <td style={{padding:'9px 12px',fontSize:12,color:'var(--muted)'}} className="hide-mobile">{getCat(p.category_id)?.name||'—'}</td>
+                  <td style={{padding:'9px 12px',fontSize:12,color:'var(--muted)'}} className="hide-mobile">{getCat(p.category_id)?.name||'â'}</td>
                   <td style={{padding:'9px 12px',fontFamily:'JetBrains Mono,monospace',fontSize:13,fontWeight:600,color:'var(--neon)'}}>{fmt(p.price)}</td>
                   <td style={{padding:'9px 12px'}} className="hide-mobile"><span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:20,background:parseInt(mar(p))>=40?'rgba(0,255,65,0.1)':parseInt(mar(p))>=25?'rgba(255,170,0,0.1)':'rgba(255,51,51,0.1)',color:parseInt(mar(p))>=40?'var(--neon)':parseInt(mar(p))>=25?'#ffaa00':'#ff3333'}}>{mar(p)}%</span></td>
                   <td style={{padding:'9px 12px',fontSize:12,color:p.stock===0?'#ff3333':p.stock<=5?'#ffaa00':'var(--muted)'}}>{p.stock===0&&<AlertTriangle size={11} style={{display:'inline',marginRight:3}}/>}{p.stock}</td>
@@ -129,16 +129,16 @@ export default function ProductsPage(){
                   </select>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>VENDA R$</label><input type="number" value={form.price} onChange={e=>setForm(f=>({...f,price:parseFloat(e.target.value)||0}))}/></div>
-                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>CUSTO R$</label><input type="number" value={form.cost_price} onChange={e=>setForm(f=>({...f,cost_price:parseFloat(e.target.value)||0}))}/></div>
-                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>ESTOQUE</label><input type="number" value={form.stock} onChange={e=>setForm(f=>({...f,stock:parseInt(e.target.value)||0}))}/></div>
+                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>VENDA R$</label><input type="number" value={form.price===0?'':form.price} onChange={e=>setForm(f=>({...f,price:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder="0,00"/></div>
+                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>CUSTO R$</label><input type="number" value={form.cost_price===0?'':form.cost_price} onChange={e=>setForm(f=>({...f,cost_price:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder="0,00"/></div>
+                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>ESTOQUE</label><input type="number" value={form.stock===0?'':form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value===''?0:parseInt(e.target.value)||0}))} placeholder="0"/></div>
                 </div>
               </div>
             </div>
             {form.price>0&&form.cost_price>0&&(
               <div style={{marginTop:10,padding:'8px 12px',background:'var(--surface)',borderRadius:8,display:'flex',justifyContent:'space-between'}}>
                 <span style={{fontSize:12,color:'var(--muted)'}}>Margem</span>
-                <span style={{fontSize:13,fontWeight:700,color:((form.price-form.cost_price)/form.price*100)>=40?'var(--neon)':'#ffaa00',fontFamily:'JetBrains Mono,monospace'}}>{((form.price-form.cost_price)/form.price*100).toFixed(1)}% — Lucro: {fmt(form.price-form.cost_price)}</span>
+                <span style={{fontSize:13,fontWeight:700,color:((form.price-form.cost_price)/form.price*100)>=40?'var(--neon)':'#ffaa00',fontFamily:'JetBrains Mono,monospace'}}>{((form.price-form.cost_price)/form.price*100).toFixed(1)}% â Lucro: {fmt(form.price-form.cost_price)}</span>
               </div>
             )}
             <div style={{display:'flex',gap:10,marginTop:14}}>
