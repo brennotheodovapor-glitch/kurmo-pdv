@@ -102,7 +102,7 @@ export default function PublicMenuPage(){
       <div style={{maxWidth:720,margin:'0 auto'}}>
         <div style={{overflowX:'auto',display:'flex',gap:8,padding:'12px 16px',scrollbarWidth:'none'}}>
           <button onClick={()=>setActiveCat(null)} style={{flexShrink:0,padding:'6px 14px',borderRadius:20,border:!activeCat?'1px solid #00ff41':'1px solid #1e2a1e',background:!activeCat?'rgba(0,255,65,0.1)':'transparent',color:!activeCat?'#00ff41':'#64748b',cursor:'pointer',fontSize:13,whiteSpace:'nowrap'}}>Todos</button>
-          {categories.map(c=><button key={c.id} onClick={()=>setActiveCat(c.id===activeCat?null:c.id)} style={{flexShrink:0,padding:'6px 14px',borderRadius:20,border:activeCat===c.id?'1px solid #00ff41':'1px solid #1e2a1e',background:activeCat===c.id?'rgba(0,255,65,0.1)':'transparent',color:activeCat===c.id?'#00ff41':'#64748b',cursor:'pointer',fontSize:13,whiteSpace:'nowrap'}}>{c.icon} {c.name}</button>)}
+          {categories.map(c=><button key={c.id} onClick={()=>setActiveCat(c.id===activeCat?null:c.id)} style={{flexShrink:0,padding:'6px 14px',borderRadius:20,border:activeCat===c.id?'1px solid #00ff41':'1px solid #1e2a1e',background:activeCat===c.id?'rgba(0,255,65,0.1)':'transparent',color:activeCat===c.id?'#00ff41':'#64748b',cursor:'pointer',fontSize:13,whiteSpace:'nowrap'}}>{c.name}</button>)}
         </div>
       </div>
 
