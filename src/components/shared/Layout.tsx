@@ -14,7 +14,7 @@ const ADMIN_NAV=[
   {to:'/comissoes',icon:Percent,label:'Comissoes'},
   {to:'/produtos',icon:Package,label:'Produtos'},
   {to:'/categorias',icon:Tag,label:'Categorias'},
-  {to:'/cardapio',icon:QrCode,label:'Cardapio'},
+  {to:'/cardapio',icon:QrCode,label:'Catalogo'},
   {to:'/clientes',icon:Users,label:'Clientes'},
   {to:'/caixa',icon:DollarSign,label:'Caixa'},
   {to:'/bairros',icon:MapPin,label:'Bairros'},
