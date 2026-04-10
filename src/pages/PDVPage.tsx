@@ -175,7 +175,6 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
       </div>
     </div>
   )
-import{useCashRegister}from '@/hooks/useCashRegister'
 const cash=useCashRegister()
   
   // Cash register overlay
