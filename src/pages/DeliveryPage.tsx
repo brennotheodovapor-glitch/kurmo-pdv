@@ -322,7 +322,7 @@ export default function DeliveryPage(){
                 <div style={{borderTop:'1px solid var(--border)',paddingTop:16,marginBottom:14}}>
                   <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:14}}>
                     <MapPin size={14} color='var(--neon)'/>
-                    <p style={{fontSize:12,color:'var(--neon)',fontWeight:600,letterSpacing:'0.05em',fontFamily:'Bangers,cursive',fontSize:14}}>ENDERECO DE ENTREGA</p>
+                    <p style={{fontSize:14,color:'var(--neon)',fontWeight:600,letterSpacing:'0.05em',fontFamily:'Bangers,cursive'}}>ENDERECO DE ENTREGA</p>
                   </div>
 
                   {/* CEP */}
