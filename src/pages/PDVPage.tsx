@@ -1,4 +1,35 @@
 import{useCashRegister}from '@/hooks/useCashRegister'
+    {/* Cash closed overlay + modal */}
+    {!cash.isLoading&&!cash.isOpen&&(
+      <div style={{position:'fixed',inset:0,background:'rgba(8,12,8,0.97)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:24,zIndex:999,padding:20}}>
+        <div style={{width:80,height:80,borderRadius:24,background:'rgba(255,170,0,0.1)',border:'2px solid rgba(255,170,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <svg width='36' height='36' fill='none' stroke='#ffaa00' strokeWidth='2' viewBox='0 0 24 24'><rect x='3' y='11' width='18' height='11' rx='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>
+        </div>
+        <div style={{textAlign:'center'}}>
+          <p style={{fontFamily:'Bangers,cursive',fontSize:34,color:'#ffaa00',letterSpacing:3,marginBottom:8}}>CAIXA FECHADO</p>
+          <p style={{fontSize:15,color:'var(--muted)',maxWidth:300,lineHeight:1.5}}>Abra o caixa para comecar a registrar vendas.</p>
+        </div>
+        <button onClick={()=>cash.setOpenModal(true)} style={{display:'flex',alignItems:'center',gap:10,padding:'14px 36px',borderRadius:14,border:'2px solid #ffaa00',background:'rgba(255,170,0,0.12)',color:'#ffaa00',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:22,letterSpacing:1}}>
+          <svg width='20' height='20' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><rect x='3' y='11' width='18' height='11' rx='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>
+          ABRIR CAIXA
+        </button>
+      </div>
+    )}
+    {cash.openModal&&(
+      <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',backdropFilter:'blur(8px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,padding:16}}>
+        <div className='card' style={{width:'100%',maxWidth:400,padding:28,border:'2px solid #ffaa00',boxShadow:'0 0 60px rgba(255,170,0,0.25)'}}>
+          <p style={{fontFamily:'Bangers,cursive',fontSize:26,color:'#ffaa00',marginBottom:4,letterSpacing:2}}>ABRIR CAIXA</p>
+          <p style={{fontSize:13,color:'var(--muted)',marginBottom:20}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})}</p>
+          <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:8,letterSpacing:1}}>SALDO INICIAL EM CAIXA (R$)</label>
+          <input type='number' min='0' step='0.01' value={cash.openBal} onChange={e=>cash.setOpenBal(e.target.value)} placeholder='0,00' autoFocus style={{fontSize:22,textAlign:'center',fontFamily:'JetBrains Mono,monospace',letterSpacing:2,marginBottom:8,width:'100%'}}/>
+          <p style={{fontSize:12,color:'var(--muted)',marginBottom:22}}>Quanto dinheiro tem no caixa agora?</p>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={()=>cash.setOpenModal(false)} style={{flex:1,padding:12,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15}}>CANCELAR</button>
+            <button onClick={cash.openCash} disabled={cash.saving} style={{flex:2,padding:12,borderRadius:8,border:'none',background:'#ffaa00',color:'#000',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:18,letterSpacing:1,opacity:cash.saving?0.7:1}}>{cash.saving?'ABRINDO...':'ABRIR CAIXA'}</button>
+          </div>
+        </div>
+      </div>
+    )}
 import { useState, useEffect, useRef } from 'react'
 import { Plus, Minus, Trash2, ShoppingCart, X, Check, Search, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
@@ -18,6 +49,7 @@ const fmt = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',curren
 
 type Props={sellerId?:string;sellerName?:string}
 export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName}:Props={}) {
+  const cash=useCashRegister()
   const [products,setProducts] = useState<Product[]>([])
   const [sellers,setSellers] = useState<Seller[]>([])
   const [cart,setCart] = useState<CartItem[]>([])
@@ -175,41 +207,4 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
         </div>
       </div>
     </div>
-  )
-const cash=useCashRegister()
-  
-  // Cash register overlay
-  if(cash.isLoading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'var(--muted)',fontFamily:'Bangers,cursive',fontSize:20,letterSpacing:2}}>CARREGANDO CAIXA...</div>
-
-  if(!cash.isOpen) return(
-    <div style={{height:'100%',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)',flexDirection:'column',gap:20,padding:20}}>
-      <div style={{width:80,height:80,borderRadius:24,background:'rgba(255,170,0,0.1)',border:'2px solid rgba(255,170,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <svg width='36' height='36' fill='none' stroke='#ffaa00' strokeWidth='2' viewBox='0 0 24 24'><rect x='3' y='11' width='18' height='11' rx='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>
-      </div>
-      <div style={{textAlign:'center'}}>
-        <p style={{fontFamily:'Bangers,cursive',fontSize:28,color:'#ffaa00',letterSpacing:2}}>CAIXA FECHADO</p>
-        <p style={{fontSize:14,color:'var(--muted)',marginTop:6,maxWidth:300}}>Abra o caixa para comecar a registrar vendas.</p>
-      </div>
-      <button onClick={()=>cash.setOpenModal(true)} style={{display:'flex',alignItems:'center',gap:8,padding:'12px 28px',borderRadius:12,border:'2px solid #ffaa00',background:'rgba(255,170,0,0.1)',color:'#ffaa00',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:18,letterSpacing:1,transition:'all 0.2s'}}>
-        <svg width='18' height='18' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><rect x='3' y='11' width='18' height='11' rx='2'/><path d='M7 11V7a5 5 0 0 1 10 0v4'/></svg>
-        ABRIR CAIXA
-      </button>
-      {cash.openModal&&(
-        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:999,padding:16}}>
-          <div className='card' style={{width:'100%',maxWidth:380,padding:24,border:'2px solid #ffaa00',boxShadow:'0 0 40px rgba(255,170,0,0.2)'}}>
-            <h2 className='font-bangers' style={{fontSize:24,color:'#ffaa00',marginBottom:6,letterSpacing:2}}>ABRIR CAIXA</h2>
-            <p style={{fontSize:12,color:'var(--muted)',marginBottom:16}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})}</p>
-            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:6,letterSpacing:1}}>SALDO INICIAL (R$)</label>
-            <input type='number' min='0' step='0.01' value={cash.openBal} onChange={e=>cash.setOpenBal(e.target.value)} placeholder='0,00' autoFocus style={{fontSize:20,textAlign:'center',fontFamily:'JetBrains Mono,monospace',marginBottom:6}}/>
-            <p style={{fontSize:11,color:'var(--muted)',marginBottom:18}}>Quanto tem em dinheiro no caixa agora?</p>
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>cash.setOpenModal(false)} style={{flex:1,padding:11,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
-              <button onClick={cash.openCash} disabled={cash.saving} style={{flex:2,padding:11,borderRadius:8,border:'none',background:'#ffaa00',color:'#000',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:16,letterSpacing:1}}>{cash.saving?'ABRINDO...':'ABRIR CAIXA'}</button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-
 }
