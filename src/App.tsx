@@ -17,6 +17,7 @@ import SellersPage from '@/pages/SellersPage'
 import CommissionsPage from '@/pages/CommissionsPage'
 import PublicMenuPage from '@/pages/PublicMenuPage'
 import DeliveryZonesPage from '@/pages/DeliveryZonesPage'
+import CashRegisterPage from '@/pages/CashRegisterPage'
 
 export default function App(){
   const[session,setSession]=useState<any>(null)
@@ -79,6 +80,7 @@ export default function App(){
           <Route path='relatorios' element={<ReportsPage/>}/>
           <Route path='cardapio' element={<MenuPage/>}/>
           <Route path='bairros' element={<DeliveryZonesPage/>}/>
+          <Route path='caixa' element={<CashRegisterPage/>}/>
           <Route path='configuracoes' element={<SettingsPage/>}/>
         </>}
         <Route path='*' element={<Navigate to='/pdv' replace/>}/>
