@@ -64,6 +64,7 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
   }
 
   async function finishSale() {
+    if(!cash.isOpen){toast.error('Caixa fechado! Abra o caixa para finalizar vendas.');cash.setOpenModal(true);return}
     if(cart.length===0){toast.error('Carrinho vazio');return}
     if(!sellerId && sellers.length>0){toast.error('Selecione o vendedor');return}
     if(remaining>0.01){toast.error('Pagamento insuficiente. Faltam '+fmt(remaining));return}
