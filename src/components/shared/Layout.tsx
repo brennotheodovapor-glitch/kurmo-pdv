@@ -16,6 +16,7 @@ const ADMIN_NAV=[
   {to:'/categorias',icon:Tag,label:'Categorias'},
   {to:'/cardapio',icon:QrCode,label:'Cardapio'},
   {to:'/clientes',icon:Users,label:'Clientes'},
+  {to:'/bairros',icon:MapPin,label:'Bairros'},
   {to:'/configuracoes',icon:Settings,label:'Config'},
 ]
 const SELLER_NAV=[
