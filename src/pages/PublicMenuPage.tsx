@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 type Product={id:string;name:string;price:number;description?:string;image_url?:string;category_id:string|null;stock:number}
 type Category={id:string;name:string;color:string}
 type CartItem=Product&{qty:number}
+type DeliveryZone={id:string;name:string;fee:number;min_time:number;max_time:number}
 type DeliveryForm={nome:string;sobrenome:string;whatsapp:string;cep:string;numero:string;endereco:string;complemento:string;bairro:string;cidade:string;estado:string;referencia:string}
 const EMPTY_FORM:DeliveryForm={nome:'',sobrenome:'',whatsapp:'',cep:'',numero:'',endereco:'',complemento:'',bairro:'',cidade:'',estado:'',referencia:''}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
@@ -25,11 +26,15 @@ export default function PublicMenuPage(){
   const[form,setForm]=useState<DeliveryForm>(EMPTY_FORM)
   const[cepLoading,setCepLoading]=useState(false)
   const[submitting,setSubmitting]=useState(false)
+  const[zones,setZones]=useState<DeliveryZone[]>([])
+  const[matchedZone,setMatchedZone]=useState<DeliveryZone|null>(null)
 
   useEffect(()=>{loadData()},[]) 
 
   async function loadData(){
     setLoading(true)
+    // Load delivery zones
+    supabase.from('delivery_zones').select('*').eq('active',true).then(({data})=>setZones(data||[]))
     const[p,c]=await Promise.all([
       supabase.from('products').select('*').eq('active',true).gt('stock',0).order('name'),
       supabase.from('categories').select('*').order('name')
@@ -68,8 +73,13 @@ export default function PublicMenuPage(){
       const r=await fetch('https://viacep.com.br/ws/'+clean+'/json/')
       const d=await r.json()
       if(d.erro){toast.error('CEP nao encontrado');setCepLoading(false);return}
-      setForm(f=>({...f,cep:clean,endereco:d.logradouro||'',bairro:d.bairro||'',cidade:d.localidade||'',estado:d.uf||''}))
-      toast.success('Endereco encontrado!')
+      const bairro=d.bairro||''
+      setForm(f=>({...f,cep:clean,endereco:d.logradouro||'',bairro,cidade:d.localidade||'',estado:d.uf||''}))
+      // Try to match zone by bairro name (case insensitive partial match)
+      const matched=zones.find(z=>bairro.toLowerCase().includes(z.name.toLowerCase())||z.name.toLowerCase().includes(bairro.toLowerCase().split(' ')[0]))
+      setMatchedZone(matched||null)
+      if(matched) toast.success('Frete para '+matched.name+': '+fmt(matched.fee===0?0:matched.fee))
+      else toast.success('Endereco encontrado!')
     }catch{toast.error('Erro ao buscar CEP')}
     finally{setCepLoading(false)}
   }
@@ -88,7 +98,7 @@ export default function PublicMenuPage(){
         customer_name:form.nome+' '+form.sobrenome,
         customer_phone:form.whatsapp,
         type:'delivery',status:'pending',
-        subtotal:total,discount:0,total,
+        subtotal:total,discount:0,delivery_fee:matchedZone?.fee||0,total:total+(matchedZone?.fee||0),delivery_zone_id:matchedZone?.id||null,
         notes:fullAddress
       }).select().single()
       if(error)throw error
@@ -248,6 +258,8 @@ export default function PublicMenuPage(){
                       )}
                     </div>
                     <p style={{fontSize:11,color:'#64748b',marginTop:4}}>Digite o CEP para preencher o endereco automaticamente</p>
+                    {matchedZone&&(<div style={{marginTop:8,padding:'10px 14px',background:'rgba(0,255,65,0.06)',border:'1px solid rgba(0,255,65,0.2)',borderRadius:10,display:'flex',justifyContent:'space-between',alignItems:'center'}}><div><p style={{fontSize:13,color:'#e2e8f0',fontWeight:600}}>{matchedZone.name}</p><p style={{fontSize:11,color:'#64748b'}}>{matchedZone.min_time}–{matchedZone.max_time} min</p></div><p style={{fontSize:18,fontWeight:700,color:'#00ff41',fontFamily:'JetBrains Mono,monospace'}}>{matchedZone.fee===0?'Gratis':fmt(matchedZone.fee)}</p></div>)}
+                    {form.bairro&&!matchedZone&&form.endereco&&(<div style={{marginTop:8,padding:'9px 14px',background:'rgba(255,170,0,0.06)',border:'1px solid rgba(255,170,0,0.2)',borderRadius:10}}><p style={{fontSize:12,color:'#ffaa00'}}>Bairro nao configurado. Entre em contato para confirmar o frete.</p></div>)}
                   </div>
 
                   {form.endereco&&(
@@ -343,9 +355,11 @@ export default function PublicMenuPage(){
                 </div>
                 {cart.length>0&&(
                   <div style={{padding:'16px 20px',borderTop:'1px solid #1e2a1e',flexShrink:0}}>
+                    {matchedZone&&matchedZone.fee>0&&(<div style={{display:'flex',justifyContent:'space-between',marginBottom:6}}><span style={{fontSize:13,color:'#64748b'}}>Subtotal</span><span style={{fontSize:13,color:'#e2e8f0',fontFamily:'JetBrains Mono,monospace'}}>{fmt(total)}</span></div>)}
+                    {matchedZone&&matchedZone.fee>0&&(<div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}><span style={{fontSize:13,color:'#64748b'}}>Taxa de entrega ({matchedZone.name})</span><span style={{fontSize:13,color:'#f59e0b',fontFamily:'JetBrains Mono,monospace'}}>{fmt(matchedZone.fee)}</span></div>)}
                     <div style={{display:'flex',justifyContent:'space-between',marginBottom:14}}>
                       <span style={{fontSize:16,color:'#64748b'}}>Total do pedido</span>
-                      <span style={{fontSize:22,fontWeight:700,color:'#00ff41',fontFamily:'JetBrains Mono,monospace'}}>{fmt(total)}</span>
+                      <span style={{fontSize:22,fontWeight:700,color:'#00ff41',fontFamily:'JetBrains Mono,monospace'}}>{fmt(total+(matchedZone?.fee||0))}</span>
                     </div>
                     <button onClick={()=>setStep('form')} style={{width:'100%',padding:15,borderRadius:12,border:'none',background:'#00ff41',color:'#000',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:19,letterSpacing:1,display:'flex',alignItems:'center',justifyContent:'center',gap:10}}>
                       CONTINUAR <ArrowRight size={20}/>
