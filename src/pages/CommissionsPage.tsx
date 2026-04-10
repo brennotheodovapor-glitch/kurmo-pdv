@@ -1,142 +1,184 @@
-import { useState, useEffect } from 'react'
-import { BarChart3, Download, TrendingUp, DollarSign, Users, Calendar, ChevronDown, ChevronUp } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import toast from 'react-hot-toast'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import{useState,useEffect}from 'react'
+import{Percent,TrendingUp,Download,ChevronDown,ChevronUp,User}from 'lucide-react'
+import{supabase}from '@/lib/supabase'
 
-type Seller = {id:string;name:string;email:string;commission_pct:number}
-type SellerStats = {seller:Seller;total_orders:number;total_sales:number;commission_amount:number;orders:any[]}
-const fmt = (v:number) => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
-const TS = {contentStyle:{background:'#161625',border:'1px solid #1e1e2e',borderRadius:12,color:'#e2e8f0',fontSize:12}}
+type Seller={id:string;name:string;commission_pct:number;email:string}
+type Order={id:string;order_number:number;total:number;created_at:string;status:string;type:string}
+const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
+const todayStr=()=>new Date().toISOString().split('T')[0]
+const monthStr=()=>new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split('T')[0]
 
-export default function CommissionsPage() {
-  const [stats,setStats] = useState<SellerStats[]>([])
-  const [month,setMonth] = useState(new Date().toISOString().substring(0,7))
-  const [loading,setLoading] = useState(true)
-  const [selected,setSelected] = useState<string|null>(null)
+export default function CommissionsPage(){
+  const[sellers,setSellers]=useState<Seller[]>([])
+  const[selectedSeller,setSelectedSeller]=useState<string>('all')
+  const[orders,setOrders]=useState<Order[]>([])
+  const[loading,setLoading]=useState(true)
+  const[dateFrom,setDateFrom]=useState(monthStr())
+  const[dateTo,setDateTo]=useState(todayStr())
+  const[expanded,setExpanded]=useState(true)
 
-  useEffect(()=>{loadData()},[month])
+  useEffect(()=>{loadSellers()},[]) 
+  useEffect(()=>{loadOrders()},[selectedSeller,dateFrom,dateTo])
 
-  async function loadData() {
+  async function loadSellers(){
+    const{data}=await supabase.from('sellers').select('id,name,commission_pct,email').eq('active',true).order('name')
+    setSellers(data||[])
+  }
+
+  async function loadOrders(){
     setLoading(true)
-    const {data:sels} = await supabase.from('sellers').select('*').eq('active',true)
-    const start = month+'-01'
-    const end = new Date(new Date(start).getFullYear(),new Date(start).getMonth()+1,1).toISOString().split('T')[0]
-    const {data:orders} = await supabase.from('orders').select('id,order_number,total,seller_id,created_at,customer_name').eq('status','completed').gte('created_at',start).lt('created_at',end)
-    const result: SellerStats[] = (sels||[]).map(s=>{
-      const selOrders = (orders||[]).filter(o=>o.seller_id===s.id)
-      const total_sales = selOrders.reduce((sum,o)=>sum+o.total,0)
-      return {seller:s,total_orders:selOrders.length,total_sales,commission_amount:+(total_sales*s.commission_pct/100).toFixed(2),orders:selOrders}
-    }).sort((a,b)=>b.total_sales-a.total_sales)
-    setStats(result); setLoading(false)
+    let q=supabase.from('orders').select('id,order_number,total,created_at,status,type,seller_id')
+      .in('status',['completed','delivered'])
+      .gte('created_at',dateFrom+'T00:00:00')
+      .lte('created_at',dateTo+'T23:59:59')
+      .order('created_at',{ascending:false})
+    if(selectedSeller!=='all') q=q.eq('seller_id',selectedSeller)
+    const{data}=await q
+    setOrders(data||[])
+    setLoading(false)
   }
 
-  function exportCSV() {
-    const monthName = new Date(month+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})
-    let csv = 'RELATORIO DE COMISSOES - '+monthName.toUpperCase()+'\n\n'
-    csv += 'Vendedor,Email,Comissao %,Total Pedidos,Total Vendas,Valor Comissao\n'
-    stats.forEach(s=>{ csv += [s.seller.name,s.seller.email,s.seller.commission_pct+'%',s.total_orders,'R$ '+s.total_sales.toFixed(2),'R$ '+s.commission_amount.toFixed(2)].join(',')+('\n') })
-    csv += '\nTOTAL,,,'+stats.reduce((s,x)=>s+x.total_orders,0)+',R$ '+stats.reduce((s,x)=>s+x.total_sales,0).toFixed(2)+',R$ '+stats.reduce((s,x)=>s+x.commission_amount,0).toFixed(2)
-    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})); a.download='comissoes-'+month+'.csv'; a.click()
-    toast.success('Relatorio exportado!')
+  // Compute stats for selected seller(s)
+  function getSellerStats(sellerId:string){
+    const sellerOrders=sellerId==='all'?orders:orders.filter(o=>(o as any).seller_id===sellerId)
+    const seller=sellers.find(s=>s.id===sellerId)
+    const pct=seller?.commission_pct||0
+    const totalSales=sellerOrders.reduce((s,o)=>s+Number(o.total),0)
+    const commission=totalSales*(pct/100)
+    return{orders:sellerOrders,totalSales,commission,pct,count:sellerOrders.length}
   }
 
-  const totals = stats.reduce((acc,s)=>({sales:acc.sales+s.total_sales,comm:acc.comm+s.commission_amount,orders:acc.orders+s.total_orders}),{sales:0,comm:0,orders:0})
-  const selDetail = selected ? stats.find(s=>s.seller.id===selected) : null
-  const chartData = stats.filter(s=>s.total_sales>0).map(s=>({name:s.seller.name.split(' ')[0],vendas:s.total_sales,comissao:s.commission_amount}))
+  function setPreset(p:string){
+    const d=new Date()
+    if(p==='today'){setDateFrom(todayStr());setDateTo(todayStr())}
+    else if(p==='week'){const w=new Date(d);w.setDate(d.getDate()-7);setDateFrom(w.toISOString().split('T')[0]);setDateTo(todayStr())}
+    else if(p==='month'){setDateFrom(monthStr());setDateTo(todayStr())}
+    else if(p==='lastmonth'){const lm=new Date(d.getFullYear(),d.getMonth()-1,1);const le=new Date(d.getFullYear(),d.getMonth(),0);setDateFrom(lm.toISOString().split('T')[0]);setDateTo(le.toISOString().split('T')[0])}
+  }
 
-  return (
-    <div style={{height:'100%',overflowY:'auto',background:'var(--bg)'}}>
-      <div style={{padding:24,maxWidth:1100,margin:'0 auto'}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:24,flexWrap:'wrap',gap:12}}>
-          <div style={{display:'flex',alignItems:'center',gap:12}}>
-            <BarChart3 size={20} color="var(--neon)"/>
-            <h1 className="font-bangers neon-text-sm" style={{fontSize:26}}>COMISSOES DOS VENDEDORES</h1>
-          </div>
-          <div style={{display:'flex',gap:10,alignItems:'center'}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,background:'var(--card)',border:'1px solid var(--border)',borderRadius:8,padding:'7px 12px'}}>
-              <Calendar size={14} color="var(--muted)"/>
-              <input type="month" value={month} onChange={e=>setMonth(e.target.value)} style={{background:'transparent',border:'none',color:'var(--text)',outline:'none',fontSize:13,cursor:'pointer'}}/>
-            </div>
-            <button onClick={exportCSV} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,background:'var(--card)',border:'1px solid var(--border)',color:'var(--muted)',cursor:'pointer',fontSize:13,fontFamily:'Bangers,cursive'}}>
-              <Download size={14}/> EXPORTAR CSV
-            </button>
-          </div>
+  function exportCSV(sellerId:string){
+    const{orders:ords}=getSellerStats(sellerId)
+    const seller=sellers.find(s=>s.id===sellerId)
+    const rows=[['#','Data','Hora','Tipo','Total','Comissao']]
+    ords.forEach(o=>{
+      const pct=(seller?.commission_pct||0)/100
+      rows.push([String(o.order_number),new Date(o.created_at).toLocaleDateString('pt-BR'),new Date(o.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),o.type==='pdv'?'PDV':'Delivery',Number(o.total).toFixed(2),(Number(o.total)*pct).toFixed(2)])
+    })
+    const csv=rows.map(r=>r.join(';')).join('\n')
+    const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='comissoes-'+(seller?.name||'todos')+'.csv';a.click()
+  }
+
+  const sellerList=selectedSeller==='all'?sellers:[sellers.find(s=>s.id===selectedSeller)].filter(Boolean) as Seller[]
+
+  return(
+    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
+
+      <div style={{padding:'12px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+        <Percent size={20} color='var(--neon)'/>
+        <h1 className='font-bangers neon-text-sm' style={{fontSize:26}}>COMISSOES</h1>
+      </div>
+
+      {/* Filters */}
+      <div style={{padding:'10px 20px',borderBottom:'1px solid var(--border)',background:'var(--card)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+        {/* Seller selector */}
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          <User size={14} color='var(--muted)'/>
+          <select value={selectedSeller} onChange={e=>setSelectedSeller(e.target.value)} style={{fontSize:13,padding:'6px 10px',minWidth:160}}>
+            <option value='all'>Todos os vendedores</option>
+            {sellers.map(s=>(<option key={s.id} value={s.id}>{s.name} ({s.commission_pct}%)</option>))}
+          </select>
         </div>
+        <div style={{width:1,height:24,background:'var(--border)'}}/>
+        {[{k:'today',l:'Hoje'},{k:'week',l:'7 dias'},{k:'month',l:'Este mes'},{k:'lastmonth',l:'Mes anterior'}].map(p=>(
+          <button key={p.k} onClick={()=>setPreset(p.k)} style={{padding:'5px 10px',borderRadius:7,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive'}}>{p.l}</button>
+        ))}
+        <input type='date' value={dateFrom} onChange={e=>setDateFrom(e.target.value)} style={{fontSize:12,padding:'5px 8px',width:130}}/>
+        <span style={{fontSize:11,color:'var(--muted)'}}>ate</span>
+        <input type='date' value={dateTo} onChange={e=>setDateTo(e.target.value)} style={{fontSize:12,padding:'5px 8px',width:130}}/>
+      </div>
 
-        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:16,marginBottom:24}}>
-          {[
-            {label:'Total Vendas',value:fmt(totals.sales),icon:DollarSign,color:'#10b981'},
-            {label:'Total Comissoes',value:fmt(totals.comm),icon:TrendingUp,color:'#7c3aed'},
-            {label:'Total Pedidos',value:String(totals.orders),icon:Users,color:'#06b6d4'},
-          ].map((k,i)=>(
-            <div key={i} className="card" style={{padding:20,display:'flex',alignItems:'center',gap:14}}>
-              <div style={{width:46,height:46,borderRadius:12,background:k.color+'20',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><k.icon size={22} style={{color:k.color}}/></div>
-              <div><p style={{fontSize:21,fontWeight:700,color:'var(--white)',fontFamily:'JetBrains Mono,monospace'}}>{k.value}</p><p style={{fontSize:12,color:'var(--muted)'}}>{k.label}</p></div>
-            </div>
-          ))}
-        </div>
+      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+        {sellers.length===0?(
+          <div style={{textAlign:'center',padding:64,color:'var(--muted)'}}><User size={48} style={{opacity:0.3,marginBottom:16}}/><p style={{fontFamily:'Bangers,cursive',fontSize:18}}>NENHUM VENDEDOR CADASTRADO</p><p style={{fontSize:13,marginTop:8}}>Cadastre vendedores na aba Vendedores para ver as comissoes.</p></div>
+        ):loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:(
+          sellerList.map(seller=>{ 
+            const stats=getSellerStats(seller.id)
+            const isExpanded=expanded||sellerList.length===1
+            return(
+              <div key={seller.id} className='card' style={{marginBottom:16,overflow:'hidden'}}>
+                {/* Seller header */}
+                <div onClick={()=>setExpanded(!expanded)} style={{padding:'14px 18px',display:'flex',alignItems:'center',gap:14,cursor:sellerList.length>1?'pointer':'default',flexWrap:'wrap'}}>
+                  <div style={{width:42,height:42,borderRadius:12,background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    <User size={20} color='var(--neon)'/>
+                  </div>
+                  <div style={{flex:1}}>
+                    <p style={{fontSize:15,fontWeight:700,color:'var(--white)'}}>{seller.name}</p>
+                    <p style={{fontSize:12,color:'var(--muted)'}}>Comissao: {seller.commission_pct}% | {seller.email||'Sem email'}</p>
+                  </div>
+                  {/* KPIs */}
+                  <div style={{display:'flex',gap:20,flexWrap:'wrap'}}>
+                    <div style={{textAlign:'center'}}>
+                      <p style={{fontSize:18,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(stats.totalSales)}</p>
+                      <p style={{fontSize:10,color:'var(--muted)'}}>Total vendido</p>
+                    </div>
+                    <div style={{textAlign:'center'}}>
+                      <p style={{fontSize:18,fontWeight:700,color:'#f59e0b',fontFamily:'JetBrains Mono,monospace'}}>{fmt(stats.commission)}</p>
+                      <p style={{fontSize:10,color:'var(--muted)'}}>Comissao ({stats.pct}%)</p>
+                    </div>
+                    <div style={{textAlign:'center'}}>
+                      <p style={{fontSize:18,fontWeight:700,color:'var(--white)'}}>{stats.count}</p>
+                      <p style={{fontSize:10,color:'var(--muted)'}}>Vendas</p>
+                    </div>
+                  </div>
+                  <div style={{display:'flex',gap:8}}>
+                    {stats.count>0&&<button onClick={e=>{e.stopPropagation();exportCSV(seller.id)}} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 12px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--muted)',cursor:'pointer',fontSize:12}}><Download size={12}/>CSV</button>}
+                    {sellerList.length>1&&(isExpanded?<ChevronUp size={16} color='var(--muted)'/>:<ChevronDown size={16} color='var(--muted)'/>)}
+                  </div>
+                </div>
 
-        {chartData.length>0 && (
-          <div className="card" style={{padding:20,marginBottom:20}}>
-            <h2 style={{fontWeight:600,color:'var(--white)',marginBottom:14,fontSize:14}}>Comparativo de Vendas por Vendedor</h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e"/>
-                <XAxis dataKey="name" tick={{fill:'#64748b',fontSize:12}} axisLine={false} tickLine={false}/>
-                <YAxis tick={{fill:'#64748b',fontSize:11}} axisLine={false} tickLine={false} tickFormatter={v=>'R$'+v}/>
-                <Tooltip {...TS} formatter={(v:number,name:string)=>[fmt(v),name==='vendas'?'Vendas':'Comissao']}/>
-                <Bar dataKey="vendas" fill="#00ff41" radius={[4,4,0,0]} name="vendas"/>
-                <Bar dataKey="comissao" fill="#7c3aed" radius={[4,4,0,0]} name="comissao"/>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-
-        {loading ? <div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando dados...</div> : (
-          <div className="card" style={{overflow:'hidden',marginBottom:16}}>
-            <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <thead><tr style={{borderBottom:'1px solid var(--border)'}}>
-                {['VENDEDOR','PEDIDOS','TOTAL VENDAS','COMISSAO %','VALOR COMISSAO',''].map(h=><th key={h} style={{padding:'10px 16px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1}}>{h}</th>)}
-              </tr></thead>
-              <tbody>
-                {stats.map(s=>(
-                  <>
-                  <tr key={s.seller.id} style={{borderBottom:'1px solid rgba(26,46,26,0.5)',cursor:'pointer',background:selected===s.seller.id?'rgba(0,255,65,0.04)':'transparent'}} onClick={()=>setSelected(selected===s.seller.id?null:s.seller.id)}>
-                    <td style={{padding:'13px 16px'}}>
-                      <p style={{fontWeight:600,color:'var(--white)',fontSize:14}}>{s.seller.name}</p>
-                      <p style={{fontSize:11,color:'var(--muted)'}}>{s.seller.email}</p>
-                    </td>
-                    <td style={{padding:'13px 16px',fontFamily:'JetBrains Mono,monospace',fontSize:14,color:'var(--text)'}}>{s.total_orders}</td>
-                    <td style={{padding:'13px 16px',fontFamily:'JetBrains Mono,monospace',fontSize:14,fontWeight:600,color:'var(--neon)'}}>{fmt(s.total_sales)}</td>
-                    <td style={{padding:'13px 16px'}}><span style={{fontSize:13,fontWeight:700,padding:'3px 10px',borderRadius:20,background:'rgba(0,255,65,0.1)',color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{s.seller.commission_pct}%</span></td>
-                    <td style={{padding:'13px 16px',fontFamily:'JetBrains Mono,monospace',fontSize:17,fontWeight:700,color:'#7c3aed'}}>{fmt(s.commission_amount)}</td>
-                    <td style={{padding:'13px 16px',color:'var(--muted)'}}>{selected===s.seller.id?<ChevronUp size={15}/>:<ChevronDown size={15}/>}</td>
-                  </tr>
-                  {selected===s.seller.id && selDetail && (
-                    <tr key={s.seller.id+'_detail'}><td colSpan={6} style={{padding:'0 16px 14px',borderBottom:'1px solid var(--border)'}}>
-                      <p style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>Pedidos de {selDetail.seller.name} em {new Date(month+'-15').toLocaleDateString('pt-BR',{month:'long',year:'numeric'})}:</p>
-                      {selDetail.orders.length===0 ? <p style={{color:'var(--muted)',fontSize:12,fontStyle:'italic'}}>Nenhum pedido neste periodo.</p> : (
-                        <table style={{width:'100%',borderCollapse:'collapse'}}>
-                          <thead><tr style={{borderBottom:'1px solid var(--border)'}}>{['#','Cliente','Valor','Data'].map(h=><th key={h} style={{padding:'5px 10px',textAlign:'left',fontSize:10,color:'var(--muted)',fontWeight:600}}>{h}</th>)}</tr></thead>
-                          <tbody>{selDetail.orders.map(o=>(
-                            <tr key={o.id} style={{borderBottom:'1px solid rgba(26,46,26,0.3)'}}>
-                              <td style={{padding:'5px 10px',fontFamily:'JetBrains Mono,monospace',fontSize:12,color:'var(--neon)'}}>#{o.order_number}</td>
-                              <td style={{padding:'5px 10px',fontSize:12,color:'var(--text)'}}>{o.customer_name||'—'}</td>
-                              <td style={{padding:'5px 10px',fontFamily:'JetBrains Mono,monospace',fontSize:12,fontWeight:600,color:'var(--white)'}}>{fmt(o.total)}</td>
-                              <td style={{padding:'5px 10px',fontSize:11,color:'var(--muted)'}}>{new Date(o.created_at).toLocaleDateString('pt-BR')}</td>
-                            </tr>
-                          ))}</tbody>
-                        </table>
-                      )}
-                    </td></tr>
-                  )}
-                  </>
-                ))}
-                {stats.length===0 && <tr><td colSpan={6} style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Nenhum vendedor ativo encontrado</td></tr>}
-              </tbody>
-            </table>
-          </div>
+                {/* Orders list */}
+                {(isExpanded||sellerList.length===1)&&(
+                  <div style={{borderTop:'1px solid var(--border)'}}>
+                    {stats.orders.length===0?(
+                      <div style={{padding:'24px',textAlign:'center',color:'var(--muted)',fontSize:13}}>Nenhuma venda no periodo selecionado</div>
+                    ):(
+                      <>
+                        <div style={{maxHeight:320,overflowY:'auto'}}>
+                          <table style={{width:'100%',borderCollapse:'collapse'}}>
+                            <thead><tr style={{borderBottom:'1px solid var(--border)',background:'var(--surface)',position:'sticky',top:0}}>
+                              {['#','Data','Hora','Tipo','Total','Comissao'].map(h=>(
+                                <th key={h} style={{padding:'8px 14px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1}}>{h}</th>
+                              ))}
+                            </tr></thead>
+                            <tbody>
+                              {stats.orders.map(o=>(
+                                <tr key={o.id} style={{borderBottom:'1px solid rgba(26,46,26,0.4)'}}>
+                                  <td style={{padding:'8px 14px',fontSize:12,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>#{o.order_number}</td>
+                                  <td style={{padding:'8px 14px',fontSize:12,color:'var(--muted)'}}>{new Date(o.created_at).toLocaleDateString('pt-BR')}</td>
+                                  <td style={{padding:'8px 14px',fontSize:12,color:'var(--muted)'}}>{new Date(o.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
+                                  <td style={{padding:'8px 14px'}}><span style={{fontSize:11,padding:'2px 7px',borderRadius:6,background:o.type==='pdv'?'rgba(0,255,65,0.1)':'rgba(6,182,212,0.1)',color:o.type==='pdv'?'var(--neon)':'#06b6d4'}}>{o.type==='pdv'?'PDV':'Delivery'}</span></td>
+                                  <td style={{padding:'8px 14px',fontSize:12,fontWeight:600,color:'var(--white)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(o.total))}</td>
+                                  <td style={{padding:'8px 14px',fontSize:12,fontWeight:700,color:'#f59e0b',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(o.total)*(stats.pct/100))}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div style={{padding:'12px 14px',borderTop:'1px solid var(--border)',background:'var(--surface)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                          <span style={{fontSize:13,color:'var(--muted)'}}>Total do periodo</span>
+                          <div style={{display:'flex',gap:24}}>
+                            <div style={{textAlign:'right'}}><p style={{fontSize:14,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(stats.totalSales)}</p><p style={{fontSize:10,color:'var(--muted)'}}>vendido</p></div>
+                            <div style={{textAlign:'right'}}><p style={{fontSize:14,fontWeight:700,color:'#f59e0b',fontFamily:'JetBrains Mono,monospace'}}>{fmt(stats.commission)}</p><p style={{fontSize:10,color:'var(--muted)'}}>comissao ({stats.pct}%)</p></div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
     </div>
