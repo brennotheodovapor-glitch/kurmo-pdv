@@ -1,12 +1,11 @@
 import{useCashRegister}from '@/hooks/useCashRegister'
 import{useState,useEffect,useRef}from 'react'
-import{Plus,Minus,X,Check,Search,ShoppingCart,AlertTriangle}from 'lucide-react'
+import{Plus,Minus,X,Check,Search,ShoppingCart,AlertTriangle,User}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
 type Product={id:string;name:string;price:number;stock:number;image_url?:string}
 type CartItem=Product&{qty:number}
-type Seller={id:string;name:string}
 type Payment={method:string;amount:number}
 const METHODS=[{key:'pix',label:'PIX'},{key:'dinheiro',label:'Dinheiro'},{key:'debito',label:'Debito'},{key:'credito',label:'Credito'}]
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
@@ -15,25 +14,23 @@ type Props={sellerId?:string|null;sellerName?:string}
 export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName}:Props={}){
   const cash=useCashRegister()
   const[products,setProducts]=useState<Product[]>([])
-  const[sellers,setSellers]=useState<Seller[]>([])
   const[cart,setCart]=useState<CartItem[]>([])
   const[search,setSearch]=useState('')
-  const[sellerId,setSellerId]=useState('')
   const[customerName,setCustomerName]=useState('')
   const[discount,setDiscount]=useState(0)
   const[payments,setPayments]=useState<Payment[]>([{method:'pix',amount:0}])
   const[processing,setProcessing]=useState(false)
   const searchRef=useRef<HTMLInputElement>(null)
 
+  // Use seller from prop (logged-in seller) - no manual selection
+  const activeSellerId=propSellerId||null
+  const activeSellerName=propSellerName||null
+
   useEffect(()=>{loadData()},[]) 
 
   async function loadData(){
-    const[p,s]=await Promise.all([
-      supabase.from('products').select('*').eq('active',true).order('name'),
-      supabase.from('sellers').select('id,name').eq('active',true).order('name')
-    ])
-    setProducts(p.data||[]);setSellers(s.data||[])
-    if((s.data||[]).length===1)setSellerId(s.data![0].id)
+    const{data}=await supabase.from('products').select('*').eq('active',true).order('name')
+    setProducts(data||[])
   }
 
   const filtered=products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()))
@@ -54,13 +51,14 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
   async function finishSale(){
     if(!cash.isOpen){toast.error('Caixa fechado! Abra o caixa para finalizar.');cash.setOpenModal(true);return}
     if(cart.length===0){toast.error('Carrinho vazio');return}
-    if(!sellerId&&sellers.length>0){toast.error('Selecione o vendedor');return}
     if(remaining>0.01){toast.error('Pagamento insuficiente. Faltam '+fmt(remaining));return}
     setProcessing(true)
     try{
       const{data:order,error:oErr}=await supabase.from('orders').insert({
-        seller_id:sellerId||null,customer_name:customerName||null,
-        type:'pdv',status:'completed',cash_register_id:cash.current?.id||null,
+        seller_id:activeSellerId||null,
+        customer_name:customerName||null,
+        type:'pdv',status:'completed',
+        cash_register_id:cash.current?.id||null,
         subtotal,discount,total
       }).select().single()
       if(oErr)throw oErr
@@ -117,16 +115,17 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
         <div style={{padding:'10px 14px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
           <ShoppingCart size={18} color='var(--neon)'/>
           <h1 className='font-bangers neon-text-sm' style={{fontSize:22}}>PDV</h1>
+          {/* Vendedor logado */}
+          {activeSellerName&&(
+            <div style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:8,background:'var(--neon-glow)',border:'1px solid var(--neon-dim)'}}>
+              <User size={12} color='var(--neon)'/>
+              <span style={{fontSize:12,color:'var(--neon)',fontFamily:'Bangers,cursive',letterSpacing:0.5}}>{activeSellerName}</span>
+            </div>
+          )}
           <div style={{position:'relative',flex:1,minWidth:200}}>
             <Search size={14} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
             <input ref={searchRef} value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar produto...' style={{paddingLeft:32}}/>
           </div>
-          {sellers.length>0&&(
-            <select value={sellerId} onChange={e=>setSellerId(e.target.value)} style={{maxWidth:180,fontSize:13,border:!sellerId?'1px solid #ffaa00':'1px solid var(--border)'}}>
-              <option value=''>Selecionar vendedor...</option>
-              {sellers.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
-          )}
         </div>
         <div style={{flex:1,overflowY:'auto',padding:12,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:8,alignContent:'start'}}>
           {filtered.map(p=>(
