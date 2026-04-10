@@ -1,3 +1,4 @@
+// v2
 import{useState,useEffect}from 'react'
 import{BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,PieChart,Pie,Cell}from 'recharts'
 import{BarChart3,TrendingUp,ShoppingCart,Truck,Download}from 'lucide-react'
