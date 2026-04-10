@@ -15,8 +15,8 @@ import CustomersPage from '@/pages/CustomersPage'
 import ReportsPage from '@/pages/ReportsPage'
 import SellersPage from '@/pages/SellersPage'
 import CommissionsPage from '@/pages/CommissionsPage'
-import DeliveryZonesPage from '@/pages/DeliveryZonesPage'
 import PublicMenuPage from '@/pages/PublicMenuPage'
+import DeliveryZonesPage from '@/pages/DeliveryZonesPage'
 
 export default function App(){
   const[session,setSession]=useState<any>(null)
@@ -45,9 +45,8 @@ export default function App(){
     }catch{setProfile({role:'admin'})}
   }
 
-  // Public menu - no auth required
-  if(window.location.pathname==='/menu'||window.location.pathname.startsWith('/menu')){
-    return<Routes><Route path="/menu" element={<PublicMenuPage/>}/><Route path="/menu/*" element={<PublicMenuPage/>}/></Routes>
+  if(window.location.pathname==='/menu'||window.location.pathname.startsWith('/menu/')){
+    return<Routes><Route path='/menu' element={<PublicMenuPage/>}/><Route path='/menu/*' element={<PublicMenuPage/>}/></Routes>
   }
 
   if(loading) return(
@@ -63,25 +62,26 @@ export default function App(){
 
   return(
     <Routes>
-      <Route path="/menu" element={<PublicMenuPage/>}/>
-      <Route path="/menu/*" element={<PublicMenuPage/>}/>
-      <Route path="/" element={<Layout session={session} profile={profile}/>}>
-        <Route index element={<Navigate to="/pdv" replace/>}/>
-        <Route path="pdv" element={<PDVPage sellerId={profile?.seller_id} sellerName={profile?.sellers?.name}/>}/>
-        <Route path="delivery" element={<DeliveryPage/>}/>
-        <Route path="historico" element={<HistoryPage sellerId={isAdmin?null:profile?.seller_id}/>}/>
+      <Route path='/menu' element={<PublicMenuPage/>}/>
+      <Route path='/menu/*' element={<PublicMenuPage/>}/>
+      <Route path='/' element={<Layout session={session} profile={profile}/>}>
+        <Route index element={<Navigate to='/pdv' replace/>}/>
+        <Route path='pdv' element={<PDVPage sellerId={profile?.seller_id} sellerName={profile?.sellers?.name}/>}/>
+        <Route path='delivery' element={<DeliveryPage/>}/>
+        <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:profile?.seller_id}/>}/>
         {isAdmin&&<>
-          <Route path="categorias" element={<CategoriesPage/>}/>
-          <Route path="produtos" element={<ProductsPage/>}/>
-          <Route path="vendedores" element={<SellersPage/>}/>
-          <Route path="comissoes" element={<CommissionsPage/>}/>
-          <Route path="clientes" element={<CustomersPage/>}/>
-          <Route path="dashboard" element={<DashboardPage/>}/>
-          <Route path="relatorios" element={<ReportsPage/>}/>
-          <Route path="cardapio" element={<MenuPage/>}/>
-          <Route path="configuracoes" element={<SettingsPage/>}/>
+          <Route path='categorias' element={<CategoriesPage/>}/>
+          <Route path='produtos' element={<ProductsPage/>}/>
+          <Route path='vendedores' element={<SellersPage/>}/>
+          <Route path='comissoes' element={<CommissionsPage/>}/>
+          <Route path='clientes' element={<CustomersPage/>}/>
+          <Route path='dashboard' element={<DashboardPage/>}/>
+          <Route path='relatorios' element={<ReportsPage/>}/>
+          <Route path='cardapio' element={<MenuPage/>}/>
+          <Route path='bairros' element={<DeliveryZonesPage/>}/>
+          <Route path='configuracoes' element={<SettingsPage/>}/>
         </>}
-        <Route path="*" element={<Navigate to="/pdv" replace/>}/>
+        <Route path='*' element={<Navigate to='/pdv' replace/>}/>
       </Route>
     </Routes>
   )
