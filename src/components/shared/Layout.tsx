@@ -2,7 +2,7 @@ import{useState}from 'react'
 import{Outlet,NavLink,useNavigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
 import Logo from './Logo'
-import{ShoppingCart,Package,Tag,Users,BarChart3,Settings,History,Truck,QrCode,LayoutDashboard,LogOut,ChevronLeft,ChevronRight,Percent,UserCheck,Menu,X}from 'lucide-react'
+import{ShoppingCart,Package,Tag,Users,BarChart3,Settings,History,Truck,QrCode,LayoutDashboard,LogOut,ChevronLeft,ChevronRight,Percent,UserCheck,Menu,X,MapPin}from 'lucide-react'
 
 const ADMIN_NAV=[
   {to:'/pdv',icon:ShoppingCart,label:'PDV'},
