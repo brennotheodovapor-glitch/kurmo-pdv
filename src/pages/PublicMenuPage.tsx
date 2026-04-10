@@ -125,7 +125,7 @@ export default function PublicMenuPage(){
             <span style={{fontSize:20,fontFamily:'Bangers,cursive',color:'#00ff41'}}>K</span>
           </div>
           <div style={{flex:1}}>
-            <p style={{fontFamily:'Bangers,cursive',fontSize:20,color:'#00ff41',letterSpacing:2,lineHeight:1}}>KURMO VAPE</p>
+            <p style={{fontFamily:'Bangers,cursive',fontSize:20,color:'#00ff41',letterSpacing:2,lineHeight:1}}>UZT 027</p>
             <p style={{fontSize:11,color:'#64748b'}}>Cardapio Digital</p>
           </div>
           <button onClick={()=>{setCartOpen(true);setStep('cart')}} style={{position:'relative',background:'rgba(0,255,65,0.1)',border:'1px solid rgba(0,255,65,0.3)',borderRadius:12,padding:'9px 16px',color:'#00ff41',cursor:'pointer',display:'flex',alignItems:'center',gap:8,fontSize:14,fontWeight:600}}>
