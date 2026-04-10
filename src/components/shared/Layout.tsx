@@ -2,7 +2,7 @@ import{useState}from 'react'
 import{Outlet,NavLink,useNavigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
 import Logo from './Logo'
-import{ShoppingCart,Package,Tag,Users,BarChart3,Settings,History,Truck,QrCode,LayoutDashboard,LogOut,ChevronLeft,ChevronRight,Percent,UserCheck,Menu,X,MapPin}from 'lucide-react'
+import{DollarSign,ShoppingCart,Package,Tag,Users,BarChart3,Settings,History,Truck,QrCode,LayoutDashboard,LogOut,ChevronLeft,ChevronRight,Percent,UserCheck,Menu,X,MapPin}from 'lucide-react'
 
 const ADMIN_NAV=[
   {to:'/pdv',icon:ShoppingCart,label:'PDV'},
@@ -16,6 +16,7 @@ const ADMIN_NAV=[
   {to:'/categorias',icon:Tag,label:'Categorias'},
   {to:'/cardapio',icon:QrCode,label:'Cardapio'},
   {to:'/clientes',icon:Users,label:'Clientes'},
+  {to:'/caixa',icon:DollarSign,label:'Caixa'},
   {to:'/bairros',icon:MapPin,label:'Bairros'},
   {to:'/configuracoes',icon:Settings,label:'Config'},
 ]
