@@ -1,160 +1,180 @@
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts'
-import { TrendingUp, ShoppingCart, Package, DollarSign, ArrowUpRight, ArrowDownRight, Zap, Clock } from 'lucide-react'
-import { currency } from '@/lib/format'
+import{useState,useEffect}from 'react'
+import{BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,PieChart,Pie,Cell,LineChart,Line}from 'recharts'
+import{TrendingUp,ShoppingCart,DollarSign,Package,Truck,ShoppingBag}from 'lucide-react'
+import{supabase}from '@/lib/supabase'
 
-const salesData = [
-  { day: 'Seg', vendas: 420, pedidos: 8 },
-  { day: 'Ter', vendas: 680, pedidos: 14 },
-  { day: 'Qua', vendas: 320, pedidos: 7 },
-  { day: 'Qui', vendas: 890, pedidos: 19 },
-  { day: 'Sex', vendas: 1240, pedidos: 27 },
-  { day: 'Sab', vendas: 1680, pedidos: 35 },
-  { day: 'Dom', vendas: 980, pedidos: 22 },
-]
+const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
+const COLORS=['#00ff41','#06b6d4','#7c3aed','#f59e0b','#ef4444','#10b981']
 
-const topProducts = [
-  { name: 'Elfbar BC5000', sales: 42, revenue: 5040 },
-  { name: 'Lost Mary 600', sales: 38, revenue: 1710 },
-  { name: 'Salt Nic Mango', sales: 29, revenue: 1015 },
-  { name: 'Uwell Caliburn', sales: 18, revenue: 3240 },
-  { name: 'Elf Bar Pi 9000', sales: 15, revenue: 1335 },
-]
+export default function DashboardPage(){
+  const[period,setPeriod]=useState<'7d'|'30d'|'90d'>('30d')
+  const[loading,setLoading]=useState(true)
+  const[stats,setStats]=useState({revenue:0,orders:0,avgTicket:0,products:0,deliveryRev:0,pdvRev:0})
+  const[dailyData,setDailyData]=useState<any[]>([])
+  const[payData,setPayData]=useState<any[]>([])
+  const[topProducts,setTopProducts]=useState<any[]>([])
 
-const paymentData = [
-  { name: 'PIX', value: 58, color: '#10b981' },
-  { name: 'Dinheiro', value: 22, color: '#f59e0b' },
-  { name: 'Débito', value: 12, color: '#06b6d4' },
-  { name: 'Crédito', value: 8, color: '#7c3aed' },
-]
+  useEffect(()=>{loadData()},[period])
 
-const TOOLTIP_STYLE = {
-  contentStyle: { background: '#16161f', border: '1px solid #1e1e2e', borderRadius: 12, color: '#e2e8f0', fontFamily: 'DM Sans' },
-  itemStyle: { color: '#a78bfa' },
-  labelStyle: { color: '#64748b' },
-}
+  async function loadData(){
+    setLoading(true)
+    const days=period==='7d'?7:period==='30d'?30:90
+    const from=new Date();from.setDate(from.getDate()-days)
+    const fromStr=from.toISOString()
 
-function StatCard({ label, value, sub, trend, icon: Icon, color }: any) {
-  const isUp = trend >= 0
-  return (
-    <div className="bg-kurmo-card border border-kurmo-border rounded-2xl p-5 flex flex-col gap-3">
-      <div className="flex items-start justify-between">
-        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: color + '20' }}>
-          <Icon className="w-5 h-5" style={{ color }} />
-        </div>
-        <div className={`flex items-center gap-1 text-xs font-medium px-2 py-1 rounded-lg ${isUp ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
-          {isUp ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
-          {Math.abs(trend)}%
-        </div>
+    // Load all completed orders in period
+    const{data:orders}=await supabase.from('orders')
+      .select('id,total,type,created_at,status')
+      .in('status',['completed','delivered'])
+      .gte('created_at',fromStr)
+      .order('created_at',{ascending:true})
+
+    const{data:payments}=await supabase.from('order_payments')
+      .select('method,amount,order_id')
+
+    const{data:items}=await supabase.from('order_items')
+      .select('product_name,quantity,total_price,order_id')
+
+    const{data:products}=await supabase.from('products').select('id').eq('active',true)
+
+    const ords=orders||[]
+    const revenue=ords.reduce((s,o)=>s+Number(o.total),0)
+    const pdvRev=ords.filter(o=>o.type==='pdv').reduce((s,o)=>s+Number(o.total),0)
+    const delivRev=ords.filter(o=>o.type==='delivery').reduce((s,o)=>s+Number(o.total),0)
+
+    setStats({revenue,orders:ords.length,avgTicket:ords.length?revenue/ords.length:0,products:(products||[]).length,deliveryRev:delivRev,pdvRev})
+
+    // Daily data - group by date
+    const byDate:Record<string,{date:string;vendas:number;pedidos:number}>={}
+    ords.forEach(o=>{
+      const d=new Date(o.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})
+      if(!byDate[d])byDate[d]={date:d,vendas:0,pedidos:0}
+      byDate[d].vendas+=Number(o.total)
+      byDate[d].pedidos++
+    })
+    setDailyData(Object.values(byDate).slice(-14))
+
+    // Payment methods
+    const ordIds=new Set(ords.map(o=>o.id))
+    const payMap:Record<string,number>={}
+    ;(payments||[]).filter(p=>ordIds.has(p.order_id)).forEach(p=>{
+      const label=p.method==='pix'?'PIX':p.method==='dinheiro'?'Dinheiro':p.method==='debito'?'Debito':'Credito'
+      payMap[label]=(payMap[label]||0)+Number(p.amount)
+    })
+    setPayData(Object.entries(payMap).map(([name,value])=>({name,value})))
+
+    // Top products
+    const prodMap:Record<string,{name:string;qty:number;revenue:number}>={}
+    ;(items||[]).forEach(i=>{
+      if(!prodMap[i.product_name])prodMap[i.product_name]={name:i.product_name,qty:0,revenue:0}
+      prodMap[i.product_name].qty+=i.quantity
+      prodMap[i.product_name].revenue+=Number(i.total_price)
+    })
+    setTopProducts(Object.values(prodMap).sort((a,b)=>b.revenue-a.revenue).slice(0,5))
+
+    setLoading(false)
+  }
+
+  const KPI=({icon:Icon,label,value,sub,color}:{icon:any;label:string;value:string;sub?:string;color:string})=>(
+    <div className='card' style={{padding:'18px 20px',display:'flex',alignItems:'flex-start',gap:14}}>
+      <div style={{width:44,height:44,borderRadius:12,background:color+'20',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+        <Icon size={20} color={color}/>
       </div>
       <div>
-        <p className="text-2xl font-bold font-mono text-kurmo-text">{value}</p>
-        <p className="text-sm text-kurmo-muted mt-0.5">{label}</p>
-        {sub && <p className="text-xs text-kurmo-muted mt-1 opacity-70">{sub}</p>}
+        <p style={{fontSize:22,fontWeight:700,color:'var(--white)',fontFamily:'JetBrains Mono,monospace',lineHeight:1}}>{value}</p>
+        <p style={{fontSize:12,color:'var(--muted)',marginTop:3}}>{label}</p>
+        {sub&&<p style={{fontSize:11,color:'var(--muted)',opacity:0.7,marginTop:2}}>{sub}</p>}
       </div>
     </div>
   )
-}
 
-export default function DashboardPage() {
-  return (
-    <div className="h-full overflow-y-auto bg-kurmo-bg">
-      <div className="p-6 max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="font-display font-bold text-2xl text-kurmo-text">Dashboard</h1>
-            <p className="text-kurmo-muted text-sm mt-0.5">Visão geral dos últimos 7 dias</p>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-kurmo-card border border-kurmo-border text-sm text-kurmo-muted">
-            <Clock className="w-4 h-4" />
-            Últimos 7 dias
-          </div>
-        </div>
+  const tooltipStyle={background:'#111811',border:'1px solid var(--border)',borderRadius:8,color:'var(--white)',fontSize:12}
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <StatCard label="Faturamento" value={currency(6210)} sub="Este período" trend={12.4} icon={DollarSign} color="#10b981" />
-          <StatCard label="Pedidos" value="132" sub="PDV + Delivery" trend={8.2} icon={ShoppingCart} color="#7c3aed" />
-          <StatCard label="Ticket médio" value={currency(47.04)} sub="Por venda" trend={3.1} icon={TrendingUp} color="#06b6d4" />
-          <StatCard label="Produtos" sub="Em estoque" value="47" trend={-2} icon={Package} color="#f59e0b" />
-        </div>
-
-        {/* Charts */}
-        <div className="grid grid-cols-3 gap-4 mb-4">
-          {/* Sales chart */}
-          <div className="col-span-2 bg-kurmo-card border border-kurmo-border rounded-2xl p-5">
-            <h2 className="font-semibold text-kurmo-text mb-4 flex items-center gap-2">
-              <Zap className="w-4 h-4 text-kurmo-accentLight" /> Vendas por dia
-            </h2>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={salesData} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e1e2e" />
-                <XAxis dataKey="day" tick={{ fill: '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: '#64748b', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${v}`} />
-                <Tooltip {...TOOLTIP_STYLE} formatter={(v: number) => [currency(v), 'Vendas']} />
-                <Bar dataKey="vendas" fill="url(#barGrad)" radius={[6, 6, 0, 0]} />
-                <defs>
-                  <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#7c3aed" />
-                    <stop offset="100%" stopColor="#06b6d4" />
-                  </linearGradient>
-                </defs>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* Payment pie */}
-          <div className="bg-kurmo-card border border-kurmo-border rounded-2xl p-5">
-            <h2 className="font-semibold text-kurmo-text mb-4">Formas de pagamento</h2>
-            <ResponsiveContainer width="100%" height={160}>
-              <PieChart>
-                <Pie data={paymentData} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value">
-                  {paymentData.map((entry, index) => <Cell key={index} fill={entry.color} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: '#16161f', border: '1px solid #1e1e2e', borderRadius: 12, fontFamily: 'DM Sans', fontSize: 12 }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex flex-col gap-1.5 mt-2">
-              {paymentData.map(p => (
-                <div key={p.name} className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full" style={{ background: p.color }} />
-                    <span className="text-kurmo-muted">{p.name}</span>
-                  </div>
-                  <span className="font-medium text-kurmo-text">{p.value}%</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Top Products */}
-        <div className="bg-kurmo-card border border-kurmo-border rounded-2xl p-5">
-          <h2 className="font-semibold text-kurmo-text mb-4 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-kurmo-accentLight" /> Produtos mais vendidos
-          </h2>
-          <div className="space-y-3">
-            {topProducts.map((p, i) => (
-              <div key={p.name} className="flex items-center gap-4">
-                <span className="text-kurmo-muted font-mono text-sm w-5">{i + 1}</span>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium text-kurmo-text">{p.name}</span>
-                    <span className="text-sm font-mono font-bold text-kurmo-accentLight">{currency(p.revenue)}</span>
-                  </div>
-                  <div className="h-1.5 bg-kurmo-surface rounded-full overflow-hidden">
-                    <div
-                      className="h-full rounded-full"
-                      style={{ width: `${(p.sales / 42) * 100}%`, background: `linear-gradient(90deg, #7c3aed, #06b6d4)` }}
-                    />
-                  </div>
-                </div>
-                <span className="text-xs text-kurmo-muted w-12 text-right">{p.sales} un</span>
-              </div>
-            ))}
-          </div>
+  return(
+    <div style={{height:'100%',overflowY:'auto',padding:'20px',background:'var(--bg)'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20,flexWrap:'wrap',gap:10}}>
+        <h1 style={{fontFamily:'Bangers,cursive',fontSize:28,color:'var(--neon)',letterSpacing:2}}>DASHBOARD</h1>
+        <div style={{display:'flex',gap:6}}>
+          {([['7d','7 dias'],['30d','30 dias'],['90d','90 dias']] as const).map(([v,l])=>(
+            <button key={v} onClick={()=>setPeriod(v)} style={{padding:'6px 12px',borderRadius:8,border:period===v?'1px solid var(--neon)':'1px solid var(--border)',background:period===v?'var(--neon-glow)':'transparent',color:period===v?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive'}}>
+              {l}
+            </button>
+          ))}
         </div>
       </div>
+
+      {loading?<div style={{textAlign:'center',padding:64,color:'var(--muted)'}}>Carregando...</div>:(
+        <>
+          {/* KPIs */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:14,marginBottom:24}}>
+            <KPI icon={DollarSign} label='Faturamento total' value={fmt(stats.revenue)} sub={`PDV: ${fmt(stats.pdvRev)}`} color='#00ff41'/>
+            <KPI icon={ShoppingCart} label='Pedidos concluidos' value={String(stats.orders)} sub={`Ticket medio: ${fmt(stats.avgTicket)}`} color='#06b6d4'/>
+            <KPI icon={Truck} label='Receita Delivery' value={fmt(stats.deliveryRev)} color='#f59e0b'/>
+            <KPI icon={Package} label='Produtos ativos' value={String(stats.products)} color='#7c3aed'/>
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:16,marginBottom:16}}>
+            {/* Daily chart */}
+            <div className='card' style={{padding:'18px 20px'}}>
+              <p style={{fontSize:14,fontWeight:600,color:'var(--white)',marginBottom:16}}>Vendas por dia</p>
+              {dailyData.length===0
+                ?<div style={{textAlign:'center',padding:40,color:'var(--muted)',fontSize:13}}>Sem vendas no periodo</div>
+                :<ResponsiveContainer width='100%' height={200}>
+                  <BarChart data={dailyData} margin={{top:0,right:0,left:-20,bottom:0}}>
+                    <CartesianGrid strokeDasharray='3 3' stroke='rgba(255,255,255,0.05)'/>
+                    <XAxis dataKey='date' tick={{fill:'#64748b',fontSize:11}} tickLine={false} axisLine={false}/>
+                    <YAxis tick={{fill:'#64748b',fontSize:11}} tickLine={false} axisLine={false} tickFormatter={v=>v>=1000?(v/1000).toFixed(1)+'k':v}/>
+                    <Tooltip contentStyle={tooltipStyle} formatter={(v:any)=>[fmt(Number(v)),'Vendas']}/>
+                    <Bar dataKey='vendas' fill='#00ff41' radius={[4,4,0,0]} maxBarSize={40}/>
+                  </BarChart>
+                </ResponsiveContainer>
+              }
+            </div>
+            {/* Payment pie */}
+            <div className='card' style={{padding:'18px 20px'}}>
+              <p style={{fontSize:14,fontWeight:600,color:'var(--white)',marginBottom:16}}>Formas de pagamento</p>
+              {payData.length===0
+                ?<div style={{textAlign:'center',padding:40,color:'var(--muted)',fontSize:13}}>Sem dados</div>
+                :<>
+                  <ResponsiveContainer width='100%' height={140}>
+                    <PieChart>
+                      <Pie data={payData} cx='50%' cy='50%' innerRadius={40} outerRadius={65} dataKey='value' strokeWidth={0}>
+                        {payData.map((_,i)=><Cell key={i} fill={COLORS[i%COLORS.length]}/>)}
+                      </Pie>
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v:any)=>[fmt(Number(v))]}/>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{display:'flex',flexDirection:'column',gap:5}}>
+                    {payData.map((p,i)=>(
+                      <div key={i} style={{display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:12}}>
+                        <div style={{display:'flex',alignItems:'center',gap:6}}><div style={{width:8,height:8,borderRadius:2,background:COLORS[i%COLORS.length]}}/><span style={{color:'var(--muted)'}}>{p.name}</span></div>
+                        <span style={{color:'var(--white)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(p.value)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              }
+            </div>
+          </div>
+
+          {/* Top products */}
+          {topProducts.length>0&&(
+            <div className='card' style={{padding:'18px 20px'}}>
+              <p style={{fontSize:14,fontWeight:600,color:'var(--white)',marginBottom:14}}>Produtos mais vendidos</p>
+              <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                {topProducts.map((p,i)=>(
+                  <div key={i} style={{display:'flex',alignItems:'center',gap:12}}>
+                    <span style={{width:22,height:22,borderRadius:6,background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:700,color:'var(--neon)',flexShrink:0}}>{i+1}</span>
+                    <span style={{flex:1,fontSize:13,color:'var(--white)'}}>{p.name}</span>
+                    <span style={{fontSize:12,color:'var(--muted)'}}>{p.qty} un.</span>
+                    <span style={{fontSize:13,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',minWidth:90,textAlign:'right'}}>{fmt(p.revenue)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
