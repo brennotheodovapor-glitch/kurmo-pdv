@@ -84,7 +84,7 @@ export default function ReportsPage(){
     ]))
     const csv=rows.map(r=>r.join(';')).join('
 ')
-    const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'})
+    const blob=new Blob([' '+csv],{type:'text/csv;charset=utf-8'})
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='relatorio.csv';a.click()
   }
 
@@ -99,7 +99,7 @@ export default function ReportsPage(){
         </div>
         <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}>
           <Calendar size={13} color='var(--muted)'/>
-          {[{k:'today',l:'Hoje'},{k:'week',l:'7 dias'},{k:'month',l:'Este mes'},{k:'last',l:'Mes anterior'}].map(p=>(
+          {[{k:'today',l:'Hoje'},{k:'week',l:'7 dias'},{k:'month',l:'Este mes'},{k:'last',l:'Mes ant.'}].map(p=>(
             <button key={p.k} onClick={()=>{
               const d=new Date()
               if(p.k==='today'){setDateFrom(today());setDateTo(today())}
@@ -214,8 +214,8 @@ export default function ReportsPage(){
                       <td style={{padding:'8px 12px',fontSize:12,color:'var(--muted)'}}>{new Date(o.created_at).toLocaleDateString('pt-BR')}</td>
                       <td style={{padding:'8px 12px',fontSize:12,color:'var(--muted)'}}>{new Date(o.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td>
                       <td style={{padding:'8px 12px'}}><span style={{fontSize:11,padding:'2px 7px',borderRadius:6,background:o.type==='pdv'?'rgba(0,255,65,0.1)':'rgba(6,182,212,0.1)',color:o.type==='pdv'?'var(--neon)':'#06b6d4'}}>{o.type==='pdv'?'PDV':'Delivery'}</span></td>
-                      <td style={{padding:'8px 12px',fontSize:12,color:'var(--text)'}}>{o.customer_name||'—'}</td>
-                      <td style={{padding:'8px 12px',fontSize:11,color:'var(--muted)'}}>{o.payment_method||'múltiplo'}</td>
+                      <td style={{padding:'8px 12px',fontSize:12,color:'var(--text)'}}>{o.customer_name||' '}</td>
+                      <td style={{padding:'8px 12px',fontSize:11,color:'var(--muted)'}}>{o.payment_method||'m ltiplo'}</td>
                       <td style={{padding:'8px 12px',fontSize:13,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(o.total))}</td>
                     </tr>
                   ))}
