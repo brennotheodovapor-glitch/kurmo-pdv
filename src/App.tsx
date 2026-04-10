@@ -15,6 +15,7 @@ import CustomersPage from '@/pages/CustomersPage'
 import ReportsPage from '@/pages/ReportsPage'
 import SellersPage from '@/pages/SellersPage'
 import CommissionsPage from '@/pages/CommissionsPage'
+import DeliveryZonesPage from '@/pages/DeliveryZonesPage'
 import PublicMenuPage from '@/pages/PublicMenuPage'
 
 export default function App(){
