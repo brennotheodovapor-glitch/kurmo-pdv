@@ -1,3 +1,4 @@
+import{useCashRegister}from '@/hooks/useCashRegister'
 import { useState, useEffect, useRef } from 'react'
 import { Plus, Minus, Trash2, ShoppingCart, X, Check, Search, AlertTriangle } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
