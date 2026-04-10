@@ -1,3 +1,4 @@
+import{useCashRegister}from '@/hooks/useCashRegister'
 import{useState,useEffect}from 'react'
 import{History,Search,ChevronDown,ChevronUp,X,Calendar,Filter}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
@@ -13,6 +14,7 @@ const today=()=>new Date().toISOString().split('T')[0]
 const weekAgo=()=>{const d=new Date();d.setDate(d.getDate()-7);return d.toISOString().split('T')[0]}
 
 export default function HistoryPage({sellerId}:{sellerId?:string|null}){
+  const cash=useCashRegister()
   const[orders,setOrders]=useState<Order[]>([])
   const[loading,setLoading]=useState(true)
   const[search,setSearch]=useState('')
@@ -87,6 +89,27 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar cliente ou #...' style={{paddingLeft:28,fontSize:13}}/>
         </div>
       </div>
+      {/* Cash status bar */}
+      <div style={{padding:'8px 20px',borderBottom:'1px solid var(--border)',background:cash.isOpen?'rgba(0,255,65,0.03)':'rgba(255,170,0,0.04)',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <div style={{width:8,height:8,borderRadius:'50%',background:cash.isOpen?'var(--neon)':'#ffaa00'}}/>
+          <span style={{fontSize:12,color:cash.isOpen?'var(--neon)':'#ffaa00',fontFamily:'Bangers,cursive',letterSpacing:1}}>
+            {cash.isOpen?'CAIXA ABERTO — '+new Date(cash.current!.opened_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'CAIXA FECHADO'}
+          </span>
+        </div>
+        <div style={{display:'flex',gap:8}}>
+          {cash.isOpen?(
+            <button onClick={()=>cash.setCloseModal(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.08)',color:'#ff3333',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:12,letterSpacing:1}}>
+              FECHAR CAIXA
+            </button>
+          ):(
+            <button onClick={()=>cash.setOpenModal(true)} style={{display:'flex',alignItems:'center',gap:5,padding:'6px 14px',borderRadius:8,border:'1px solid #ffaa00',background:'rgba(255,170,0,0.08)',color:'#ffaa00',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:12,letterSpacing:1}}>
+              ABRIR CAIXA
+            </button>
+          )}
+        </div>
+      </div>
+
 
       {/* Date filter bar */}
       <div style={{padding:'10px 20px',borderBottom:'1px solid var(--border)',background:'var(--card)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
@@ -186,6 +209,40 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setCancelModal(null)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>VOLTAR</button>
               <button onClick={cancelOrder} style={{flex:2,padding:10,borderRadius:8,border:'none',background:'#ff3333',color:'white',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15}}>CONFIRMAR</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cash open modal */}
+      {cash.openModal&&(
+        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
+          <div className='card' style={{width:'100%',maxWidth:380,padding:24,border:'2px solid #ffaa00',boxShadow:'0 0 40px rgba(255,170,0,0.15)'}}>
+            <h2 className='font-bangers' style={{fontSize:24,color:'#ffaa00',marginBottom:6,letterSpacing:2}}>ABRIR CAIXA</h2>
+            <p style={{fontSize:12,color:'var(--muted)',marginBottom:16}}>{new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'})}</p>
+            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:6,letterSpacing:1}}>SALDO INICIAL (R$)</label>
+            <input type='number' min='0' step='0.01' value={cash.openBal} onChange={e=>cash.setOpenBal(e.target.value)} placeholder='0,00' autoFocus style={{fontSize:18,textAlign:'center',fontFamily:'JetBrains Mono,monospace',marginBottom:18}}/>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>cash.setOpenModal(false)} style={{flex:1,padding:11,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
+              <button onClick={cash.openCash} disabled={cash.saving} style={{flex:2,padding:11,borderRadius:8,border:'none',background:'#ffaa00',color:'#000',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:16}}>{cash.saving?'ABRINDO...':'ABRIR CAIXA'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {cash.closeModal&&cash.current&&(
+        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
+          <div className='card' style={{width:'100%',maxWidth:420,padding:24,border:'2px solid #ff3333',boxShadow:'0 0 40px rgba(255,51,51,0.1)'}}>
+            <h2 className='font-bangers' style={{fontSize:22,color:'#ff3333',marginBottom:14}}>FECHAR CAIXA</h2>
+            <div style={{padding:'10px 14px',background:'var(--surface)',borderRadius:8,marginBottom:14,display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[{l:'Saldo Abertura',v:new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(cash.current.opening_balance||0)},{l:'Total Vendas',v:new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(totalVendas)},{l:'Saldo Esperado',v:new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format((cash.current.opening_balance||0)+totalVendas)}].map((k,i)=>(<div key={i}><p style={{fontSize:10,color:'var(--muted)'}}>{k.l}</p><p style={{fontSize:13,fontWeight:700,color:'var(--white)',fontFamily:'JetBrains Mono,monospace'}}>{k.v}</p></div>))}
+            </div>
+            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>SALDO FISICO CONTADO (R$)</label>
+            <input type='number' min='0' step='0.01' value={cash.closeBal} onChange={e=>cash.setCloseBal(e.target.value)} placeholder='0,00' autoFocus style={{fontSize:16,textAlign:'center',fontFamily:'JetBrains Mono,monospace',marginBottom:10}}/>
+            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>OBSERVACOES</label>
+            <textarea value={cash.closeNotes} onChange={e=>cash.setCloseNotes(e.target.value)} placeholder='Sangria, diferenca, ocorrencias...' rows={2} style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',color:'var(--text)',fontSize:13,resize:'none',outline:'none',boxSizing:'border-box' as const,marginBottom:14}}/>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>cash.setCloseModal(false)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
+              <button onClick={()=>cash.closeCash((cash.current!.opening_balance||0)+totalVendas)} disabled={cash.saving} style={{flex:2,padding:10,borderRadius:8,border:'none',background:'#ff3333',color:'white',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15}}>{cash.saving?'FECHANDO...':'FECHAR CAIXA'}</button>
             </div>
           </div>
         </div>
