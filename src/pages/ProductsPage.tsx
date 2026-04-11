@@ -86,6 +86,9 @@ export default function ProductsPage(){
   const getCat=(id:string|null)=>categories.find(c=>c.id===id)
   const mar=(p:Product)=>p.price>0?((p.price-p.cost_price)/p.price*100).toFixed(0):'0'
 
+  const lowStock=products.filter(p=>p.active&&p.stock<=(p.stock_alert||5)&&p.stock>0)
+  const outOfStock=products.filter(p=>p.active&&p.stock===0)
+
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
       <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
@@ -181,7 +184,7 @@ export default function ProductsPage(){
                   </select>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>VENDA R$</label><input type='number' min='0' step='0.01' value={form.price===0?'':form.price} onChange={e=>setForm(f=>({...f,price:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
+                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>VENDA R$</label><input type='number' min='0' data-field='stock' step='0.01' value={form.price===0?'':form.price} onChange={e=>setForm(f=>({...f,price:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
                   <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>CUSTO R$</label><input type='number' min='0' step='0.01' value={form.cost_price===0?'':form.cost_price} onChange={e=>setForm(f=>({...f,cost_price:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
                   <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>ESTOQUE</label><input type='number' min='0' value={form.stock===0?'':form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value===''?0:parseInt(e.target.value)||0}))} placeholder='0'/></div>
                 </div>
