@@ -1,3 +1,4 @@
+import{sendWhatsApp,WA_MESSAGES}from '@/lib/whatsapp'
 import{useState,useEffect,useRef,useCallback}from 'react'
 import{QrCode,ExternalLink,Copy,Check,RefreshCw,ShoppingBag,Phone,Truck,Volume2,VolumeX,MapPin,ChevronDown,ChevronUp}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
@@ -93,6 +94,14 @@ export default function MenuPage(){
     // Stop alert when accepting or cancelling
     if(status==='accepted'||status==='cancelled'){
       setAlerting(false)
+    }
+    // Send WhatsApp notification to client
+    const order=orders.find(o=>o.id===id)
+    if(order&&order.customer_phone&&WA_MESSAGES[status]){
+      const msg=WA_MESSAGES[status](order.customer_name||'Cliente',order.order_number)
+      sendWhatsApp(order.customer_phone,msg).then(sent=>{
+        if(sent)toast.success('WhatsApp enviado!')
+      })
     }
     toast.success(SL[status]||status)
     loadOrders()
