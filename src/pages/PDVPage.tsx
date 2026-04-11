@@ -68,7 +68,7 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
     setCouponLoading(false)
   }
 
-  function printReceipt(order:any,orderItems:any[]){
+  function printReceipt(order:any,orderItems:any[],pays?:any[]){const orderPays=pays||[]
     const w=window.open('','_blank','width=400,height=600')
     if(!w)return
     const fmt2=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
