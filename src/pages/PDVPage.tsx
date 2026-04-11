@@ -1,6 +1,6 @@
 import{useCashRegister}from '@/hooks/useCashRegister'
 import{useState,useEffect,useRef}from 'react'
-import{Plus,Minus,X,Check,Search,ShoppingCart,AlertTriangle,User}from 'lucide-react'
+import{Plus,Minus,X,Check,Search,ShoppingCart,AlertTriangle,User,Printer,Tag}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
@@ -20,6 +20,10 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
   const[discount,setDiscount]=useState(0)
   const[payments,setPayments]=useState<Payment[]>([{method:'pix',amount:0}])
   const[processing,setProcessing]=useState(false)
+  const[couponCode,setCouponCode]=useState('')
+  const[couponData,setCouponData]=useState<any|null>(null)
+  const[couponLoading,setCouponLoading]=useState(false)
+  const[lastOrder,setLastOrder]=useState<any|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
 
   // Use seller from prop (logged-in seller) - no manual selection
@@ -35,7 +39,8 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
 
   const filtered=products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()))
   const subtotal=cart.reduce((s,i)=>s+i.price*i.qty,0)
-  const total=Math.max(0,subtotal-discount)
+  const couponDiscount=couponData?(couponData.discount_type==='percent'?subtotal*(couponData.discount_value/100):Math.min(couponData.discount_value,subtotal)):0
+  const total=Math.max(0,subtotal-discount-couponDiscount)
   const paidTotal=payments.reduce((s,p)=>s+p.amount,0)
   const remaining=total-paidTotal
   const change=paidTotal>total?paidTotal-total:0
@@ -47,6 +52,37 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
   const updateQty=(id:string,delta:number)=>setCart(c=>c.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+delta)}:i).filter(i=>i.qty>0))
   const setPayField=(i:number,field:string,val:any)=>setPayments(p=>p.map((pm,j)=>j===i?{...pm,[field]:val}:pm))
   const fillRemaining=(i:number)=>{const other=payments.reduce((s,p,j)=>j!==i?s+p.amount:s,0);setPayments(p=>p.map((pm,j)=>j===i?{...pm,amount:Math.max(0,+(total-other).toFixed(2))}:pm))}
+
+  async function applyCoupon(){
+    if(!couponCode.trim())return
+    setCouponLoading(true)
+    const{data}=await supabase.from('coupons').select('*').eq('code',couponCode.toUpperCase().trim()).eq('active',true).maybeSingle()
+    if(!data){toast.error('Cupom invalido ou expirado');setCouponData(null);setCouponLoading(false);return}
+    if(data.expires_at&&new Date(data.expires_at)<new Date()){toast.error('Cupom expirado');setCouponData(null);setCouponLoading(false);return}
+    if(data.max_uses&&data.used_count>=data.max_uses){toast.error('Cupom esgotado');setCouponData(null);setCouponLoading(false);return}
+    if(data.min_order&&subtotal<data.min_order){toast.error('Pedido minimo: '+new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(data.min_order));setCouponData(null);setCouponLoading(false);return}
+    setCouponData(data)
+    const disc=data.discount_type==='percent'?subtotal*(data.discount_value/100):Math.min(data.discount_value,subtotal)
+    toast.success('Cupom aplicado! Desconto: '+new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(disc))
+    setCouponLoading(false)
+  }
+
+  function printReceipt(order:any,orderItems:any[]){
+    const w=window.open('','_blank','width=400,height=600')
+    if(!w)return
+    const fmt2=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
+    const lines=orderItems.map(i=>'<tr><td>'+i.qty+'x '+i.name+'</td><td style="text-align:right">'+fmt2(i.price*i.qty)+'</td></tr>').join('')
+    w.document.write('<html><head><title>Cupom #'+order.order_number+'</title><style>body{font-family:monospace;font-size:13px;max-width:320px;margin:0 auto;padding:16px}h2{text-align:center;font-size:18px}table{width:100%;border-collapse:collapse}td{padding:3px 0}hr{border:1px dashed #ccc}.total{font-size:16px;font-weight:bold}.center{text-align:center}</style></head><body>')
+    w.document.write('<h2>UZT 027</h2><p class="center">'+new Date().toLocaleString('pt-BR')+'</p><hr/>')
+    w.document.write('<p><strong>Pedido #'+order.order_number+'</strong>'+(order.customer_name?'<br>Cliente: '+order.customer_name:'')+'</p><hr/>')
+    w.document.write('<table>'+lines+'</table><hr/>')
+    if(order.discount>0)w.document.write('<p>Desconto: -'+fmt2(order.discount)+'</p>')
+    if(order.coupon_code)w.document.write('<p>Cupom ('+order.coupon_code+'): -'+fmt2(order.coupon_discount||0)+'</p>')
+    w.document.write('<p class="total">TOTAL: '+fmt2(order.total)+'</p><hr/>')
+    w.document.write('<p class="center">Obrigado pela preferencia!<br>UZT 027</p></body></html>')
+    w.document.close()
+    setTimeout(()=>w.print(),500)
+  }
 
   async function finishSale(){
     if(!cash.isOpen){toast.error('Caixa fechado! Abra o caixa para finalizar.');cash.setOpenModal(true);return}
@@ -65,9 +101,12 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
       await supabase.from('order_items').insert(cart.map(i=>({order_id:order.id,product_id:i.id,product_name:i.name,quantity:i.qty,unit_price:i.price,total_price:+(i.price*i.qty).toFixed(2)})))
       await supabase.from('order_payments').insert(payments.filter(p=>p.amount>0).map(p=>({order_id:order.id,method:p.method,amount:p.amount})))
       for(const item of cart)await supabase.from('products').update({stock:Math.max(0,(item.stock||0)-item.qty)}).eq('id',item.id)
+      if(couponData){await supabase.from('coupons').update({used_count:(couponData.used_count||0)+1}).eq('id',couponData.id)}
+      const orderForPrint={...order,coupon_code:couponData?.code,coupon_discount:couponDiscount,discount}
+      setLastOrder({order:orderForPrint,items:cart.map(i=>({name:i.name,qty:i.qty,price:i.price}))})
       toast.success('Venda #'+order.order_number+' finalizada! '+fmt(total))
       if(change>0.01)toast('Troco: '+fmt(change),{duration:4000})
-      setCart([]);setDiscount(0);setCustomerName('');setPayments([{method:'pix',amount:0}])
+      setCart([]);setDiscount(0);setCustomerName('');setPayments([{method:'pix',amount:0}]);setCouponCode('');setCouponData(null)
       loadData();searchRef.current?.focus()
     }catch(e:any){toast.error('Erro: '+e.message)}
     finally{setProcessing(false)}
