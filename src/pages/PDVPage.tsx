@@ -85,47 +85,6 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
     setTimeout(()=>w.print(),500)
   }
 
-  async function applyCoupon(){
-    if(!couponCode.trim())return
-    setCouponLoading(true)
-    const{data}=await supabase.from('coupons').select('*').eq('code',couponCode.trim().toUpperCase()).eq('active',true).maybeSingle()
-    if(!data){toast.error('Cupom invalido ou inativo');setCoupon(null)}
-    else if(data.expires_at&&new Date(data.expires_at)<new Date()){toast.error('Cupom expirado');setCoupon(null)}
-    else if(data.max_uses&&data.used_count>=data.max_uses){toast.error('Cupom esgotado');setCoupon(null)}
-    else{
-      setCoupon(data)
-      const disc=data.discount_type==='percent'?subtotal*(data.discount_value/100):Math.min(data.discount_value,subtotal)
-      toast.success('Cupom aplicado! Desconto: '+new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(disc))
-    }
-    setCouponLoading(false)
-  }
-
-  function printReceipt(order:any,cartItems:any[],pays:any[]){
-    const w=window.open('','_blank','width=400,height=600')
-    if(!w)return
-    const fmt2=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
-    const date=new Date(order.created_at||new Date()).toLocaleString('pt-BR')
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Cupom #${order.order_number}</title>
-    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:10px;width:280px;color:#000}
-    h1{font-size:16px;text-align:center;margin-bottom:4px}.center{text-align:center}.divider{border-top:1px dashed #000;margin:6px 0}
-    .row{display:flex;justify-content:space-between;margin:2px 0}.bold{font-weight:bold}.total{font-size:14px;font-weight:bold}
-    .small{font-size:10px}</style></head><body>
-    <h1>UZT 027</h1><p class="center small">VENDA #${order.order_number}</p><p class="center small">${date}</p>
-    <div class="divider"></div>
-    ${cartItems.map(i=>`<div class="row"><span>${i.qty}x ${i.product_name||i.name}</span><span>${fmt2(i.total_price||i.price*i.qty)}</span></div>`).join('')}
-    <div class="divider"></div>
-    ${order.discount>0?`<div class="row"><span>Desconto</span><span>-${fmt2(order.discount)}</span></div>`:''}
-    ${coupon?`<div class="row"><span>Cupom (${coupon.code})</span><span>-${fmt2(couponDiscount)}</span></div>`:''}
-    <div class="row total"><span>TOTAL</span><span>${fmt2(order.total)}</span></div>
-    <div class="divider"></div>
-    ${pays.map(p=>`<div class="row"><span>${p.method==='pix'?'PIX':p.method==='dinheiro'?'Dinheiro':p.method==='debito'?'Debito':'Credito'}</span><span>${fmt2(p.amount)}</span></div>`).join('')}
-    ${order.customer_name?`<div class="divider"></div><p class="center small">Cliente: ${order.customer_name}</p>`:''}
-    <div class="divider"></div><p class="center small">Obrigado pela preferencia!</p>
-    </body></html>`)
-    w.document.close()
-    setTimeout(()=>w.print(),300)
-  }
-
   async function finishSale(){
     if(!cash.isOpen){toast.error('Caixa fechado! Abra o caixa para finalizar.');cash.setOpenModal(true);return}
     if(cart.length===0){toast.error('Carrinho vazio');return}
