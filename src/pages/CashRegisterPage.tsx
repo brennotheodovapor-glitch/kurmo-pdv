@@ -129,7 +129,7 @@ export default function CashRegisterPage(){
           }
           {cash.current&&(
             <button onClick={()=>{setEntriesModal(true);setEntryType('withdrawal')}} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 12px',borderRadius:8,border:'1px solid #f59e0b',background:'rgba(245,158,11,0.08)',color:'#f59e0b',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:12}}>
-              <TrendingDown size={13}/>SANGRIA / SUPRIMENTO
+              <Minus size={13}/>SANGRIA / SUPRIMENTO
             </button>
           )}
         </div>
@@ -334,10 +334,10 @@ export default function CashRegisterPage(){
             <h2 className='font-bangers' style={{fontSize:20,color:'var(--white)',marginBottom:16}}>SANGRIA / SUPRIMENTO</h2>
             <div style={{display:'flex',gap:8,marginBottom:16}}>
               <button onClick={()=>setEntryType('withdrawal')} style={{flex:1,padding:'10px',borderRadius:8,border:entryType==='withdrawal'?'1px solid #ff3333':'1px solid var(--border)',background:entryType==='withdrawal'?'rgba(255,51,51,0.1)':'transparent',color:entryType==='withdrawal'?'#ff3333':'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-                <TrendingDown size={14}/>SANGRIA (saida)
+                <Minus size={14}/>SANGRIA (saida)
               </button>
               <button onClick={()=>setEntryType('deposit')} style={{flex:1,padding:'10px',borderRadius:8,border:entryType==='deposit'?'1px solid #10b981':'1px solid var(--border)',background:entryType==='deposit'?'rgba(16,185,129,0.1)':'transparent',color:entryType==='deposit'?'#10b981':'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
-                <TrendingUp size={14}/>SUPRIMENTO (entrada)
+                <Plus size={14}/>SUPRIMENTO (entrada)
               </button>
             </div>
             <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>VALOR (R$) *</label>
