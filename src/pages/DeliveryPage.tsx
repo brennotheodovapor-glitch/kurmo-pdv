@@ -152,7 +152,7 @@ export default function DeliveryPage(){
     const{data:order,error}=await supabase.from('orders').insert({
         customer_name:form.nome+' '+form.sobrenome,
         customer_phone:form.whatsapp,
-        type:'delivery',status:'pending',cash_requested:payMethodDelivery==='dinheiro'?(parseFloat(cashRequested)||0):0,change_amount:payMethodDelivery==='dinheiro'&&cashRequested?(Math.max(0,(parseFloat(cashRequested)||0)-total)):0,
+        type:'delivery',status:'pending',cash_requested:payMethodDelivery==='dinheiro'?(parseFloat(cashRequested)||0):0,change_amount:payMethodDelivery==='dinheiro'&&cashRequested?(Math.max(0,(parseFloat(cashRequested)||0)-cartTotal)):0,
         subtotal,discount:0,delivery_fee:delivFee,total:cartTotal,
         delivery_zone_id:matchedZone?.id||null,
         notes:fullAddr
