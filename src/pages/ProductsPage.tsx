@@ -3,7 +3,7 @@ import{Plus,Search,Edit2,Trash2,X,Check,Image,Package,AlertTriangle}from 'lucide
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-type Product={id:string;name:string;price:number;cost_price:number;stock:number;category_id:string|null;active:boolean;image_url?:string;description?:string}
+type Product={id:string;name:string;price:number;cost_price:number;stock:number;stock_alert?:number;category_id:string|null;active:boolean;image_url?:string;description?:string}
 type Category={id:string;name:string;color:string;image_url?:string}
 const EMPTY:Omit<Product,'id'>={name:'',price:0,cost_price:0,stock:0,category_id:null,active:true,image_url:'',description:''}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
