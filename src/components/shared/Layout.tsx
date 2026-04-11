@@ -15,7 +15,7 @@ const ADMIN_NAV=[
   {to:'/produtos',icon:Package,label:'Produtos'},
   {to:'/categorias',icon:Tag,label:'Categorias'},
   {to:'/cardapio',icon:QrCode,label:'Catalogo'},
-  {to:'/clientes',icon:Users,label:'Clientes'},
+  {to:'/clientes',icon:Users,label:'Clientes'},{to:'/cupons',icon:Tag,label:'Cupons'},
   {to:'/caixa',icon:DollarSign,label:'Caixa'},
   {to:'/bairros',icon:MapPin,label:'Bairros'},
   {to:'/configuracoes',icon:Settings,label:'Config'},
