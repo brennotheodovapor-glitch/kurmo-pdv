@@ -53,14 +53,15 @@ export default function DeliveryPage(){
     const{data}=await supabase.from('customers').select('*').eq('phone',phone.replace(/\D/g,'')).maybeSingle()
     if(data){
       setCustomerFound(data)
+      const nameParts=(data.name||'').split(' ')
       setForm(f=>({...f,
-        customer_name:data.name||f.customer_name,
-        customer_phone:data.phone||f.customer_phone,
-        address:data.address||f.address,
-        neighborhood:data.neighborhood||f.neighborhood,
-        zip_code:data.zip_code||f.zip_code,
-        complement:data.complement||f.complement,
-        reference:data.reference||f.reference,
+        nome:nameParts[0]||f.nome,
+        sobrenome:nameParts.slice(1).join(' ')||f.sobrenome,
+        whatsapp:data.phone||f.whatsapp,
+        bairro:data.neighborhood||f.bairro,
+        cep:data.zip_code||f.cep,
+        complemento:data.complement||f.complemento,
+        referencia:data.reference||f.referencia,
       }))
       toast.success('Cliente encontrado: '+data.name+' | '+data.orders_count+' pedidos')
     }else{setCustomerFound(null)}
