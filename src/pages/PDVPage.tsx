@@ -22,8 +22,6 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
   const[processing,setProcessing]=useState(false)
   const[couponCode,setCouponCode]=useState('')
   const[coupon,setCoupon]=useState<{code:string;discount_type:string;discount_value:number}|null>(null)
-  const[couponLoading,setCouponLoading]=useState(false)
-  const[lastOrder,setLastOrder]=useState<any|null>(null)
     const[couponData,setCouponData]=useState<any|null>(null)
   const[couponLoading,setCouponLoading]=useState(false)
   const[lastOrder,setLastOrder]=useState<any|null>(null)
