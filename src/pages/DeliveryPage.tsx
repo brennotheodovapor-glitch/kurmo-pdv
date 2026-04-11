@@ -37,12 +37,35 @@ export default function DeliveryPage(){
   const[cart,setCart]=useState<CartItem[]>([])
   const[prodSearch,setProdSearch]=useState('')
   const[form,setForm]=useState<DeliveryForm>(EMPTY_FORM)
+  const[customerFound,setCustomerFound]=useState<any|null>(null)
+  const[searchingCustomer,setSearchingCustomer]=useState(false)
+  const[cashRequested,setCashRequested]=useState('')
+  const[payMethodDelivery,setPayMethodDelivery]=useState('pix')
   const[cepLoading,setCepLoading]=useState(false)
   const[matchedZone,setMatchedZone]=useState<Zone|null>(null)
   const[saving,setSaving]=useState(false)
 
   useEffect(()=>{loadData()},[]) 
 
+  async function searchCustomerByPhone(phone:string){
+    if(!phone||phone.replace(/\D/g,'').length<8)return
+    setSearchingCustomer(true)
+    const{data}=await supabase.from('customers').select('*').eq('phone',phone.replace(/\D/g,'')).maybeSingle()
+    if(data){
+      setCustomerFound(data)
+      setForm(f=>({...f,
+        customer_name:data.name||f.customer_name,
+        customer_phone:data.phone||f.customer_phone,
+        address:data.address||f.address,
+        neighborhood:data.neighborhood||f.neighborhood,
+        zip_code:data.zip_code||f.zip_code,
+        complement:data.complement||f.complement,
+        reference:data.reference||f.reference,
+      }))
+      toast.success('Cliente encontrado: '+data.name+' | '+data.orders_count+' pedidos')
+    }else{setCustomerFound(null)}
+    setSearchingCustomer(false)
+  }
   async function loadData(){
     setLoading(true)
     const[o,p,z]=await Promise.all([
@@ -117,10 +140,18 @@ export default function DeliveryPage(){
     setSaving(true)
     try{
       const fullAddr=form.endereco+', '+form.numero+(form.complemento?' '+form.complemento:'')+' - '+form.bairro+' - '+form.cidade+'/'+form.estado+' CEP:'+form.cep+(form.referencia?' | Ref: '+form.referencia:'')
-      const{data:order,error}=await supabase.from('orders').insert({
+          // Save/update customer
+    const phoneClean=form.customer_phone.replace(/\D/g,'')
+    if(phoneClean.length>=8){
+      const custData={name:form.customer_name,phone:phoneClean,address:form.address,neighborhood:form.neighborhood,zip_code:form.zip_code,complement:form.complement,reference:form.reference,updated_at:new Date().toISOString()}
+      const{data:existCust}=await supabase.from('customers').select('id,orders_count,total_spent').eq('phone',phoneClean).maybeSingle()
+      if(existCust){await supabase.from('customers').update({...custData,orders_count:(existCust.orders_count||0)+1,total_spent:(Number(existCust.total_spent)||0)+total}).eq('id',existCust.id)}
+      else{await supabase.from('customers').insert({...custData,orders_count:1,total_spent:total})}
+    }
+    const{data:order,error}=await supabase.from('orders').insert({
         customer_name:form.nome+' '+form.sobrenome,
         customer_phone:form.whatsapp,
-        type:'delivery',status:'pending',
+        type:'delivery',status:'pending',cash_requested:payMethodDelivery==='dinheiro'?(parseFloat(cashRequested)||0):0,change_amount:payMethodDelivery==='dinheiro'&&cashRequested?(Math.max(0,(parseFloat(cashRequested)||0)-total)):0,
         subtotal,discount:0,delivery_fee:delivFee,total:cartTotal,
         delivery_zone_id:matchedZone?.id||null,
         notes:fullAddr
