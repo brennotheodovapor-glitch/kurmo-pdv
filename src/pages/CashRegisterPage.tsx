@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast'
 import{useState,useEffect}from 'react'
-import{DollarSign,Unlock,Lock,Clock,ChevronDown,ChevronUp,AlertCircle,Calendar,ArrowDownCircle,ArrowUpCircle}from 'lucide-react'
+import{DollarSign,Unlock,Lock,Clock,ChevronDown,ChevronUp,AlertCircle,Calendar,MinusCircle,PlusCircle,Minus,Plus}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import{useCashRegister}from '@/hooks/useCashRegister'
 
