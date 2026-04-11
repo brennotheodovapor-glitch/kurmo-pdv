@@ -4,7 +4,7 @@ import{Truck,Plus,X,Check,Phone,MapPin,AlertTriangle,ChevronDown,ChevronUp,Searc
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-type Order={id:string;order_number:number;customer_name:string;customer_phone:string;status:string;total:number;delivery_fee:number;created_at:string;notes:string|null}
+type Order={id:string;order_number:number;customer_name:string;customer_phone:string;status:string;total:number;delivery_fee:number;created_at:string;notes:string|null;change_amount?:number;cash_requested?:number;payment_method?:string}
 type Product={id:string;name:string;price:number;stock:number;image_url?:string;description?:string}
 type CartItem=Product&{qty:number}
 type DeliveryForm={nome:string;sobrenome:string;whatsapp:string;cep:string;numero:string;endereco:string;complemento:string;bairro:string;cidade:string;estado:string;referencia:string}
@@ -141,9 +141,9 @@ export default function DeliveryPage(){
     try{
       const fullAddr=form.endereco+', '+form.numero+(form.complemento?' '+form.complemento:'')+' - '+form.bairro+' - '+form.cidade+'/'+form.estado+' CEP:'+form.cep+(form.referencia?' | Ref: '+form.referencia:'')
           // Save/update customer
-    const phoneClean=form.customer_phone.replace(/\D/g,'')
+    const phoneClean=form.whatsapp.replace(/\D/g,'')
     if(phoneClean.length>=8){
-      const custData={name:form.customer_name,phone:phoneClean,address:form.address,neighborhood:form.neighborhood,zip_code:form.zip_code,complement:form.complement,reference:form.reference,updated_at:new Date().toISOString()}
+      const custData={name:(form.nome+' '+form.sobrenome).trim(),phone:phoneClean,address:form.endereco+', '+form.numero,neighborhood:form.bairro,zip_code:form.cep,complement:form.complemento,reference:form.referencia,updated_at:new Date().toISOString()}
       const{data:existCust}=await supabase.from('customers').select('id,orders_count,total_spent').eq('phone',phoneClean).maybeSingle()
       if(existCust){await supabase.from('customers').update({...custData,orders_count:(existCust.orders_count||0)+1,total_spent:(Number(existCust.total_spent)||0)+total}).eq('id',existCust.id)}
       else{await supabase.from('customers').insert({...custData,orders_count:1,total_spent:total})}
@@ -217,7 +217,8 @@ export default function DeliveryPage(){
             </div>
             {expanded===o.id&&(
               <div style={{padding:'0 16px 14px',borderTop:'1px solid var(--border)'}}>
-                {o.notes&&<div style={{padding:'8px 12px',background:'var(--surface)',borderRadius:8,marginBottom:10,fontSize:12,color:'var(--text)',display:'flex',gap:6}}><MapPin size={12} style={{flexShrink:0,marginTop:1,color:'var(--muted)'}}/><span>{o.notes}</span></div>}
+                {o.notes&&<div style={{padding:'8px 12px',background:'var(--surface)',borderRadius:8,marginBottom:8,fontSize:12,color:'var(--text)',display:'flex',gap:6}}><MapPin size={12} style={{flexShrink:0,marginTop:1,color:'var(--muted)'}}/><span>{o.notes}</span></div>}
+              {(o.change_amount||0)>0&&<div style={{padding:'7px 12px',background:'rgba(16,185,129,0.08)',borderRadius:8,marginBottom:8,fontSize:12,color:'#10b981',display:'flex',gap:6,alignItems:'center'}}><span style={{fontWeight:600}}>Troco:</span><span style={{fontFamily:'JetBrains Mono,monospace'}}>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(o.change_amount||0)}</span><span style={{color:'var(--muted)'}}>| Cliente paga com: {new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(o.cash_requested||0)}</span></div>}
                 <div style={{marginBottom:10}}>{(itemsCache[o.id]||[]).map(i=>(<div key={i.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'2px 0'}}><span style={{color:'var(--text)'}}>{i.quantity}x {i.product_name}</span><span style={{color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(i.total_price)}</span></div>))}</div>
                 <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
                   {NEXT[o.status]&&<button onClick={()=>updateStatus(o.id,NEXT[o.status])} style={{flex:2,minWidth:120,padding:'9px 12px',borderRadius:8,border:'1px solid var(--neon)',background:'var(--neon-glow)',color:'var(--neon)',cursor:'pointer',fontSize:13,fontFamily:'Bangers,cursive',letterSpacing:1}}>{o.status==='pending'?'ACEITAR PEDIDO':'AVANCAR: '+STATUS_LABEL[NEXT[o.status]]}</button>}
@@ -353,7 +354,18 @@ export default function DeliveryPage(){
                 {/* WhatsApp */}
                 <div style={{marginBottom:14}}>
                   <label style={LBL}>WHATSAPP *</label>
-                  <input value={form.whatsapp} onChange={e=>sf('whatsapp',fmtWA(e.target.value))} placeholder='(27) 99999-9999' style={INP} type='tel' maxLength={15}/>
+                  <div style={{position:'relative'}}>
+            <input value={form.whatsapp} onChange={e=>sf('whatsapp',fmtWA(e.target.value))} onBlur={e=>searchCustomerByPhone(e.target.value)} placeholder='(27) 99999-9999' style={INP} type='tel' maxLength={15}/>
+            {searchingCustomer&&<div style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)'}}><Loader2 size={16} color='var(--neon)' style={{animation:'spin 1s linear infinite'}}/></div>}
+            {!searchingCustomer&&customerFound&&<div style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)'}}><CheckCircle size={16} color='var(--neon)'/></div>}
+          </div>
+          {customerFound&&(
+            <div style={{marginTop:6,padding:'8px 12px',background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',borderRadius:8,display:'flex',alignItems:'center',gap:8}}>
+              <CheckCircle size={14} color='var(--neon)'/>
+              <span style={{fontSize:12,color:'var(--neon)',fontWeight:600}}>{customerFound.name}</span>
+              <span style={{fontSize:11,color:'var(--muted)'}}>{customerFound.orders_count} pedidos | {new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(customerFound.total_spent||0)} total</span>
+            </div>
+          )}
                 </div>
 
                 <div style={{borderTop:'1px solid var(--border)',paddingTop:16,marginBottom:14}}>
@@ -401,6 +413,25 @@ export default function DeliveryPage(){
                       </div>
                       <div style={{marginBottom:14}}><label style={LBL}>COMPLEMENTO (opcional)</label><input value={form.complemento} onChange={e=>sf('complemento',e.target.value)} placeholder='Apto 302, Bloco B...' style={INP}/></div>
                       <div><label style={LBL}>PONTO DE REFERENCIA</label><input value={form.referencia} onChange={e=>sf('referencia',e.target.value)} placeholder='Proximo ao mercado...' style={INP}/></div>
+            <div style={{borderTop:'1px solid var(--border)',paddingTop:14,marginTop:14}}>
+              <label style={LBL}>FORMA DE PAGAMENTO</label>
+              <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:10}}>
+                {[{k:'pix',l:'PIX'},{k:'dinheiro',l:'Dinheiro'},{k:'debito',l:'Debito'},{k:'credito',l:'Credito'}].map(m=>(
+                  <button key={m.k} onClick={()=>setPayMethodDelivery(m.k)} style={{padding:'7px 14px',borderRadius:8,border:payMethodDelivery===m.k?'1px solid var(--neon)':'1px solid var(--border)',background:payMethodDelivery===m.k?'var(--neon-glow)':'transparent',color:payMethodDelivery===m.k?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:13,fontFamily:'Bangers,cursive'}}>{m.l}</button>
+                ))}
+              </div>
+              {payMethodDelivery==='dinheiro'&&(
+                <div>
+                  <label style={LBL}>CLIENTE VAI PAGAR COM QUANTO? (para troco)</label>
+                  <input type='number' min={cartTotal} step='0.01' value={cashRequested} onChange={e=>setCashRequested(e.target.value)} placeholder={String(cartTotal.toFixed(2))} style={INP}/>
+                  {cashRequested&&parseFloat(cashRequested)>cartTotal&&(
+                    <div style={{marginTop:6,padding:'7px 12px',background:'rgba(16,185,129,0.1)',borderRadius:8,border:'1px solid rgba(16,185,129,0.3)',fontSize:12,color:'#10b981',fontWeight:600}}>
+                      Troco: {new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(parseFloat(cashRequested)-cartTotal)}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
                     </>
                   )}
                 </div>
