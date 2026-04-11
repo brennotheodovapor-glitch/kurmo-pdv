@@ -1,44 +1,54 @@
-// WhatsApp service via Evolution API
-// Configure VITE_WA_URL and VITE_WA_KEY in Vercel environment variables
+// WhatsApp via Z-API (https://www.z-api.io)
+// Variaveis necessarias no Vercel:
+//   VITE_ZAPI_INSTANCE  -> ID da instancia (ex: 3D...)
+//   VITE_ZAPI_TOKEN     -> Token do cliente Z-API
+//   VITE_ZAPI_SECURITY  -> Security token (opcional, recomendado)
 
-const WA_URL=import.meta.env.VITE_WA_URL||''
-const WA_KEY=import.meta.env.VITE_WA_KEY||''
-const WA_INSTANCE=import.meta.env.VITE_WA_INSTANCE||'kurmo'
+const BASE='https://api.z-api.io/instances'
+const INSTANCE=()=>import.meta.env.VITE_ZAPI_INSTANCE||''
+const TOKEN=()=>import.meta.env.VITE_ZAPI_TOKEN||''
+const SECURITY=()=>import.meta.env.VITE_ZAPI_SECURITY||''
 
 function fmtPhone(phone:string):string{
-  // Clean number and add Brazil country code
   let n=phone.replace(/\D/g,'')
   if(n.startsWith('0'))n=n.slice(1)
   if(!n.startsWith('55'))n='55'+n
-  return n+'@s.whatsapp.net'
+  return n
 }
 
 export async function sendWhatsApp(phone:string,message:string):Promise<boolean>{
-  if(!WA_URL||!WA_KEY){
-    console.warn('[WhatsApp] Not configured - skipping message')
+  const inst=INSTANCE();const tok=TOKEN()
+  if(!inst||!tok){
+    console.warn('[Z-API] Nao configurado - VITE_ZAPI_INSTANCE e VITE_ZAPI_TOKEN necessarios')
     return false
   }
   try{
-    const res=await fetch(WA_URL+'/message/sendText/'+WA_INSTANCE,{
+    const headers:Record<string,string>={'Content-Type':'application/json','Client-Token':tok}
+    const sec=SECURITY();if(sec)headers['Security-Token']=sec
+    const res=await fetch(BASE+'/'+inst+'/token/'+tok+'/send-text',{
       method:'POST',
-      headers:{'Content-Type':'application/json','apikey':WA_KEY},
-      body:JSON.stringify({number:fmtPhone(phone),textMessage:{text:message}})
+      headers,
+      body:JSON.stringify({phone:fmtPhone(phone),message})
     })
     const data=await res.json()
-    if(res.ok){console.log('[WhatsApp] Sent OK');return true}
-    console.error('[WhatsApp] Error:',data)
+    if(res.ok&&data.zaapId){console.log('[Z-API] Enviado:',data.zaapId);return true}
+    console.error('[Z-API] Erro:',data)
     return false
   }catch(e){
-    console.error('[WhatsApp] Exception:',e)
+    console.error('[Z-API] Excecao:',e)
     return false
   }
 }
 
-// Messages for each status change
+export function isConfigured():boolean{
+  return!!(INSTANCE()&&TOKEN())
+}
+
+// Mensagens automaticas por status
 export const WA_MESSAGES:Record<string,(name:string,num:number)=>string>={
-  accepted:(name,num)=>`Ola ${name}! Seu pedido *#${num}* foi *ACEITO* e esta sendo preparado. Aguarde, logo chegaremos! UZT 027`,
-  preparing:(name,num)=>`*Pedido #${num}* esta sendo *PREPARADO* agora. Logo sai para entrega! UZT 027`,
-  delivering:(name,num)=>`*Pedido #${num}* saiu para *ENTREGA*! O entregador esta a caminho. UZT 027`,
-  delivered:(name,num)=>`*Pedido #${num}* foi *ENTREGUE* com sucesso! Obrigado pela preferencia. Volte sempre! UZT 027`,
-  cancelled:(name,num)=>`*Pedido #${num}* foi *CANCELADO*. Entre em contato conosco se tiver duvidas. UZT 027`,
+  accepted:  (name,num)=>`Oi ${name}! Seu pedido *#${num}* foi *ACEITO* e esta sendo preparado. Logo mais chega! UZT 027 `,
+  preparing: (_,num)  =>`*Pedido #${num}* esta *SENDO PREPARADO* agora. Aguarde, estamos quase prontos! UZT 027 `,
+  delivering:(_,num)  =>`*Pedido #${num}* SAIU PARA ENTREGA! O entregador esta a caminho. UZT 027 `,
+  delivered: (name,num)=>`${name}, seu *Pedido #${num}* foi *ENTREGUE*! Obrigado pela preferencia. Volte sempre! UZT 027 `,
+  cancelled: (_,num)  =>`*Pedido #${num}* foi *CANCELADO*. Em caso de duvidas, fale conosco. UZT 027 `,
 }
