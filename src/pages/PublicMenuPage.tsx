@@ -36,7 +36,7 @@ export default function PublicMenuPage(){
     // Load delivery zones
     supabase.from('delivery_zones').select('*').eq('active',true).then(({data})=>setZones(data||[]))
     const[p,c]=await Promise.all([
-      supabase.from('products').select('*').eq('active',true).gt('stock',0).gt('stock',0).order('name'),
+      supabase.from('products').select('*').eq('active',true).gt('stock',0).gt('stock',0).gt('stock',0).order('name'),
       supabase.from('categories').select('*').order('name')
     ])
     setProducts(p.data||[])
