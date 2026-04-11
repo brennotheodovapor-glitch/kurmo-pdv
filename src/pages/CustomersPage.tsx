@@ -1,104 +1,107 @@
-import { useState } from 'react'
-import { Users, Plus, Search, Edit2, Trash2, X, Check, Phone, Mail } from 'lucide-react'
+import{useState,useEffect}from 'react'
+import{Users,Search,ChevronDown,ChevronUp,Phone,ShoppingBag,TrendingUp,Clock,Trash2}from 'lucide-react'
+import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-type Customer = {id:string;name:string;phone:string;email:string;orders:number;total:number;lastOrder:string}
-const INIT:Customer[]=[
-  {id:'1',name:'Joao Silva',phone:'(27)99123-4567',email:'joao@email.com',orders:8,total:640,lastOrder:'2024-03-15'},
-  {id:'2',name:'Maria Santos',phone:'(27)98765-4321',email:'maria@email.com',orders:5,total:375,lastOrder:'2024-03-10'},
-  {id:'3',name:'Carlos Lima',phone:'(27)97654-3210',email:'carlos@email.com',orders:12,total:960,lastOrder:'2024-03-14'},
-  {id:'4',name:'Ana Costa',phone:'(27)96543-2109',email:'ana@email.com',orders:3,total:225,lastOrder:'2024-03-08'},
-  {id:'5',name:'Pedro Nunes',phone:'(27)95432-1098',email:'pedro@email.com',orders:7,total:560,lastOrder:'2024-03-13'},
-]
-const EMPTY={name:'',phone:'',email:'',orders:0,total:0,lastOrder:new Date().toISOString().split('T')[0]}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
 
 export default function CustomersPage(){
-  const[customers,setCustomers]=useState(INIT)
+  const[customers,setCustomers]=useState<any[]>([])
+  const[loading,setLoading]=useState(true)
   const[search,setSearch]=useState('')
-  const[modal,setModal]=useState(false)
-  const[edit,setEdit]=useState<Customer|null>(null)
-  const[form,setForm]=useState(EMPTY)
-  const filt=customers.filter(c=>c.name.toLowerCase().includes(search.toLowerCase())||c.phone.includes(search)||c.email.includes(search))
-  const openC=()=>{setEdit(null);setForm(EMPTY);setModal(true)}
-  const openE=(c:Customer)=>{setEdit(c);setForm({...c});setModal(true)}
-  const save=()=>{
-    if(!form.name.trim()){toast.error('Nome obrigatorio');return}
-    if(edit){setCustomers(p=>p.map(i=>i.id===edit.id?{...i,...form}:i));toast.success('Atualizado!')}
-    else{setCustomers(p=>[...p,{...form,id:crypto.randomUUID()}]);toast.success('Cadastrado!')}
-    setModal(false)
+  const[expanded,setExpanded]=useState<string|null>(null)
+  const[orders,setOrders]=useState<Record<string,any[]>>({})
+
+  useEffect(()=>{load()},[]) 
+
+  async function load(){
+    setLoading(true)
+    const{data}=await supabase.from('customers').select('*').order('orders_count',{ascending:false})
+    setCustomers(data||[])
+    setLoading(false)
   }
-  const del=(id:string)=>{setCustomers(p=>p.filter(i=>i.id!==id));toast.success('Removido')}
+
+  async function expand(id:string){
+    if(expanded===id){setExpanded(null);return}
+    setExpanded(id)
+    if(!orders[id]){
+      const{data}=await supabase.from('orders').select('id,order_number,total,status,type,created_at').eq('customer_phone',(customers.find(c=>c.id===id)?.phone||'')).order('created_at',{ascending:false}).limit(20)
+      setOrders(o=>({...o,[id]:data||[]}))
+    }
+  }
+
+  async function deleteCustomer(id:string){
+    if(!confirm('Remover este cliente?'))return
+    await supabase.from('customers').delete().eq('id',id)
+    toast.success('Cliente removido');load()
+  }
+
+  const filtered=customers.filter(c=>!search||(c.name||'').toLowerCase().includes(search.toLowerCase())||c.phone?.includes(search))
+  const totalSpent=customers.reduce((s,c)=>s+Number(c.total_spent||0),0)
+  const totalOrders=customers.reduce((s,c)=>s+(c.orders_count||0),0)
+
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
-      <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:12}}>
-        <Users size={20} color="var(--neon)"/>
-        <h1 className="font-bangers neon-text-sm" style={{fontSize:26}}>CLIENTES</h1>
-        <div style={{position:'relative',flex:1,maxWidth:280}}>
-          <Search size={14} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar cliente..." style={{paddingLeft:32}}/>
+      <div style={{padding:'12px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+        <Users size={20} color='var(--neon)'/>
+        <h1 className='font-bangers neon-text-sm' style={{fontSize:26}}>CLIENTES</h1>
+        <div style={{position:'relative',maxWidth:220,flex:1}}>
+          <Search size={13} style={{position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar por nome ou tel...' style={{paddingLeft:28,fontSize:13}}/>
         </div>
-        <span style={{marginLeft:'auto',fontSize:12,color:'var(--muted)'}}>{filt.length} clientes</span>
-        <button onClick={openC} className="btn-neon-fill" style={{fontSize:13,padding:'8px 16px'}}>
-          <Plus size={14} style={{display:'inline',marginRight:6}}/>NOVO CLIENTE
-        </button>
+        <div style={{marginLeft:'auto',display:'flex',gap:16}}>
+          {[{l:'Total clientes',v:String(customers.length),c:'var(--neon)'},{l:'Pedidos',v:String(totalOrders),c:'#06b6d4'},{l:'Receita',v:fmt(totalSpent),c:'#f59e0b'}].map((k,i)=>(
+            <div key={i} style={{textAlign:'center'}}><p style={{fontSize:16,fontWeight:700,color:k.c,fontFamily:'JetBrains Mono,monospace'}}>{k.v}</p><p style={{fontSize:10,color:'var(--muted)'}}>{k.l}</p></div>
+          ))}
+        </div>
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
-        <div className="card" style={{overflow:'hidden'}}>
-          <table style={{width:'100%',borderCollapse:'collapse'}}>
-            <thead><tr style={{borderBottom:'1px solid var(--border)'}}>
-              {['CLIENTE','TELEFONE','EMAIL','PEDIDOS','TOTAL','ULTIMO PEDIDO',''].map(h=>(
-                <th key={h} style={{padding:'10px 14px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1}}>{h}</th>
-              ))}
-            </tr></thead>
-            <tbody>{filt.map(c=>(
-              <tr key={c.id} style={{borderBottom:'1px solid rgba(26,46,26,0.5)'}}>
-                <td style={{padding:'10px 14px'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{width:36,height:36,borderRadius:'50%',background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Bangers,cursive',fontSize:16,color:'var(--neon)'}}>
-                      {c.name.charAt(0)}
+
+      <div style={{flex:1,overflowY:'auto',padding:'12px 20px'}}>
+        {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:
+        filtered.length===0?(
+          <div style={{textAlign:'center',padding:64,color:'var(--muted)'}}><Users size={48} style={{opacity:0.3,marginBottom:12}}/><p style={{fontFamily:'Bangers,cursive',fontSize:18}}>NENHUM CLIENTE</p><p style={{fontSize:13,marginTop:6}}>Clientes sao salvos automaticamente ao fazer pedidos pelo Delivery ou Catalogo.</p></div>
+        ):filtered.map(c=>(
+          <div key={c.id} className='card' style={{marginBottom:8,overflow:'hidden',borderLeft:'3px solid '+(c.orders_count>=10?'#f59e0b':c.orders_count>=5?'#06b6d4':'var(--border)')}}> 
+            <div onClick={()=>expand(c.id)} style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',flexWrap:'wrap'}}>
+              <div style={{width:40,height:40,borderRadius:12,background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <span style={{fontSize:16,fontWeight:700,color:'var(--neon)'}}>{(c.name||'?')[0].toUpperCase()}</span>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:14,fontWeight:600,color:'var(--white)'}}>{c.name}</p>
+                <div style={{display:'flex',gap:10,marginTop:2,flexWrap:'wrap'}}>
+                  <span style={{fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:3}}><Phone size={10}/>{c.phone}</span>
+                  {c.neighborhood&&<span style={{fontSize:11,color:'var(--muted)'}}>{c.neighborhood}</span>}
+                  {c.updated_at&&<span style={{fontSize:11,color:'var(--muted)',display:'flex',alignItems:'center',gap:3}}><Clock size={10}/>Ultimo: {new Date(c.updated_at).toLocaleDateString('pt-BR')}</span>}
+                </div>
+              </div>
+              <div style={{display:'flex',gap:16,alignItems:'center'}}>
+                <div style={{textAlign:'center'}}><p style={{fontSize:16,fontWeight:700,color:'var(--white)'}}>{c.orders_count||0}</p><p style={{fontSize:10,color:'var(--muted)'}}>pedidos</p></div>
+                <div style={{textAlign:'center'}}><p style={{fontSize:14,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(c.total_spent)||0)}</p><p style={{fontSize:10,color:'var(--muted)'}}>total gasto</p></div>
+                <button onClick={e=>{e.stopPropagation();deleteCustomer(c.id)}} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',padding:4,opacity:0.5}}><Trash2 size={14}/></button>
+                {expanded===c.id?<ChevronUp size={14} color='var(--muted)'/>:<ChevronDown size={14} color='var(--muted)'/>}
+              </div>
+            </div>
+            {expanded===c.id&&(
+              <div style={{padding:'0 16px 12px',borderTop:'1px solid var(--border)'}}>
+                {c.address&&<p style={{fontSize:12,color:'var(--muted)',padding:'8px 0'}}>{c.address}{c.complement?' - '+c.complement:''}{c.neighborhood?', '+c.neighborhood:''}</p>}
+                {c.reference&&<p style={{fontSize:11,color:'var(--muted)',marginBottom:8}}>Ref: {c.reference}</p>}
+                <p style={{fontSize:11,color:'var(--muted)',letterSpacing:1,marginBottom:6,marginTop:4}}>HISTORICO DE PEDIDOS</p>
+                {(orders[c.id]||[]).length===0
+                  ?<p style={{fontSize:12,color:'var(--muted)'}}>Nenhum pedido encontrado</p>
+                  :(orders[c.id]||[]).map(o=>(
+                    <div key={o.id} style={{display:'flex',alignItems:'center',gap:10,padding:'5px 0',borderBottom:'1px solid rgba(26,46,26,0.4)'}}>
+                      <span style={{fontSize:11,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',minWidth:32}}>#{o.order_number}</span>
+                      <span style={{fontSize:11,color:'var(--muted)',flex:1}}>{new Date(o.created_at).toLocaleDateString('pt-BR')}</span>
+                      <span style={{fontSize:11,padding:'2px 7px',borderRadius:6,background:o.type==='delivery'?'rgba(6,182,212,0.1)':'rgba(0,255,65,0.1)',color:o.type==='delivery'?'#06b6d4':'var(--neon)'}}>{o.type==='delivery'?'Delivery':'PDV'}</span>
+                      <span style={{fontSize:12,fontWeight:600,color:'var(--white)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(o.total)}</span>
                     </div>
-                    <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{c.name}</p>
-                  </div>
-                </td>
-                <td style={{padding:'10px 14px',fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:6,paddingTop:22}}>
-                  <Phone size={12}/>{c.phone}
-                </td>
-                <td style={{padding:'10px 14px',fontSize:12,color:'var(--muted)'}}>{c.email}</td>
-                <td style={{padding:'10px 14px',fontSize:13,fontWeight:600,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{c.orders}</td>
-                <td style={{padding:'10px 14px',fontSize:13,fontWeight:600,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(c.total)}</td>
-                <td style={{padding:'10px 14px',fontSize:12,color:'var(--muted)'}}>{c.lastOrder}</td>
-                <td style={{padding:'10px 14px'}}>
-                  <div style={{display:'flex',gap:6}}>
-                    <button onClick={()=>openE(c)} style={{width:30,height:30,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Edit2 size={13}/></button>
-                    <button onClick={()=>del(c.id)} style={{width:30,height:30,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={13}/></button>
-                  </div>
-                </td>
-              </tr>
-            ))}</tbody>
-          </table>
-          {filt.length===0&&<div style={{padding:48,display:'flex',flexDirection:'column',alignItems:'center',color:'var(--muted)'}}><Users size={32} style={{marginBottom:8,opacity:0.4}}/><p>Nenhum cliente encontrado</p></div>}
-        </div>
-      </div>
-      {modal&&(
-        <div className="animate-fade-in" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50}}>
-          <div className="animate-slide-in card" style={{width:'100%',maxWidth:460,padding:28,margin:16,border:'1px solid var(--border-bright)',boxShadow:'0 0 40px rgba(0,255,65,0.15)'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
-              <h2 className="font-bangers neon-text-sm" style={{fontSize:24}}>{edit?'EDITAR':'NOVO'} CLIENTE</h2>
-              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={20}/></button>
-            </div>
-            <div style={{display:'flex',flexDirection:'column',gap:12}}>
-              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>NOME</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Nome completo"/></div>
-              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>TELEFONE</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="(27) 99999-9999"/></div>
-              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>EMAIL</label><input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="email@exemplo.com"/></div>
-            </div>
-            <div style={{display:'flex',gap:10,marginTop:20}}>
-              <button onClick={()=>setModal(false)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15}}>CANCELAR</button>
-              <button onClick={save} className="btn-neon-fill" style={{flex:2,fontSize:15}}><Check size={14} style={{display:'inline',marginRight:6}}/>SALVAR</button>
-            </div>
+                  ))
+                }
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        ))}
+      </div>
     </div>
   )
 }
