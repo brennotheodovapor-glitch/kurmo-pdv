@@ -1,3 +1,4 @@
+import{sendWhatsApp,WA_MESSAGES}from '@/lib/whatsapp'
 import{useState,useEffect}from 'react'
 import{Truck,Plus,X,Check,Phone,MapPin,AlertTriangle,ChevronDown,ChevronUp,Search,Loader2,CheckCircle,Minus,ShoppingCart}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
@@ -64,6 +65,11 @@ export default function DeliveryPage(){
 
   async function updateStatus(id:string,status:string){
     await supabase.from('orders').update({status}).eq('id',id)
+    const order=orders.find(o=>o.id===id)
+    if(order&&order.customer_phone&&WA_MESSAGES[status]){
+      const msg=WA_MESSAGES[status](order.customer_name||'Cliente',order.order_number)
+      sendWhatsApp(order.customer_phone,msg).then(sent=>{if(sent)toast.success('WhatsApp enviado!')})
+    }
     toast.success(STATUS_LABEL[status]);loadData()
   }
 
