@@ -171,7 +171,7 @@ export default function SettingsPage(){
         <div style={{marginTop:14,padding:'10px 14px',background:'rgba(255,170,0,0.06)',borderRadius:8,border:'1px solid rgba(255,170,0,0.2)',fontSize:12,color:'#ffaa00'}}>
           <strong>Importante:</strong> Para funcionar em producao, adicione as variaveis de ambiente no Vercel:
           <code style={{fontSize:11,color:'var(--neon)',display:'block',marginTop:4}}>VITE_WA_URL, VITE_WA_KEY, VITE_WA_INSTANCE</code>
-          <p style={{marginTop:4,fontSize:11}}>Use o botao Copiar variaveis Vercel e cole em Settings > Environment Variables no Vercel.</p>
+          <p style={{marginTop:4,fontSize:11}}>Use o botao Copiar variaveis Vercel e cole em Settings {'>'} Environment Variables no Vercel.</p>
         </div>
       </div>
     </div>
