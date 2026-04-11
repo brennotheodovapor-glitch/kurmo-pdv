@@ -3,7 +3,7 @@ import{Plus,Search,Edit2,Trash2,X,Check,Image,Package,AlertTriangle}from 'lucide
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-type Product={id:string;name:string;price:number;cost_price:number;stock:number;stock_alert?:number|undefined;category_id:string|null;active:boolean;image_url?:string;description?:string}
+type Product={id:string;name:string;price:number;cost_price:number;stock:number;stock_alert?:number;category_id:string|null;active:boolean;image_url?:string;description?:string}
 type Category={id:string;name:string;color:string;image_url?:string}
 const EMPTY:Omit<Product,'id'>={name:'',price:0,cost_price:0,stock:0,category_id:null,active:true,image_url:'',description:''}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
@@ -21,7 +21,7 @@ export default function ProductsPage(){
   const[loading,setLoading]=useState(true)
   const fileRef=useRef<HTMLInputElement>(null)
 
-  useEffect(()=>{loadData()},[])
+  useEffect(()=>{loadData()},[]) 
 
   async function loadData(){
     setLoading(true)
@@ -29,8 +29,7 @@ export default function ProductsPage(){
       supabase.from('products').select('*').order('name'),
       supabase.from('categories').select('*').order('name')
     ])
-    setProducts(p.data||[])
-    setCategories(c.data||[])
+    setProducts(p.data||[]);setCategories(c.data||[])
     setLoading(false)
   }
 
@@ -40,38 +39,37 @@ export default function ProductsPage(){
     return true
   })
 
+  const lowStockProducts=products.filter(p=>p.active&&p.stock>0&&p.stock<=(p.stock_alert??5))
+  const outOfStockProducts=products.filter(p=>p.active&&p.stock===0)
+
   const openC=()=>{setEdit(null);setForm(EMPTY);setPreview(null);setModal(true)}
   const openE=(p:Product)=>{setEdit(p);setForm({...p});setPreview(p.image_url||null);setModal(true)}
 
   async function handleImg(e:React.ChangeEvent<HTMLInputElement>){
-    const file=e.target.files?.[0]
-    if(!file)return
-    const reader=new FileReader()
-    reader.onload=ev=>setPreview(ev.target?.result as string)
-    reader.readAsDataURL(file)
+    const file=e.target.files?.[0];if(!file)return
+    const reader=new FileReader();reader.onload=ev=>setPreview(ev.target?.result as string);reader.readAsDataURL(file)
     setUploading(true)
     try{
       const ext=file.name.split('.').pop()?.toLowerCase()||'jpg'
       const fileName='products/'+Date.now()+'.'+ext
-      const{data,error}=await supabase.storage.from('product-images').upload(fileName,file,{upsert:true,contentType:file.type})
+      const{error}=await supabase.storage.from('product-images').upload(fileName,file,{upsert:true,contentType:file.type})
       if(error){toast.error('Erro upload: '+error.message);return}
       const{data:{publicUrl}}=supabase.storage.from('product-images').getPublicUrl(fileName)
-      setForm(f=>({...f,image_url:publicUrl}))
-      toast.success('Foto enviada!')
+      setForm(f=>({...f,image_url:publicUrl}));toast.success('Foto enviada!')
     }catch(err:any){toast.error('Erro: '+err.message)}
     finally{setUploading(false)}
   }
 
   async function save(){
     if(!form.name.trim()){toast.error('Nome obrigatorio');return}
-    if(uploading){toast.error('Aguarde o upload terminar');return}
+    if(uploading){toast.error('Aguarde o upload');return}
     if(edit){
       const{error}=await supabase.from('products').update(form).eq('id',edit.id)
-      if(error){toast.error('Erro: '+error.message);return}
+      if(error){toast.error(error.message);return}
       toast.success('Produto atualizado!')
     }else{
       const{error}=await supabase.from('products').insert(form)
-      if(error){toast.error('Erro: '+error.message);return}
+      if(error){toast.error(error.message);return}
       toast.success('Produto cadastrado!')
     }
     setModal(false);loadData()
@@ -86,19 +84,22 @@ export default function ProductsPage(){
   const getCat=(id:string|null)=>categories.find(c=>c.id===id)
   const mar=(p:Product)=>p.price>0?((p.price-p.cost_price)/p.price*100).toFixed(0):'0'
 
-  const lowStock=products.filter(p=>p.active&&p.stock<=(((p.stock_alert||5)||5)&&p.stock>0)
-  const outOfStock=products.filter(p=>p.active&&p.stock===0)
-
   return(
-    {/* Low stock alert */}
-    {products.filter(p=>p.active&&(p.stock_alert!=null?p.stock<=(p.stock_alert||5):p.stock<=5)&&p.stock>0).length>0&&(
-      <div style={{padding:'8px 20px',background:'rgba(255,170,0,0.08)',borderTop:'1px solid rgba(255,170,0,0.2)',borderBottom:'1px solid rgba(255,170,0,0.2)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-        <span style={{fontSize:12,color:'#ffaa00',fontWeight:600}}>ESTOQUE BAIXO:</span>
-        {products.filter(p=>p.active&&(p.stock_alert!=null?p.stock<=(p.stock_alert||5):p.stock<=5)&&p.stock>0).map(p=>(<span key={p.id} style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,170,0,0.15)',color:'#ffaa00'}}>{p.name} ({p.stock} un)</span>))}
-        {products.filter(p=>p.active&&p.stock===0).length>0&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,51,51,0.15)',color:'#ff3333',marginLeft:4}}>{products.filter(p=>p.active&&p.stock===0).length} sem estoque</span>}
-      </div>
-    )}
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
+
+      {/* Low stock alert */}
+      {(lowStockProducts.length>0||outOfStockProducts.length>0)&&(
+        <div style={{padding:'8px 20px',background:'rgba(255,170,0,0.08)',borderBottom:'1px solid rgba(255,170,0,0.2)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <AlertTriangle size={14} color='#ffaa00'/>
+          {lowStockProducts.length>0&&(<>
+            <span style={{fontSize:12,color:'#ffaa00',fontWeight:600}}>ESTOQUE BAIXO:</span>
+            {lowStockProducts.map(p=>(<span key={p.id} style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,170,0,0.15)',color:'#ffaa00'}}>{p.name} ({p.stock} un)</span>))}
+          </>)}
+          {outOfStockProducts.length>0&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,51,51,0.15)',color:'#ff3333',marginLeft:4}}>{outOfStockProducts.length} sem estoque</span>}
+        </div>
+      )}
+
+      {/* Header */}
       <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
         <Package size={18} color='var(--neon)'/>
         <h1 className='font-bangers neon-text-sm' style={{fontSize:24}}>PRODUTOS</h1>
@@ -114,15 +115,17 @@ export default function ProductsPage(){
           <Plus size={13} style={{display:'inline',marginRight:5}}/>NOVO
         </button>
       </div>
+
+      {/* Table */}
       <div style={{flex:1,overflowY:'auto',padding:'14px 16px'}}>
         {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:(
           <div className='card' style={{overflow:'hidden'}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead><tr style={{borderBottom:'1px solid var(--border)'}}>
                 <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1}}>PRODUTO</th>
-                <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}} className='hide-mobile'>CAT</th>
+                <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>CAT</th>
                 <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>PRECO</th>
-                <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}} className='hide-mobile'>MARGEM</th>
+                <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>MARGEM</th>
                 <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>ESTQ</th>
                 <th style={{padding:'9px 12px',width:70}}></th>
               </tr></thead>
@@ -142,12 +145,12 @@ export default function ProductsPage(){
                       </div>
                     </div>
                   </td>
-                  <td style={{padding:'9px 12px',fontSize:12,color:'var(--muted)'}} className='hide-mobile'>{getCat(p.category_id)?.name||'sem cat'}</td>
+                  <td style={{padding:'9px 12px',fontSize:12,color:'var(--muted)'}}>{getCat(p.category_id)?.name||'—'}</td>
                   <td style={{padding:'9px 12px',fontFamily:'JetBrains Mono,monospace',fontSize:13,fontWeight:600,color:'var(--neon)'}}>{fmt(p.price)}</td>
-                  <td style={{padding:'9px 12px'}} className='hide-mobile'>
+                  <td style={{padding:'9px 12px'}}>
                     <span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:20,background:parseInt(mar(p))>=40?'rgba(0,255,65,0.1)':parseInt(mar(p))>=25?'rgba(255,170,0,0.1)':'rgba(255,51,51,0.1)',color:parseInt(mar(p))>=40?'var(--neon)':parseInt(mar(p))>=25?'#ffaa00':'#ff3333'}}>{mar(p)}%</span>
                   </td>
-                  <td style={{padding:'9px 12px',fontSize:12,color:p.stock===0?'#ff3333':p.stock<=5?'#ffaa00':'var(--muted)'}}>
+                  <td style={{padding:'9px 12px',fontSize:12,color:p.stock===0?'#ff3333':p.stock<=(p.stock_alert??5)&&p.stock>0?'#ffaa00':'var(--muted)'}}>
                     {p.stock===0&&<AlertTriangle size={11} style={{display:'inline',marginRight:3}}/>}{p.stock}
                   </td>
                   <td style={{padding:'9px 12px'}}>
@@ -159,13 +162,15 @@ export default function ProductsPage(){
                 </tr>
               ))}</tbody>
             </table>
-            {filtered.length===0&&(<div style={{padding:48,textAlign:'center',color:'var(--muted)'}}><Package size={32} style={{opacity:0.3,marginBottom:8}}/><p>Nenhum produto</p></div>)}
+            {filtered.length===0&&<div style={{padding:48,textAlign:'center',color:'var(--muted)'}}><Package size={32} style={{opacity:0.3,marginBottom:8}}/><p>Nenhum produto</p></div>}
           </div>
         )}
       </div>
+
+      {/* Modal */}
       {modal&&(
         <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:50}}>
-          <div className='animate-slide-in card' style={{width:'100%',maxWidth:540,padding:24,margin:16,border:'1px solid var(--border-bright)',borderRadius:16,maxHeight:'92vh',overflowY:'auto'}}>
+          <div className='card' style={{width:'100%',maxWidth:540,padding:24,margin:16,border:'1px solid var(--border-bright)',borderRadius:16,maxHeight:'92vh',overflowY:'auto'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18}}>
               <h2 className='font-bangers neon-text-sm' style={{fontSize:22}}>{edit?'EDITAR':'NOVO'} PRODUTO</h2>
               <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={20}/></button>
@@ -192,10 +197,11 @@ export default function ProductsPage(){
                   </select>
                 </div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8}}>
-                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>VENDA R$</label><input type='number' min='0' data-field='stock' step='0.01' value={form.price===0?'':form.price} onChange={e=>setForm(f=>({...f,price:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
+                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>VENDA R$</label><input type='number' min='0' step='0.01' value={form.price===0?'':form.price} onChange={e=>setForm(f=>({...f,price:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
                   <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>CUSTO R$</label><input type='number' min='0' step='0.01' value={form.cost_price===0?'':form.cost_price} onChange={e=>setForm(f=>({...f,cost_price:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
                   <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>ESTOQUE</label><input type='number' min='0' value={form.stock===0?'':form.stock} onChange={e=>setForm(f=>({...f,stock:e.target.value===''?0:parseInt(e.target.value)||0}))} placeholder='0'/></div>
                 </div>
+                <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:3}}>ALERTA ESTOQUE BAIXO (padrao: 5)</label><input type='number' min='1' value={(form as any).stock_alert||''} onChange={e=>setForm(f=>({...f,stock_alert:e.target.value===''?5:parseInt(e.target.value)||5}))} placeholder='5'/></div>
               </div>
             </div>
             {form.price>0&&form.cost_price>0&&(
