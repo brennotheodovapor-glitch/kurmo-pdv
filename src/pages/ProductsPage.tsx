@@ -90,6 +90,14 @@ export default function ProductsPage(){
   const outOfStock=products.filter(p=>p.active&&p.stock===0)
 
   return(
+    {/* Low stock alert */}
+    {products.filter(p=>p.active&&(p.stock_alert!=null?p.stock<=(p.stock_alert||5):p.stock<=5)&&p.stock>0).length>0&&(
+      <div style={{padding:'8px 20px',background:'rgba(255,170,0,0.08)',borderTop:'1px solid rgba(255,170,0,0.2)',borderBottom:'1px solid rgba(255,170,0,0.2)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+        <span style={{fontSize:12,color:'#ffaa00',fontWeight:600}}>ESTOQUE BAIXO:</span>
+        {products.filter(p=>p.active&&(p.stock_alert!=null?p.stock<=(p.stock_alert||5):p.stock<=5)&&p.stock>0).map(p=>(<span key={p.id} style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,170,0,0.15)',color:'#ffaa00'}}>{p.name} ({p.stock} un)</span>))}
+        {products.filter(p=>p.active&&p.stock===0).length>0&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,51,51,0.15)',color:'#ff3333',marginLeft:4}}>{products.filter(p=>p.active&&p.stock===0).length} sem estoque</span>}
+      </div>
+    )}
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
       <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
         <Package size={18} color='var(--neon)'/>
