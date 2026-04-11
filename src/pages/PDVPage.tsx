@@ -244,7 +244,7 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
                 {couponLoading?'...':coupon?'OK':'Aplicar'}
               </button>
             </div>
-            {coupon&&<p style={{fontSize:10,color:'var(--neon)',display:'flex',alignItems:'center',gap:4}}><Gift size={10}/>{coupon.code}: -{coupon.discount_type==='percent'?coupon.discount_value+'%':fmt(coupon.discount_value)}</p>}
+            {coupon&&<p style={{fontSize:10,color:'var(--neon)',display:'flex',alignItems:'center',gap:4}}><Tag size={10}/>{coupon.code}: -{coupon.discount_type==='percent'?coupon.discount_value+'%':fmt(coupon.discount_value)}</p>}
           </div>
           {couponDiscount>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#10b981',marginBottom:3}}><span>Desconto cupom</span><span>-{fmt(couponDiscount)}</span></div>}
           <div style={{display:'flex',justifyContent:'space-between',fontSize:17,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',padding:'6px 0',borderTop:'1px solid var(--border)',marginBottom:8}}>
