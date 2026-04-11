@@ -17,6 +17,11 @@ export default function CashRegisterPage(){
   const[salesMap,setSalesMap]=useState<Record<string,SalesData>>({})
   const[expanded,setExpanded]=useState<string|null>(null)
   const[dateFrom,setDateFrom]=useState(monthStr())
+  const[entriesModal,setEntriesModal]=useState(false)
+  const[entryType,setEntryType]=useState<'withdrawal'|'deposit'>('withdrawal')
+  const[entryAmount,setEntryAmount]=useState('')
+  const[entryReason,setEntryReason]=useState('')
+  const[savingEntry,setSavingEntry]=useState(false)
   const[sangriaModal,setSangriaModal]=useState(false)
   const[sangriaType,setSangriaType]=useState<'withdrawal'|'deposit'>('withdrawal')
   const[sangriaAmount,setSangriaAmount]=useState('')
@@ -26,6 +31,17 @@ export default function CashRegisterPage(){
 
   useEffect(()=>{loadRegs()},[dateFrom,dateTo])
   useEffect(()=>{if(cash.current!==undefined)loadRegs()},[cash.current])
+
+  async function saveEntry(){
+    if(!cash.current){toast.error('Nenhum caixa aberto');return}
+    if(!entryAmount||parseFloat(entryAmount)<=0){toast.error('Informe o valor');return}
+    if(!entryReason.trim()){toast.error('Informe o motivo');return}
+    setSavingEntry(true)
+    const{error}=await supabase.from('cash_register_entries').insert({cash_register_id:cash.current.id,type:entryType,amount:parseFloat(entryAmount),reason:entryReason})
+    if(error){toast.error(error.message);setSavingEntry(false);return}
+    toast.success(entryType==='withdrawal'?'Sangria registrada!':'Suprimento registrado!')
+    setEntryAmount('');setEntryReason('');setEntriesModal(false);setSavingEntry(false)
+  }
 
   async function loadRegs(){
     setLoading(true)
@@ -110,6 +126,11 @@ export default function CashRegisterPage(){
           <button onClick={()=>cash.setCloseModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><Lock size={13}/>FECHAR CAIXA</button></>
             :<button onClick={()=>cash.setOpenModal(true)} className='btn-neon-fill' style={{display:'flex',alignItems:'center',gap:6,fontSize:13,padding:'8px 16px'}}><Unlock size={13}/>ABRIR CAIXA</button>
           }
+          {cash.current&&(
+            <button onClick={()=>{setEntriesModal(true);setEntryType('withdrawal')}} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 12px',borderRadius:8,border:'1px solid #f59e0b',background:'rgba(245,158,11,0.08)',color:'#f59e0b',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:12}}>
+              <ArrowDownLeft size={13}/>SANGRIA / SUPRIMENTO
+            </button>
+          )}
         </div>
       </div>
 
@@ -300,6 +321,31 @@ export default function CashRegisterPage(){
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>cash.setCloseModal(false)} style={{flex:1,padding:11,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
               <button onClick={()=>cash.closeCash(expectedNow)} disabled={cash.saving} style={{flex:2,padding:11,borderRadius:8,border:'none',background:'#ff3333',color:'white',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15,opacity:cash.saving?0.7:1}}>{cash.saving?'FECHANDO...':'FECHAR CAIXA'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sangria / Suprimento Modal */}
+      {entriesModal&&(
+        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:60,padding:16}}>
+          <div className='card' style={{width:'100%',maxWidth:400,padding:24,border:'1px solid var(--border-bright)'}}>
+            <h2 className='font-bangers' style={{fontSize:20,color:'var(--white)',marginBottom:16}}>SANGRIA / SUPRIMENTO</h2>
+            <div style={{display:'flex',gap:8,marginBottom:16}}>
+              <button onClick={()=>setEntryType('withdrawal')} style={{flex:1,padding:'10px',borderRadius:8,border:entryType==='withdrawal'?'1px solid #ff3333':'1px solid var(--border)',background:entryType==='withdrawal'?'rgba(255,51,51,0.1)':'transparent',color:entryType==='withdrawal'?'#ff3333':'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                <ArrowDownLeft size={14}/>SANGRIA (saida)
+              </button>
+              <button onClick={()=>setEntryType('deposit')} style={{flex:1,padding:'10px',borderRadius:8,border:entryType==='deposit'?'1px solid #10b981':'1px solid var(--border)',background:entryType==='deposit'?'rgba(16,185,129,0.1)':'transparent',color:entryType==='deposit'?'#10b981':'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+                <ArrowUpRight size={14}/>SUPRIMENTO (entrada)
+              </button>
+            </div>
+            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>VALOR (R$) *</label>
+            <input type='number' min='0.01' step='0.01' value={entryAmount} onChange={e=>setEntryAmount(e.target.value)} placeholder='0,00' autoFocus style={{fontSize:18,textAlign:'center',fontFamily:'JetBrains Mono,monospace',marginBottom:12,width:'100%'}}/>
+            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>MOTIVO *</label>
+            <input value={entryReason} onChange={e=>setEntryReason(e.target.value)} placeholder={entryType==='withdrawal'?'Troco para entregador, pagamento...':'Abertura adicional, fundo de troco...'} style={{marginBottom:16,width:'100%'}}/>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setEntriesModal(false)} style={{flex:1,padding:11,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
+              <button onClick={saveEntry} disabled={savingEntry} style={{flex:2,padding:11,borderRadius:8,border:'none',background:entryType==='withdrawal'?'#f59e0b':'#10b981',color:'#000',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15,opacity:savingEntry?0.7:1}}>{savingEntry?'SALVANDO...':(entryType==='withdrawal'?'REGISTRAR SANGRIA':'REGISTRAR SUPRIMENTO')}</button>
             </div>
           </div>
         </div>
