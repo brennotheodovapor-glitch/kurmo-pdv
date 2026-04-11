@@ -1,5 +1,5 @@
 import{useState,useEffect}from 'react'
-import{DollarSign,Unlock,Lock,Clock,ChevronDown,ChevronUp,AlertCircle,Calendar}from 'lucide-react'
+import{DollarSign,Unlock,Lock,Clock,ChevronDown,ChevronUp,AlertCircle,Calendar,ArrowDownCircle,ArrowUpCircle}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import{useCashRegister}from '@/hooks/useCashRegister'
 
@@ -17,6 +17,11 @@ export default function CashRegisterPage(){
   const[salesMap,setSalesMap]=useState<Record<string,SalesData>>({})
   const[expanded,setExpanded]=useState<string|null>(null)
   const[dateFrom,setDateFrom]=useState(monthStr())
+  const[sangriaModal,setSangriaModal]=useState(false)
+  const[sangriaType,setSangriaType]=useState<'withdrawal'|'deposit'>('withdrawal')
+  const[sangriaAmount,setSangriaAmount]=useState('')
+  const[sangriaReason,setSangriaReason]=useState('')
+  const[sangriaLoading,setSangriaLoading]=useState(false)
   const[dateTo,setDateTo]=useState(todayStr())
 
   useEffect(()=>{loadRegs()},[dateFrom,dateTo])
@@ -76,6 +81,18 @@ export default function CashRegisterPage(){
   const periodDebito=Object.values(salesMap).reduce((s,v)=>s+v.debito,0)
   const periodCredito=Object.values(salesMap).reduce((s,v)=>s+v.credito,0)
 
+  async function saveSangria(){
+    if(!cash.current){toast.error('Caixa fechado');return}
+    const amount=parseFloat(sangriaAmount)
+    if(!amount||amount<=0){toast.error('Informe o valor');return}
+    setSangriaLoading(true)
+    const{error}=await supabase.from('cash_register_entries').insert({cash_register_id:cash.current.id,type:sangriaType,amount,reason:sangriaReason||null})
+    if(error){toast.error(error.message);setSangriaLoading(false);return}
+    toast.success(sangriaType==='withdrawal'?'Sangria registrada!':'Suprimento registrado!')
+    setSangriaModal(false);setSangriaAmount('');setSangriaReason('')
+    setSangriaLoading(false)
+  }
+
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
 
@@ -88,7 +105,9 @@ export default function CashRegisterPage(){
         }
         <div style={{marginLeft:'auto',display:'flex',gap:8}}>
           {cash.current
-            ?<button onClick={()=>cash.setCloseModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><Lock size={13}/>FECHAR CAIXA</button>
+            ?<><button onClick={()=>{setSangriaType('withdrawal');setSangriaModal(true)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'1px solid #ffaa00',background:'rgba(255,170,0,0.1)',color:'#ffaa00',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><ArrowDownCircle size={13}/>SANGRIA</button>
+          <button onClick={()=>{setSangriaType('deposit');setSangriaModal(true)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'1px solid #10b981',background:'rgba(16,185,129,0.1)',color:'#10b981',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><ArrowUpCircle size={13}/>SUPRIMENTO</button>
+          <button onClick={()=>cash.setCloseModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><Lock size={13}/>FECHAR CAIXA</button></>
             :<button onClick={()=>cash.setOpenModal(true)} className='btn-neon-fill' style={{display:'flex',alignItems:'center',gap:6,fontSize:13,padding:'8px 16px'}}><Unlock size={13}/>ABRIR CAIXA</button>
           }
         </div>
@@ -213,6 +232,25 @@ export default function CashRegisterPage(){
         }
       </div>
 
+      {sangriaModal&&(
+        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:60,padding:16}}>
+          <div className='card' style={{width:'100%',maxWidth:400,padding:24,border:'2px solid '+(sangriaType==='withdrawal'?'#ffaa00':'#10b981')}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
+              {sangriaType==='withdrawal'?<ArrowDownCircle size={22} color='#ffaa00'/>:<ArrowUpCircle size={22} color='#10b981'/>}
+              <h2 className='font-bangers' style={{fontSize:22,color:sangriaType==='withdrawal'?'#ffaa00':'#10b981'}}>{sangriaType==='withdrawal'?'SANGRIA DE CAIXA':'SUPRIMENTO DE CAIXA'}</h2>
+            </div>
+            <p style={{fontSize:11,color:'var(--muted)',marginBottom:14}}>{sangriaType==='withdrawal'?'Registre uma retirada de dinheiro do caixa fisico.':'Registre uma entrada avulsa de dinheiro no caixa.'}</p>
+            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>VALOR (R$) *</label>
+            <input type='number' min='0.01' step='0.01' value={sangriaAmount} onChange={e=>setSangriaAmount(e.target.value)} placeholder='0,00' autoFocus style={{fontSize:20,textAlign:'center' as const,fontFamily:'JetBrains Mono,monospace',marginBottom:12}}/>
+            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>MOTIVO (opcional)</label>
+            <input value={sangriaReason} onChange={e=>setSangriaReason(e.target.value)} placeholder={sangriaType==='withdrawal'?'Ex: Pagamento de fornecedor':'Ex: Troco inicial'} style={{fontSize:13,marginBottom:16}}/>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>{setSangriaModal(false);setSangriaAmount('');setSangriaReason('')}} style={{flex:1,padding:11,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
+              <button onClick={saveSangria} disabled={sangriaLoading} style={{flex:2,padding:11,borderRadius:8,border:'none',background:sangriaType==='withdrawal'?'#ffaa00':'#10b981',color:'#000',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15,opacity:sangriaLoading?0.7:1}}>{sangriaLoading?'SALVANDO...':sangriaType==='withdrawal'?'REGISTRAR SANGRIA':'REGISTRAR SUPRIMENTO'}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {cash.openModal&&(
         <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
           <div className='card' style={{width:'100%',maxWidth:380,padding:24,border:'2px solid #ffaa00',boxShadow:'0 0 40px rgba(255,170,0,0.15)'}}>
