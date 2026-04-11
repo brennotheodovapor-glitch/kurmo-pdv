@@ -214,6 +214,21 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
             <span style={{fontSize:12,color:'var(--muted)'}}>Desconto R$</span>
             <input type='number' min='0' value={discount===0?'':discount} onChange={e=>setDiscount(e.target.value===''?0:parseFloat(e.target.value)||0)} placeholder='0,00' style={{width:80,textAlign:'right',fontSize:12,padding:'4px 6px'}}/>
           </div>
+          {/* Coupon */}
+          <div style={{marginBottom:6}}>
+            <div style={{display:'flex',gap:5}}>
+              <div style={{position:'relative',flex:1}}>
+                <Tag size={12} style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
+                <input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&applyCoupon()} placeholder='CUPOM' style={{paddingLeft:24,fontSize:12,textTransform:'uppercase' as const,letterSpacing:1}} disabled={!!couponData}/>
+              </div>
+              {!couponData
+                ?<button onClick={applyCoupon} disabled={couponLoading||!couponCode} style={{padding:'5px 10px',borderRadius:8,border:'1px solid var(--neon)',background:'var(--neon-glow)',color:'var(--neon)',cursor:'pointer',fontSize:11,fontFamily:'Bangers,cursive',whiteSpace:'nowrap' as const}}>{couponLoading?'...':'APLICAR'}</button>
+                :<button onClick={()=>{setCouponData(null);setCouponCode('')}} style={{padding:'5px 10px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',fontSize:11}}><X size={11}/></button>
+              }
+            </div>
+            {couponData&&<p style={{fontSize:11,color:'var(--neon)',marginTop:4}}>✓ {couponData.code} — {couponData.discount_type==='percent'?couponData.discount_value+'%':fmt(couponData.discount_value)+' OFF'}</p>}
+          </div>
+          {couponDiscount>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--neon)',marginBottom:3}}><span>Desconto cupom</span><span>-{fmt(couponDiscount)}</span></div>}
           <div style={{display:'flex',justifyContent:'space-between',fontSize:17,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',padding:'6px 0',borderTop:'1px solid var(--border)',marginBottom:8}}>
             <span>TOTAL</span><span>{fmt(total)}</span>
           </div>
@@ -235,6 +250,11 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
             {remaining>0.01&&<p style={{fontSize:10,color:'#ff3333',display:'flex',alignItems:'center',gap:3}}><AlertTriangle size={10}/>Faltam {fmt(remaining)}</p>}
             {change>0.01&&<p style={{fontSize:11,color:'#10b981',fontWeight:700}}>Troco: {fmt(change)}</p>}
           </div>
+          {lastOrder&&(
+            <button onClick={()=>printReceipt(lastOrder.order,lastOrder.items)} style={{width:'100%',fontSize:13,padding:'9px',borderRadius:8,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--muted)',cursor:'pointer',marginBottom:6,display:'flex',alignItems:'center',justifyContent:'center',gap:6}}>
+              <Printer size={13}/>IMPRIMIR ULTIMO CUPOM
+            </button>
+          )}
           <button onClick={finishSale} className='btn-neon-fill' disabled={processing||cart.length===0||remaining>0.01} style={{width:'100%',fontSize:14,padding:'11px',opacity:cart.length===0||remaining>0.01?0.5:1}}>
             {processing?'Processando...':<><Check size={14} style={{display:'inline',marginRight:6}}/>FINALIZAR VENDA</>}
           </button>
