@@ -146,8 +146,8 @@ export default function DeliveryPage(){
     if(phoneClean.length>=8){
       const custData={name:(form.nome+' '+form.sobrenome).trim(),phone:phoneClean,address:form.endereco+', '+form.numero,neighborhood:form.bairro,zip_code:form.cep,complement:form.complemento,reference:form.referencia,updated_at:new Date().toISOString()}
       const{data:existCust}=await supabase.from('customers').select('id,orders_count,total_spent').eq('phone',phoneClean).maybeSingle()
-      if(existCust){await supabase.from('customers').update({...custData,orders_count:(existCust.orders_count||0)+1,total_spent:(Number(existCust.total_spent)||0)+total}).eq('id',existCust.id)}
-      else{await supabase.from('customers').insert({...custData,orders_count:1,total_spent:total})}
+      if(existCust){await supabase.from('customers').update({...custData,orders_count:(existCust.orders_count||0)+1,total_spent:(Number(existCust.total_spent)||0)+cartTotal}).eq('id',existCust.id)}
+      else{await supabase.from('customers').insert({...custData,orders_count:1,total_spent:cartTotal})}
     }
     const{data:order,error}=await supabase.from('orders').insert({
         customer_name:form.nome+' '+form.sobrenome,
