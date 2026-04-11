@@ -1,6 +1,6 @@
 import toast from 'react-hot-toast'
 import{useState,useEffect}from 'react'
-import{DollarSign,Unlock,Lock,Clock,ChevronDown,ChevronUp,AlertCircle,Calendar,MinusCircle,PlusCircle,Minus,Plus,ArrowDownCircle,ArrowUpCircle}from 'lucide-react'
+import{DollarSign,Unlock,Lock,Clock,ChevronDown,ChevronUp,AlertCircle,Calendar,Minus,Plus,Download,Upload}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import{useCashRegister}from '@/hooks/useCashRegister'
 
@@ -122,8 +122,8 @@ export default function CashRegisterPage(){
         }
         <div style={{marginLeft:'auto',display:'flex',gap:8}}>
           {cash.current
-            ?<><button onClick={()=>{setSangriaType('withdrawal');setSangriaModal(true)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'1px solid #ffaa00',background:'rgba(255,170,0,0.1)',color:'#ffaa00',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><ArrowDownCircle size={13}/>SANGRIA</button>
-          <button onClick={()=>{setSangriaType('deposit');setSangriaModal(true)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'1px solid #10b981',background:'rgba(16,185,129,0.1)',color:'#10b981',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><ArrowUpCircle size={13}/>SUPRIMENTO</button>
+            ?<><button onClick={()=>{setSangriaType('withdrawal');setSangriaModal(true)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'1px solid #ffaa00',background:'rgba(255,170,0,0.1)',color:'#ffaa00',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><Download size={13}/>SANGRIA</button>
+          <button onClick={()=>{setSangriaType('deposit');setSangriaModal(true)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:8,border:'1px solid #10b981',background:'rgba(16,185,129,0.1)',color:'#10b981',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><Upload size={13}/>SUPRIMENTO</button>
           <button onClick={()=>cash.setCloseModal(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}><Lock size={13}/>FECHAR CAIXA</button></>
             :<button onClick={()=>cash.setOpenModal(true)} className='btn-neon-fill' style={{display:'flex',alignItems:'center',gap:6,fontSize:13,padding:'8px 16px'}}><Unlock size={13}/>ABRIR CAIXA</button>
           }
@@ -258,7 +258,7 @@ export default function CashRegisterPage(){
         <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:60,padding:16}}>
           <div className='card' style={{width:'100%',maxWidth:400,padding:24,border:'2px solid '+(sangriaType==='withdrawal'?'#ffaa00':'#10b981')}}>
             <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-              {sangriaType==='withdrawal'?<ArrowDownCircle size={22} color='#ffaa00'/>:<ArrowUpCircle size={22} color='#10b981'/>}
+              {sangriaType==='withdrawal'?<Download size={22} color='#ffaa00'/>:<Upload size={22} color='#10b981'/>}
               <h2 className='font-bangers' style={{fontSize:22,color:sangriaType==='withdrawal'?'#ffaa00':'#10b981'}}>{sangriaType==='withdrawal'?'SANGRIA DE CAIXA':'SUPRIMENTO DE CAIXA'}</h2>
             </div>
             <p style={{fontSize:11,color:'var(--muted)',marginBottom:14}}>{sangriaType==='withdrawal'?'Registre uma retirada de dinheiro do caixa fisico.':'Registre uma entrada avulsa de dinheiro no caixa.'}</p>
