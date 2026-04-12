@@ -214,28 +214,24 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
         <div style={{padding:'10px 14px',borderTop:'1px solid var(--border)'}}>
           <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder='Nome do cliente (opcional)' style={{marginBottom:8,fontSize:12}}/>
           <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--muted)',marginBottom:3}}><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-          {/* Discount + Coupon in premium block */}
+          {/* Discount + Coupon */}
           <div style={{background:'var(--surface)',borderRadius:10,padding:'10px 12px',marginBottom:8,border:'1px solid var(--border)'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-              <span style={{fontSize:11,color:'var(--muted)',letterSpacing:0.5}}>Desconto manual</span>
+              <span style={{fontSize:11,color:'var(--muted)',letterSpacing:0.5}}>Desconto R$</span>
               <input type='number' min='0' value={discount===0?'':discount} onChange={e=>setDiscount(e.target.value===''?0:parseFloat(e.target.value)||0)} placeholder='0,00' style={{width:80,textAlign:'right',fontSize:12,padding:'4px 6px'}}/>
-          </div>
-          {/* Coupon */}
-          <div style={{marginBottom:6}}>
-            <div style={{display:'flex',gap:5}}>
-              <div style={{position:'relative',flex:1}}>
-                <Tag size={12} style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
-                <input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&applyCoupon()} placeholder='CUPOM' style={{paddingLeft:24,fontSize:12,textTransform:'uppercase' as const,letterSpacing:1}} disabled={!!couponData}/>
-              </div>
-              {!couponData
-                ?<button onClick={applyCoupon} disabled={couponLoading||!couponCode} style={{padding:'5px 10px',borderRadius:8,border:'1px solid var(--neon)',background:'var(--neon-glow)',color:'var(--neon)',cursor:'pointer',fontSize:11,fontFamily:'Bangers,cursive',whiteSpace:'nowrap' as const}}>{couponLoading?'...':'APLICAR'}</button>
-                :<button onClick={()=>{setCouponData(null);setCouponCode('')}} style={{padding:'5px 10px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',fontSize:11}}><X size={11}/></button>
-              }
             </div>
-            {couponData&&<p style={{fontSize:11,color:'var(--neon)',marginTop:4}}>✓ {couponData.code} — {couponData.discount_type==='percent'?couponData.discount_value+'%':fmt(couponData.discount_value)+' OFF'}</p>}
+            <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&applyCoupon()} placeholder='CUPOM DE DESCONTO' style={{flex:1,fontSize:11,height:30,letterSpacing:1,fontFamily:'JetBrains Mono,monospace'}}/>
+              {coupon?(
+                <button onClick={()=>{setCoupon(null);setCouponCode('')}} style={{padding:'4px 8px',borderRadius:6,border:'1px solid #ff3333',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',fontSize:10,whiteSpace:'nowrap',fontFamily:'Bangers,cursive'}}>X</button>
+              ):(
+                <button onClick={applyCoupon} disabled={couponLoading||!couponCode} style={{padding:'4px 10px',borderRadius:6,border:'1px solid var(--neon)',background:'var(--neon-glow)',color:'var(--neon)',cursor:'pointer',fontSize:11,whiteSpace:'nowrap',fontFamily:'Bangers,cursive',opacity:couponCode?1:0.4}}>{couponLoading?'...':'OK'}</button>
+              )}
+            </div>
+            {coupon&&<div style={{marginTop:6,padding:'4px 8px',background:'rgba(0,255,65,0.08)',borderRadius:6,border:'1px solid var(--neon-dim)',fontSize:11,color:'var(--neon)',display:'flex',justifyContent:'space-between'}}><span>{coupon.code}</span><span>-{coupon.discount_type==='percent'?coupon.discount_value+'%':fmt(coupon.discount_value)}</span></div>}
+            {couponDiscount>0&&<div style={{marginTop:4,display:'flex',justifyContent:'space-between',fontSize:11,color:'var(--neon)'}}><span>Desconto cupom</span><span>-{fmt(couponDiscount)}</span></div>}
           </div>
-          {couponDiscount>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--neon)',marginBottom:3}}><span>Desconto cupom</span><span>-{fmt(couponDiscount)}</span></div>}
-          <div style={{display:'flex',justifyContent:'space-between',fontSize:17,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',padding:'6px 0',borderTop:'1px solid var(--border)',marginBottom:8}}>
+                    <div style={{display:'flex',justifyContent:'space-between',fontSize:17,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',padding:'6px 0',borderTop:'1px solid var(--border)',marginBottom:8}}>
             <span>TOTAL</span><span>{fmt(total)}</span>
           </div>
           <div style={{marginBottom:8}}>
