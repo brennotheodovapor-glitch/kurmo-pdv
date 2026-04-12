@@ -7,7 +7,8 @@ const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'
 const fmtWA=(v:string)=>{const n=v.replace(/\D/g,'').substring(0,11);if(n.length<=2)return n;if(n.length<=7)return'('+n.slice(0,2)+') '+n.slice(2);return'('+n.slice(0,2)+') '+n.slice(2,7)+'-'+n.slice(7)}
 const fmtCEP=(v:string)=>v.replace(/\D/g,'').replace(/(\d{5})(\d{3})/,'$1-$2')
 
-type Product={id:string;name:string;price:number;promo_price?:number;is_promo?:boolean;stock:number;image_url?:string;description?:string;category_id:string|null;sort_order?:number}
+type Product={id:string;name:string;price:number;promo_price?:number;is_promo?:boolean;stock:number;image_url?:string;description?:string;category_id:string|null;sort_order?:number;has_sizes?:boolean}
+type Variant={id:string;size:string;stock:number;active:boolean}
 type Category={id:string;name:string;color:string}
 type Zone={id:string;name:string;fee:number;min_time:number;max_time:number}
 type CartItem=Product&{qty:number}
@@ -19,6 +20,8 @@ export default function PublicMenuPage(){
   const[zones,setZones]=useState<Zone[]>([])
   const[settings,setSettings]=useState<Settings>({store_name:'UZT 027',store_description:'Vapes & Roupas'})
   const[loading,setLoading]=useState(true)
+  const[variants,setVariants]=useState<Record<string,Variant[]>>({})
+  const[selectedSizes,setSelectedSizes]=useState<Record<string,string>>({})
   const[selCat,setSelCat]=useState<string|null>(null)
   const[cart,setCart]=useState<CartItem[]>([])
   const[cartOpen,setCartOpen]=useState(false)
@@ -41,16 +44,21 @@ export default function PublicMenuPage(){
 
   async function load(){
     setLoading(true)
-    const[p,c,z,s]=await Promise.all([
+    const[p,c,z,s,v]=await Promise.all([
       supabase.from('products').select('*').eq('active',true).gt('stock',0).order('sort_order').order('name'),
       supabase.from('categories').select('*').order('name'),
       supabase.from('delivery_zones').select('*').eq('active',true).order('name'),
+      supabase.from('product_variants').select('*').eq('active',true),
       supabase.from('store_settings').select('*').eq('id',1).maybeSingle(),
     ])
     setProducts(p.data||[])
     setCategories(c.data||[])
     setZones(z.data||[])
     if(s.data)setSettings(s.data)
+    // Group variants by product
+    const varMap:Record<string,Variant[]>={}
+    ;(v.data||[]).forEach((vr:any)=>{if(!varMap[vr.product_id])varMap[vr.product_id]=[];varMap[vr.product_id].push(vr)})
+    setVariants(varMap)
     setLoading(false)
   }
 
@@ -74,7 +82,11 @@ export default function PublicMenuPage(){
     finally{setCepLoading(false)}
   }
 
-  const addToCart=(p:Product)=>setCart(c=>{const ex=c.find(i=>i.id===p.id);if(ex)return c.map(i=>i.id===p.id?{...i,qty:i.qty+1}:i);return[...c,{...p,qty:1}]})
+  function addToCart(p:Product,size?:string){
+    if(p.has_sizes&&!size){toast.error('Selecione um tamanho');return}
+    const cartKey=p.id+(size?'_'+size:'')
+    setCart(c=>{const ex=c.find(i=>i.id===cartKey);if(ex)return c.map(i=>i.id===cartKey?{...i,qty:i.qty+1}:i);return[...c,{...p,id:cartKey,name:p.name+(size?' - '+size:''),qty:1}]})
+  }
   const updQty=(id:string,d:number)=>setCart(c=>c.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+d)}:i).filter(i=>i.qty>0))
   const subtotal=cart.reduce((s,i)=>s+(i.is_promo&&i.promo_price?i.promo_price:i.price)*i.qty,0)
   const fee=orderType==='delivery'?(matchedZone?.fee||0):0
