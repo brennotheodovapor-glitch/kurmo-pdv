@@ -10,7 +10,7 @@ import ProductsPage from '@/pages/ProductsPage'
 import CategoriesPage from '@/pages/CategoriesPage'
 import MenuPage from '@/pages/MenuPage'
 import DashboardPage from '@/pages/DashboardPage'
-import CouponsPage from './pages/CouponsPage'
+import CouponsPage from '@/pages/CouponsPage'
 import SettingsPage from '@/pages/SettingsPage'
 import CustomersPage from '@/pages/CustomersPage'
 import ReportsPage from '@/pages/ReportsPage'
@@ -71,17 +71,18 @@ export default function App(){
         <Route path='pdv' element={<PDVPage sellerId={profile?.seller_id} sellerName={profile?.sellers?.name}/>}/>
         <Route path='delivery' element={<DeliveryPage/>}/>
         <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:profile?.seller_id}/>}/>
+        <Route path='dashboard' element={<DashboardPage/>}/>
+        <Route path='caixa' element={<CashRegisterPage/>}/>
+        <Route path='cardapio' element={<MenuPage/>}/>
+        <Route path='bairros' element={<DeliveryZonesPage/>}/>
+        <Route path='relatorios' element={<ReportsPage/>}/>
+        <Route path='comissoes' element={<CommissionsPage/>}/>
+        <Route path='clientes' element={<CustomersPage/>}/>
         {isAdmin&&<>
           <Route path='categorias' element={<CategoriesPage/>}/>
           <Route path='produtos' element={<ProductsPage/>}/>
           <Route path='vendedores' element={<SellersPage/>}/>
-          <Route path='comissoes' element={<CommissionsPage/>}/>
-          <Route path='clientes' element={<CustomersPage/>}/>
-          <Route path='dashboard' element={<DashboardPage/>}/>
-          <Route path='relatorios' element={<ReportsPage/>}/>
-          <Route path='cardapio' element={<MenuPage/>}/>
-          <Route path='bairros' element={<DeliveryZonesPage/>}/>
-          <Route path='caixa' element={<CashRegisterPage/>}/>
+          <Route path='cupons' element={<CouponsPage/>}/>
           <Route path='configuracoes' element={<SettingsPage/>}/>
         </>}
         <Route path='*' element={<Navigate to='/pdv' replace/>}/>
