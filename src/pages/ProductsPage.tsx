@@ -4,11 +4,18 @@ import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
 type Product={id:string;name:string;price:number;cost_price:number;stock:number;stock_alert?:number;category_id:string|null;active:boolean;image_url?:string;description?:string;has_sizes?:boolean;sizes?:string[]}
-type Category={id:string;name:string;color:string}
+type Category={id:string;name:string;color:string;image_url?:string}
 
-const EMPTY={name:'',price:0,cost_price:0,stock:0,stock_alert:5,category_id:null as string|null,active:true,image_url:'',description:'',has_sizes:false,sizes:[] as string[]}
+const EMPTY:Omit<Product,'id'>={name:'',price:0,cost_price:0,stock:0,stock_alert:5,category_id:null,active:true,image_url:'',description:'',has_sizes:false,sizes:[]}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
-const SIZES_PRESET=['PP','P','M','G','GG','XGG','36','37','38','39','40','41','42','43','P/M','M/G','Único']
+
+const SIZE_PRESETS:{label:string;sizes:string[]}[]=[
+  {label:'Roupas P-GG',sizes:['P','M','G','GG']},
+  {label:'Roupas P-XGG',sizes:['P','M','G','GG','XGG']},
+  {label:'Numérico 34-44',sizes:['34','36','38','40','42','44']},
+  {label:'Numérico 36-46',sizes:['36','38','40','42','44','46']},
+  {label:'Único',sizes:['Único']},
+]
 
 export default function ProductsPage(){
   const[products,setProducts]=useState<Product[]>([])
@@ -17,11 +24,11 @@ export default function ProductsPage(){
   const[catFilter,setCatFilter]=useState<string|null>(null)
   const[modal,setModal]=useState(false)
   const[edit,setEdit]=useState<Product|null>(null)
-  const[form,setForm]=useState(EMPTY)
+  const[form,setForm]=useState<Omit<Product,'id'>>(EMPTY)
   const[uploading,setUploading]=useState(false)
   const[preview,setPreview]=useState<string|null>(null)
   const[loading,setLoading]=useState(true)
-  const[customSize,setCustomSize]=useState('')
+  const[newSize,setNewSize]=useState('')
   const fileRef=useRef<HTMLInputElement>(null)
 
   useEffect(()=>{loadData()},[])
@@ -46,7 +53,7 @@ export default function ProductsPage(){
   const lowStockProducts=products.filter(p=>p.active&&p.stock>0&&p.stock<=(p.stock_alert??5))
   const outOfStockProducts=products.filter(p=>p.active&&p.stock===0)
 
-  const openC=()=>{setEdit(null);setForm(EMPTY);setPreview(null);setCustomSize('');setModal(true)}
+  const openC=()=>{setEdit(null);setForm(EMPTY);setPreview(null);setNewSize('');setModal(true)}
   const openE=(p:Product)=>{
     setEdit(p)
     setForm({
@@ -56,9 +63,18 @@ export default function ProductsPage(){
       has_sizes:p.has_sizes||false,sizes:p.sizes||[]
     })
     setPreview(p.image_url||null)
-    setCustomSize('')
+    setNewSize('')
     setModal(true)
   }
+
+  function addSize(){
+    const s=newSize.trim().toUpperCase()
+    if(!s)return
+    if(!(form.sizes||[]).includes(s)){setForm(f=>({...f,sizes:[...(f.sizes||[]),s]}))}
+    setNewSize('')
+  }
+  function removeSize(s:string){setForm(f=>({...f,sizes:(f.sizes||[]).filter(x=>x!==s)}))}
+  function applyPreset(sizes:string[]){setForm(f=>({...f,sizes}))}
 
   async function handleImg(e:React.ChangeEvent<HTMLInputElement>){
     const file=e.target.files?.[0];if(!file)return
@@ -75,22 +91,10 @@ export default function ProductsPage(){
     finally{setUploading(false)}
   }
 
-  function toggleSize(size:string){
-    setForm(f=>({...f,sizes:f.sizes.includes(size)?f.sizes.filter(s=>s!==size):[...f.sizes,size]}))
-  }
-
-  function addCustomSize(){
-    const s=customSize.trim().toUpperCase()
-    if(!s)return
-    if(!form.sizes.includes(s))setForm(f=>({...f,sizes:[...f.sizes,s]}))
-    setCustomSize('')
-  }
-
   async function save(){
     if(!form.name.trim()){toast.error('Nome obrigatório');return}
     if(uploading){toast.error('Aguarde o upload');return}
-    if(form.has_sizes&&form.sizes.length===0){toast.error('Adicione pelo menos um tamanho');return}
-    
+    // Build payload - only include has_sizes/sizes if feature is enabled
     const payload:any={
       name:form.name,
       description:form.description||'',
@@ -101,10 +105,9 @@ export default function ProductsPage(){
       category_id:form.category_id,
       active:form.active,
       image_url:form.image_url||'',
-      has_sizes:form.has_sizes,
-      sizes:form.has_sizes?form.sizes:[]
+      has_sizes:form.has_sizes||false,
+      sizes:form.has_sizes?(form.sizes||[]):[]
     }
-
     if(edit){
       const{error}=await supabase.from('products').update(payload).eq('id',edit.id)
       if(error){toast.error('Erro: '+error.message);return}
@@ -129,14 +132,16 @@ export default function ProductsPage(){
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
 
+      {/* Low stock alert */}
       {(lowStockProducts.length>0||outOfStockProducts.length>0)&&(
-        <div style={{padding:'7px 16px',background:'rgba(255,170,0,0.08)',borderBottom:'1px solid rgba(255,170,0,0.2)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flexShrink:0}}>
+        <div style={{padding:'8px 16px',background:'rgba(255,170,0,0.08)',borderBottom:'1px solid rgba(255,170,0,0.2)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flexShrink:0}}>
           <AlertTriangle size={13} color='#ffaa00'/>
           {outOfStockProducts.length>0&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,51,51,0.15)',color:'#ff3333'}}>{outOfStockProducts.length} sem estoque</span>}
           {lowStockProducts.map(p=>(<span key={p.id} style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,170,0,0.15)',color:'#ffaa00'}}>{p.name} ({p.stock})</span>))}
         </div>
       )}
 
+      {/* Header */}
       <div style={{padding:'10px 14px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',flexShrink:0}}>
         <Package size={18} color='var(--neon)'/>
         <h1 className='font-bangers neon-text-sm' style={{fontSize:24}}>PRODUTOS</h1>
@@ -153,12 +158,13 @@ export default function ProductsPage(){
         </button>
       </div>
 
+      {/* Table */}
       <div style={{flex:1,overflowY:'auto',padding:'12px 14px'}}>
         {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:(
           <div className='card' style={{overflow:'hidden'}}>
             <table style={{width:'100%',borderCollapse:'collapse'}}>
               <thead><tr style={{borderBottom:'1px solid var(--border)'}}>
-                <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>PRODUTO</th>
+                <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1}}>PRODUTO</th>
                 <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>CAT</th>
                 <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>PRECO</th>
                 <th style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>MARGEM</th>
@@ -182,8 +188,8 @@ export default function ProductsPage(){
                         </div>
                         {p.description&&<p style={{fontSize:11,color:'var(--muted)'}}>{p.description}</p>}
                         {p.has_sizes&&p.sizes&&p.sizes.length>0&&(
-                          <div style={{display:'flex',gap:3,flexWrap:'wrap',marginTop:3}}>
-                            {p.sizes.map(s=><span key={s} style={{fontSize:9,padding:'1px 5px',borderRadius:4,background:'rgba(6,182,212,0.1)',color:'#06b6d4'}}>{s}</span>)}
+                          <div style={{display:'flex',gap:3,marginTop:3,flexWrap:'wrap'}}>
+                            {p.sizes.map(s=>(<span key={s} style={{fontSize:9,padding:'1px 5px',borderRadius:4,background:'rgba(6,182,212,0.12)',color:'#06b6d4',fontWeight:600}}>{s}</span>))}
                           </div>
                         )}
                       </div>
@@ -211,15 +217,17 @@ export default function ProductsPage(){
         )}
       </div>
 
+      {/* Modal */}
       {modal&&(
         <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:50}}>
-          <div className='card' style={{width:'100%',maxWidth:540,padding:22,margin:16,border:'1px solid var(--border-bright)',borderRadius:16,maxHeight:'92vh',overflowY:'auto'}}>
+          <div className='card' style={{width:'100%',maxWidth:560,padding:22,margin:16,border:'1px solid var(--border-bright)',borderRadius:16,maxHeight:'92vh',overflowY:'auto'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
               <h2 className='font-bangers neon-text-sm' style={{fontSize:22}}>{edit?'EDITAR':'NOVO'} PRODUTO</h2>
               <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={20}/></button>
             </div>
 
             <div style={{display:'flex',gap:14,flexWrap:'wrap',marginBottom:14}}>
+              {/* Photo */}
               <div style={{flexShrink:0}}>
                 <div onClick={()=>!uploading&&fileRef.current?.click()} style={{width:96,height:96,borderRadius:12,border:'2px dashed var(--border)',overflow:'hidden',cursor:uploading?'wait':'pointer',background:'var(--surface)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:5,position:'relative'}}>
                   {preview&&preview.length>0
@@ -231,9 +239,9 @@ export default function ProductsPage(){
                 <input ref={fileRef} type='file' accept='image/*' onChange={handleImg} style={{display:'none'}}/>
                 {preview&&<button onClick={()=>{setPreview(null);setForm(f=>({...f,image_url:''}))}} style={{fontSize:10,color:'#ff3333',background:'none',border:'none',cursor:'pointer',marginTop:3,display:'block',width:'100%',textAlign:'center'}}>Remover</button>}
               </div>
-
+              {/* Fields */}
               <div style={{flex:1,minWidth:180,display:'flex',flexDirection:'column',gap:10}}>
-                <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>NOME *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder='Ex: Camiseta Nike'/></div>
+                <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>NOME *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder='Ex: Elfbar BC5000'/></div>
                 <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>DESCRIÇÃO</label><input value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder='Descrição breve'/></div>
                 <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>CATEGORIA</label>
                   <select value={form.category_id||''} onChange={e=>setForm(f=>({...f,category_id:e.target.value||null}))}>
@@ -245,11 +253,12 @@ export default function ProductsPage(){
                   <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:2}}>VENDA R$</label><input type='number' min='0' step='0.01' value={form.price===0?'':form.price} onChange={e=>setForm(f=>({...f,price:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
                   <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:2}}>CUSTO R$</label><input type='number' min='0' step='0.01' value={form.cost_price===0?'':form.cost_price} onChange={e=>setForm(f=>({...f,cost_price:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
                   <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:2}}>ESTOQUE</label><input type='number' min='0' value={form.stock===0?'':form.stock} onChange={e=>setForm(f=>({...f,stock:parseInt(e.target.value)||0}))} placeholder='0'/></div>
-                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:2}}>ALERTA</label><input type='number' min='1' value={form.stock_alert===5?'':form.stock_alert} onChange={e=>setForm(f=>({...f,stock_alert:parseInt(e.target.value)||5}))} placeholder='5'/></div>
+                  <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:2}}>ALERTA</label><input type='number' min='1' value={form.stock_alert??5} onChange={e=>setForm(f=>({...f,stock_alert:parseInt(e.target.value)||5}))} placeholder='5'/></div>
                 </div>
               </div>
             </div>
 
+            {/* Margem */}
             {form.price>0&&form.cost_price>0&&(
               <div style={{padding:'7px 12px',background:'var(--surface)',borderRadius:8,display:'flex',justifyContent:'space-between',marginBottom:12,fontSize:13}}>
                 <span style={{color:'var(--muted)'}}>Margem de lucro</span>
@@ -259,42 +268,45 @@ export default function ProductsPage(){
               </div>
             )}
 
-            {/* TAMANHOS TOGGLE */}
-            <div style={{marginBottom:14,padding:'12px 14px',background:'var(--surface)',borderRadius:10,border:'1px solid var(--border)'}}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:form.has_sizes?12:0}}>
+            {/* Tamanhos toggle */}
+            <div style={{marginBottom:14,padding:'12px 14px',background:'var(--surface)',borderRadius:10,border:form.has_sizes?'1px solid #06b6d4':'1px solid var(--border)'}}>
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer'}} onClick={()=>setForm(f=>({...f,has_sizes:!f.has_sizes,sizes:f.has_sizes?[]:f.sizes||[]}))}>
                 <div style={{display:'flex',alignItems:'center',gap:8}}>
                   <Shirt size={15} color={form.has_sizes?'#06b6d4':'var(--muted)'}/>
                   <span style={{fontSize:13,fontWeight:600,color:form.has_sizes?'#06b6d4':'var(--muted)',fontFamily:'Bangers,cursive',letterSpacing:0.5}}>PRODUTO COM TAMANHOS</span>
-                  <span style={{fontSize:10,color:'var(--muted)'}}>(roupas, calçados...)</span>
+                  <span style={{fontSize:11,color:'var(--muted)'}}>(roupas, calçados...)</span>
                 </div>
-                <button onClick={()=>setForm(f=>({...f,has_sizes:!f.has_sizes,sizes:f.has_sizes?[]:f.sizes}))} style={{padding:'4px 12px',borderRadius:20,border:form.has_sizes?'1px solid #06b6d4':'1px solid var(--border)',background:form.has_sizes?'rgba(6,182,212,0.1)':'transparent',color:form.has_sizes?'#06b6d4':'var(--muted)',cursor:'pointer',fontSize:11,fontFamily:'Bangers,cursive'}}>
-                  {form.has_sizes?'ATIVO':'INATIVO'}
-                </button>
+                <div style={{width:38,height:20,borderRadius:10,background:form.has_sizes?'#06b6d4':'var(--border)',position:'relative',transition:'background 0.2s'}}>
+                  <div style={{position:'absolute',top:2,left:form.has_sizes?18:2,width:16,height:16,borderRadius:'50%',background:'#fff',transition:'left 0.2s'}}/>
+                </div>
               </div>
+
               {form.has_sizes&&(
-                <div>
-                  <p style={{fontSize:10,color:'var(--muted)',marginBottom:8}}>Clique nos tamanhos para adicionar/remover:</p>
-                  <div style={{display:'flex',flexWrap:'wrap',gap:5,marginBottom:10}}>
-                    {SIZES_PRESET.map(s=>(
-                      <button key={s} onClick={()=>toggleSize(s)} style={{padding:'4px 10px',borderRadius:7,border:form.sizes.includes(s)?'1px solid #06b6d4':'1px solid var(--border)',background:form.sizes.includes(s)?'rgba(6,182,212,0.15)':'transparent',color:form.sizes.includes(s)?'#06b6d4':'var(--muted)',cursor:'pointer',fontSize:12,fontWeight:form.sizes.includes(s)?700:400}}>
-                        {s}{form.sizes.includes(s)?' ✓':''}
-                      </button>
+                <div style={{marginTop:12}}>
+                  {/* Presets */}
+                  <p style={{fontSize:10,color:'var(--muted)',marginBottom:6,letterSpacing:0.5}}>GRADES PRONTAS:</p>
+                  <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:10}}>
+                    {SIZE_PRESETS.map(preset=>(
+                      <button key={preset.label} onClick={()=>applyPreset(preset.sizes)} style={{padding:'3px 9px',borderRadius:6,border:'1px solid var(--border)',background:'var(--card)',color:'var(--muted)',cursor:'pointer',fontSize:11}}>{preset.label}</button>
                     ))}
                   </div>
-                  <div style={{display:'flex',gap:6}}>
-                    <input value={customSize} onChange={e=>setCustomSize(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&addCustomSize()} placeholder='Tamanho personalizado (ex: XL, 44...)' style={{flex:1,fontSize:12}}/>
-                    <button onClick={addCustomSize} style={{padding:'6px 12px',borderRadius:7,border:'1px solid var(--border)',background:'var(--card)',color:'var(--muted)',cursor:'pointer',fontSize:12}}>+ Add</button>
-                  </div>
-                  {form.sizes.length>0&&(
-                    <div style={{marginTop:8,display:'flex',flexWrap:'wrap',gap:4}}>
-                      {form.sizes.map(s=>(
-                        <span key={s} style={{fontSize:12,padding:'3px 8px',borderRadius:6,background:'rgba(6,182,212,0.1)',color:'#06b6d4',display:'flex',alignItems:'center',gap:4}}>
-                          {s}
-                          <button onClick={()=>toggleSize(s)} style={{background:'none',border:'none',color:'#06b6d4',cursor:'pointer',padding:0,fontSize:12,lineHeight:1}}>×</button>
-                        </span>
+                  {/* Current sizes */}
+                  {(form.sizes||[]).length>0&&(
+                    <div style={{display:'flex',gap:5,flexWrap:'wrap',marginBottom:8}}>
+                      {(form.sizes||[]).map(s=>(
+                        <div key={s} style={{display:'flex',alignItems:'center',gap:4,padding:'4px 8px',borderRadius:6,background:'rgba(6,182,212,0.12)',border:'1px solid rgba(6,182,212,0.3)'}}>
+                          <span style={{fontSize:13,fontWeight:700,color:'#06b6d4'}}>{s}</span>
+                          <button onClick={()=>removeSize(s)} style={{background:'none',border:'none',color:'#06b6d4',cursor:'pointer',padding:0,lineHeight:1,fontSize:14}}>×</button>
+                        </div>
                       ))}
                     </div>
                   )}
+                  {/* Add custom size */}
+                  <div style={{display:'flex',gap:6}}>
+                    <input value={newSize} onChange={e=>setNewSize(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&addSize()} placeholder='Adicionar tamanho (ex: XL, 42...)' style={{flex:1,fontSize:13}}/>
+                    <button onClick={addSize} style={{padding:'7px 12px',borderRadius:7,border:'1px solid #06b6d4',background:'rgba(6,182,212,0.1)',color:'#06b6d4',cursor:'pointer',fontSize:13,fontFamily:'Bangers,cursive'}}>+ ADD</button>
+                  </div>
+                  {(form.sizes||[]).length===0&&<p style={{fontSize:11,color:'var(--muted)',marginTop:6}}>Selecione uma grade pronta ou adicione tamanhos manualmente</p>}
                 </div>
               )}
             </div>
