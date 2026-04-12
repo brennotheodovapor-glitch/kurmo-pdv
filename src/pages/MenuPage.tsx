@@ -139,7 +139,7 @@ export default function MenuPage(){
                     {(o.order_items||[]).map((i:any,idx:number)=>(<span key={idx} style={{fontSize:11,color:'var(--muted)',marginRight:10}}>{i.quantity}x {i.product_name}</span>))}
                   </div>
                   <div style={{display:'flex',gap:6}}>
-                    {NEXT[o.status]&&<button onClick={()=>updateStatus(o.id,NEXT[o.status])} style={{flex:2,padding:'8px',borderRadius:7,border:'none',background:o.status==='pending'?'var(--neon)':'var(--neon-glow)',color:o.status==='pending'?'#000':'var(--neon)',cursor:'pointer',fontSize:13,fontFamily:'Bangers,cursive',border2:o.status!=='pending'?'1px solid var(--neon)':'none'}}>{o.status==='pending'?'✓ ACEITAR':'→ '+(STATUS_LABEL[NEXT[o.status]]||'').toUpperCase()}</button>}
+                    {NEXT[o.status]&&<button onClick={()=>updateStatus(o.id,NEXT[o.status])} style={{flex:2,padding:'8px',borderRadius:7,border:'none',background:o.status==='pending'?'var(--neon)':'var(--neon-glow)',color:o.status==='pending'?'#000':'var(--neon)',cursor:'pointer',fontSize:13,fontFamily:'Bangers,cursive'}}>{o.status==='pending'?'✓ ACEITAR':'→ '+(STATUS_LABEL[NEXT[o.status]]||'').toUpperCase()}</button>}
                     <button onClick={()=>updateStatus(o.id,'cancelled')} style={{padding:'8px 12px',borderRadius:7,border:'1px solid #ff3333',background:'rgba(255,51,51,0.08)',color:'#ff3333',cursor:'pointer',fontSize:13,fontFamily:'Bangers,cursive'}}>✗</button>
                   </div>
                 </div>
