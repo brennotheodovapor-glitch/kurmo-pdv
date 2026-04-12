@@ -184,7 +184,7 @@ export default function ProductsPage(){
                       <div>
                         <div style={{display:'flex',alignItems:'center',gap:6}}>
                           <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{p.name}</p>
-                          {p.has_sizes&&<Shirt size={11} color='#06b6d4' title='Produto com tamanhos'/>}
+                          {p.has_sizes&&<Shirt size={11} color='#06b6d4'/>}
                         </div>
                         {p.description&&<p style={{fontSize:11,color:'var(--muted)'}}>{p.description}</p>}
                         {p.has_sizes&&p.sizes&&p.sizes.length>0&&(
