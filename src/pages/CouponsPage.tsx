@@ -25,7 +25,7 @@ export default function CouponsPage(){
   }
 
   function openNew(){setEdit(null);setForm(EMPTY);setModal(true)}
-  function openEdit(c:Coupon){setEdit(c);setForm({code:c.code,discount_type:c.discount_type,discount_value:c.discount_value,min_order:c.min_order,max_uses:c.max_uses,active:c.active,expires_at:c.expires_at});setModal(true)}
+  function openEdit(c:Coupon){setEdit(c);setForm({code:c.code,discount_type:c.discount_type as 'percent'|'fixed',discount_value:c.discount_value,min_order:c.min_order,max_uses:c.max_uses,active:c.active,expires_at:c.expires_at});setModal(true)}
 
   async function save(){
     if(!form.code.trim()){toast.error('Informe o codigo');return}
