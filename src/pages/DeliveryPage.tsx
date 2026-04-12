@@ -285,7 +285,7 @@ export default function DeliveryPage(){
           </div>
         ):
         filteredOrders.map(o=>(
-          <div key={o.id} className='card' style={{marginBottom:8,overflow:'hidden',borderLeft:'3px solid '+(STATUS_COLOR[o.status]||'var(--border)'),(o.status==='pending'?{boxShadow:'0 0 12px rgba(255,170,0,0.15)'}:{}) as any}}>
+          <div key={o.id} className='card' style={{marginBottom:8,overflow:'hidden',borderLeft:'3px solid '+(STATUS_COLOR[o.status]||'var(--border)'),boxShadow:o.status==='pending'?'0 0 12px rgba(255,170,0,0.15)':'none'}}>
             <div onClick={()=>expandOrder(o.id)} style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:10,cursor:'pointer',flexWrap:'wrap'}}>
               <span style={{fontFamily:'JetBrains Mono,monospace',fontSize:13,color:'var(--neon)',minWidth:34}}>#{o.order_number}</span>
               <div style={{flex:1,minWidth:0}}>
