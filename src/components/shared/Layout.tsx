@@ -1,4 +1,4 @@
-import{NavLink,useLocation}from 'react-router-dom'
+import{NavLink,useLocation,Outlet}from 'react-router-dom'
 import{ShoppingCart,Truck,History,BarChart3,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard}from 'lucide-react'
 import{useState,useEffect}from 'react'
 
@@ -25,7 +25,7 @@ const CONFIG_NAV:NavItem[]=[
   {to:'/configuracoes',icon:Settings,label:'Configuracoes',adminOnly:true},
 ]
 
-export default function Layout({children,userRole,sellerName}:{children:React.ReactNode;userRole?:string;sellerName?:string}){
+export default function Layout({children,userRole,sellerName}:{children?:React.ReactNode;userRole?:string;sellerName?:string}){
   const location=useLocation()
   const isAdmin=userRole==='admin'||!userRole
   const configPaths=CONFIG_NAV.map(n=>n.to)
@@ -101,7 +101,7 @@ export default function Layout({children,userRole,sellerName}:{children:React.Re
         </div>
       </div>
       {/* Main content */}
-      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>{children}</div>
+      <div style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>  {children??<Outlet/>}</div>
     </div>
   )
 }
