@@ -66,7 +66,7 @@ export default function App(){
     <Routes>
       <Route path='/menu' element={<PublicMenuPage/>}/>
       <Route path='/menu/*' element={<PublicMenuPage/>}/>
-      <Route path='/' element={<Layout session={session} profile={profile}/>}>
+      <Route path='/' element={<Layout>}>
         <Route index element={<Navigate to='/pdv' replace/>}/>
         <Route path='pdv' element={<PDVPage sellerId={profile?.seller_id} sellerName={profile?.sellers?.name}/>}/>
         <Route path='delivery' element={<DeliveryPage/>}/>
