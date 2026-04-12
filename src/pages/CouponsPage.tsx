@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 
 type Coupon={id:string;code:string;discount_type:'percent'|'fixed';discount_value:number;min_order:number;max_uses:number|null;used_count:number;active:boolean;expires_at:string|null;created_at:string}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
-const EMPTY={code:'',discount_type:'percent' as const,discount_value:10,min_order:0,max_uses:null as number|null,active:true,expires_at:null as string|null}
+const EMPTY:{code:string;discount_type:'percent'|'fixed';discount_value:number;min_order:number;max_uses:number|null;active:boolean;expires_at:string|null}={code:'',discount_type:'percent',discount_value:10,min_order:0,max_uses:null as number|null,active:true,expires_at:null as string|null}
 
 export default function CouponsPage(){
   const[coupons,setCoupons]=useState<Coupon[]>([])
@@ -25,7 +25,7 @@ export default function CouponsPage(){
   }
 
   function openNew(){setEdit(null);setForm(EMPTY);setModal(true)}
-  function openEdit(c:Coupon){setEdit(c);setForm({code:c.code,discount_type:c.discount_type as 'percent'|'fixed',discount_value:c.discount_value,min_order:c.min_order,max_uses:c.max_uses,active:c.active,expires_at:c.expires_at});setModal(true)}
+  function openEdit(c:Coupon){setEdit(c);setForm({code:c.code,discount_type:(c.discount_type==='fixed'?'fixed':'percent') as 'percent'|'fixed',discount_value:c.discount_value,min_order:c.min_order,max_uses:c.max_uses,active:c.active,expires_at:c.expires_at});setModal(true)}
 
   async function save(){
     if(!form.code.trim()){toast.error('Informe o codigo');return}
