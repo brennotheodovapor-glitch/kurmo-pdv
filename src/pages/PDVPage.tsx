@@ -192,14 +192,14 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
           <span className='font-bangers' style={{fontSize:18,color:'var(--neon)'}}>CARRINHO {cart.length>0?'('+cart.reduce((s,i)=>s+i.qty,0)+')':''}</span>
           {cart.length>0&&<button onClick={()=>setCart([])} style={{background:'none',border:'none',color:'#ff3333',cursor:'pointer',fontSize:11,fontFamily:'Bangers,cursive'}}>LIMPAR</button>}
         </div>
-        <div style={{flex:1,overflowY:'auto',padding:'6px 12px'}}>
+        <div style={{flex:1,overflowY:'auto',padding:'8px 12px'}}>
           {cart.length===0
             ?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}><ShoppingCart size={36} style={{marginBottom:8,opacity:0.3}}/><p style={{fontSize:12}}>Clique nos produtos para adicionar</p></div>
             :cart.map(item=>(
               <div key={item.id} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 0',borderBottom:'1px solid rgba(26,46,26,0.5)'}}>
                 <div style={{flex:1,minWidth:0}}>
                   <p style={{fontSize:12,fontWeight:600,color:'var(--white)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{item.name}</p>
-                  <p style={{fontSize:11,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(item.price)} x {item.qty} = {fmt(item.price*item.qty)}</p>
+                  <div style={{display:'flex',alignItems:'center',gap:6,marginTop:2}}><span style={{fontSize:10,color:'var(--muted)'}}>{fmt(item.price)} x {item.qty}</span><span style={{fontSize:12,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',marginLeft:'auto'}}>{fmt(item.price*item.qty)}</span></div>
                 </div>
                 <div style={{display:'flex',alignItems:'center',gap:3}}>
                   <button onClick={()=>updateQty(item.id,-1)} style={{width:22,height:22,borderRadius:5,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Minus size={11}/></button>
@@ -214,9 +214,11 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
         <div style={{padding:'10px 14px',borderTop:'1px solid var(--border)'}}>
           <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder='Nome do cliente (opcional)' style={{marginBottom:8,fontSize:12}}/>
           <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--muted)',marginBottom:3}}><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
-            <span style={{fontSize:12,color:'var(--muted)'}}>Desconto R$</span>
-            <input type='number' min='0' value={discount===0?'':discount} onChange={e=>setDiscount(e.target.value===''?0:parseFloat(e.target.value)||0)} placeholder='0,00' style={{width:80,textAlign:'right',fontSize:12,padding:'4px 6px'}}/>
+          {/* Discount + Coupon in premium block */}
+          <div style={{background:'var(--surface)',borderRadius:10,padding:'10px 12px',marginBottom:8,border:'1px solid var(--border)'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+              <span style={{fontSize:11,color:'var(--muted)',letterSpacing:0.5}}>Desconto manual</span>
+              <input type='number' min='0' value={discount===0?'':discount} onChange={e=>setDiscount(e.target.value===''?0:parseFloat(e.target.value)||0)} placeholder='0,00' style={{width:80,textAlign:'right',fontSize:12,padding:'4px 6px'}}/>
           </div>
           {/* Coupon */}
           <div style={{marginBottom:6}}>
@@ -233,20 +235,6 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
             {couponData&&<p style={{fontSize:11,color:'var(--neon)',marginTop:4}}>✓ {couponData.code} — {couponData.discount_type==='percent'?couponData.discount_value+'%':fmt(couponData.discount_value)+' OFF'}</p>}
           </div>
           {couponDiscount>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--neon)',marginBottom:3}}><span>Desconto cupom</span><span>-{fmt(couponDiscount)}</span></div>}
-          {/* Cupom */}
-          <div style={{marginBottom:6}}>
-            <div style={{display:'flex',gap:5,marginBottom:3}}>
-              <div style={{position:'relative',flex:1}}>
-                <Tag size={12} style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
-                <input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&applyCoupon()} placeholder='CUPOM' style={{paddingLeft:24,fontSize:12,padding:'6px 6px 6px 24px'}}/>
-              </div>
-              <button onClick={applyCoupon} disabled={couponLoading} style={{padding:'6px 10px',borderRadius:8,border:'1px solid var(--border)',background:coupon?'var(--neon-glow)':'var(--surface)',color:coupon?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:11,whiteSpace:'nowrap'}}>
-                {couponLoading?'...':coupon?'OK':'Aplicar'}
-              </button>
-            </div>
-            {coupon&&<p style={{fontSize:10,color:'var(--neon)',display:'flex',alignItems:'center',gap:4}}><Tag size={10}/>{coupon.code}: -{coupon.discount_type==='percent'?coupon.discount_value+'%':fmt(coupon.discount_value)}</p>}
-          </div>
-          {couponDiscount>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#10b981',marginBottom:3}}><span>Desconto cupom</span><span>-{fmt(couponDiscount)}</span></div>}
           <div style={{display:'flex',justifyContent:'space-between',fontSize:17,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',padding:'6px 0',borderTop:'1px solid var(--border)',marginBottom:8}}>
             <span>TOTAL</span><span>{fmt(total)}</span>
           </div>
