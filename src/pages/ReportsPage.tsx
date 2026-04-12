@@ -1,7 +1,7 @@
 // v2
 import{useState,useEffect}from 'react'
 import{BarChart,Bar,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,PieChart,Pie,Cell}from 'recharts'
-import{BarChart3,TrendingUp,ShoppingCart,Truck,Download}from 'lucide-react'
+import{BarChart3,TrendingUp,ShoppingCart,Truck,Download,Package,AlertTriangle}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
@@ -11,6 +11,7 @@ const monthStr=()=>new Date(new Date().getFullYear(),new Date().getMonth(),1).to
 
 export default function ReportsPage(){
   const[loading,setLoading]=useState(true)
+  const[products,setProducts]=useState<any[]>([])
   const[dateFrom,setDateFrom]=useState(monthStr())
   const[dateTo,setDateTo]=useState(todayStr())
   const[orders,setOrders]=useState<any[]>([])
@@ -139,7 +140,88 @@ export default function ReportsPage(){
           </div>
 
           {dailyArr.length>0&&(
-            <div className='card' style={{padding:'18px 20px',marginBottom:16}}>
+            
+          {/* ESTOQUE BLOCK */}
+          {products.length>0&&(()=>{
+            const totalUnits=products.reduce((s,p)=>s+Number(p.stock),0)
+            const totalCost=products.reduce((s,p)=>s+(Number(p.cost_price)||0)*Number(p.stock),0)
+            const totalSaleValue=products.reduce((s,p)=>s+Number(p.price)*Number(p.stock),0)
+            const totalProfit=totalSaleValue-totalCost
+            const lowStock=products.filter(p=>p.stock<=5&&p.stock>0)
+            const outStock=products.filter(p=>p.stock===0)
+            return(
+              <div style={{marginBottom:16}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                  <Package size={15} color='#06b6d4'/>
+                  <p style={{fontSize:13,fontWeight:700,color:'#06b6d4',letterSpacing:0.5,fontFamily:'Bangers,cursive'}}>ESTOQUE ATUAL</p>
+                </div>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:10}}>
+                  <div className='card' style={{padding:'14px 16px',borderLeft:'3px solid #06b6d4'}}>
+                    <p style={{fontSize:11,color:'var(--muted)',marginBottom:4}}>UNIDADES EM ESTOQUE</p>
+                    <p style={{fontSize:24,fontWeight:700,color:'#06b6d4',fontFamily:'JetBrains Mono,monospace'}}>{totalUnits.toLocaleString('pt-BR')}</p>
+                    <p style={{fontSize:10,color:'var(--muted)',marginTop:3}}>{products.length} produtos ativos</p>
+                  </div>
+                  <div className='card' style={{padding:'14px 16px',borderLeft:'3px solid #ff3333'}}>
+                    <p style={{fontSize:11,color:'var(--muted)',marginBottom:4}}>CUSTO TOTAL ESTOQUE</p>
+                    <p style={{fontSize:20,fontWeight:700,color:'#ff3333',fontFamily:'JetBrains Mono,monospace'}}>{fmt(totalCost)}</p>
+                    <p style={{fontSize:10,color:'var(--muted)',marginTop:3}}>Valor investido em mercadoria</p>
+                  </div>
+                  <div className='card' style={{padding:'14px 16px',borderLeft:'3px solid var(--neon)'}}>
+                    <p style={{fontSize:11,color:'var(--muted)',marginBottom:4}}>VALOR DE VENDA ESTOQUE</p>
+                    <p style={{fontSize:20,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(totalSaleValue)}</p>
+                    <p style={{fontSize:10,color:'var(--muted)',marginTop:3}}>Se vender tudo no preço cheio</p>
+                  </div>
+                  <div className='card' style={{padding:'14px 16px',borderLeft:'3px solid #10b981'}}>
+                    <p style={{fontSize:11,color:'var(--muted)',marginBottom:4}}>LUCRO POTENCIAL</p>
+                    <p style={{fontSize:20,fontWeight:700,color:'#10b981',fontFamily:'JetBrains Mono,monospace'}}>{fmt(totalProfit)}</p>
+                    <p style={{fontSize:10,color:'var(--muted)',marginTop:3}}>{totalCost>0?((totalProfit/totalSaleValue)*100).toFixed(1)+'% de margem':'—'}</p>
+                  </div>
+                </div>
+                {(lowStock.length>0||outStock.length>0)&&(
+                  <div style={{marginTop:10,padding:'10px 14px',background:'rgba(255,170,0,0.06)',borderRadius:10,border:'1px solid rgba(255,170,0,0.2)',display:'flex',alignItems:'flex-start',gap:8,flexWrap:'wrap'}}>
+                    <AlertTriangle size={14} color='#ffaa00' style={{flexShrink:0,marginTop:2}}/>
+                    <div style={{flex:1}}>
+                      {outStock.length>0&&<p style={{fontSize:12,color:'#ff3333',marginBottom:4,fontWeight:600}}>{outStock.length} produto(s) SEM ESTOQUE: {outStock.map(p=>p.name).join(', ')}</p>}
+                      {lowStock.length>0&&<p style={{fontSize:12,color:'#ffaa00'}}>{lowStock.length} produto(s) com estoque baixo (≤5): {lowStock.map(p=>p.name+' ('+p.stock+')').join(', ')}</p>}
+                    </div>
+                  </div>
+                )}
+                {/* Per product table */}
+                <div className='card' style={{marginTop:10,overflow:'hidden'}}>
+                  <table style={{width:'100%',borderCollapse:'collapse'}}>
+                    <thead><tr style={{borderBottom:'1px solid var(--border)',background:'var(--surface)'}}>
+                      <th style={{padding:'8px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>PRODUTO</th>
+                      <th style={{padding:'8px 12px',textAlign:'right',fontSize:11,color:'var(--muted)',fontWeight:600}}>ESTQ</th>
+                      <th style={{padding:'8px 12px',textAlign:'right',fontSize:11,color:'var(--muted)',fontWeight:600}}>CUSTO UNIT</th>
+                      <th style={{padding:'8px 12px',textAlign:'right',fontSize:11,color:'var(--muted)',fontWeight:600}}>VENDA UNIT</th>
+                      <th style={{padding:'8px 12px',textAlign:'right',fontSize:11,color:'var(--muted)',fontWeight:600}}>CUSTO TOTAL</th>
+                      <th style={{padding:'8px 12px',textAlign:'right',fontSize:11,color:'var(--muted)',fontWeight:600}}>VENDA TOTAL</th>
+                      <th style={{padding:'8px 12px',textAlign:'right',fontSize:11,color:'var(--muted)',fontWeight:600}}>MARGEM</th>
+                    </tr></thead>
+                    <tbody>
+                      {[...products].sort((a,b)=>Number(b.stock)*Number(b.price)-Number(a.stock)*Number(a.price)).map(p=>{
+                        const margin=p.price>0?((p.price-p.cost_price)/p.price*100):0
+                        return(
+                          <tr key={p.id} style={{borderBottom:'1px solid rgba(26,46,26,0.4)',opacity:p.stock===0?0.5:1}}>
+                            <td style={{padding:'8px 12px',fontSize:13,color:p.stock===0?'#ff3333':p.stock<=5?'#ffaa00':'var(--white)',fontWeight:600}}>{p.name}{p.stock===0?' ⚠️':p.stock<=5?' ⚡':''}</td>
+                            <td style={{padding:'8px 12px',textAlign:'right',fontSize:13,fontWeight:700,color:p.stock===0?'#ff3333':p.stock<=5?'#ffaa00':'var(--text)'}}>{p.stock}</td>
+                            <td style={{padding:'8px 12px',textAlign:'right',fontSize:12,color:'var(--muted)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(p.cost_price)||0)}</td>
+                            <td style={{padding:'8px 12px',textAlign:'right',fontSize:12,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(p.price))}</td>
+                            <td style={{padding:'8px 12px',textAlign:'right',fontSize:12,color:'#ff5555',fontFamily:'JetBrains Mono,monospace'}}>{fmt((Number(p.cost_price)||0)*Number(p.stock))}</td>
+                            <td style={{padding:'8px 12px',textAlign:'right',fontSize:12,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',fontWeight:700}}>{fmt(Number(p.price)*Number(p.stock))}</td>
+                            <td style={{padding:'8px 12px',textAlign:'right'}}>
+                              <span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:20,background:margin>=40?'rgba(0,255,65,0.1)':margin>=25?'rgba(255,170,0,0.1)':'rgba(255,51,51,0.1)',color:margin>=40?'var(--neon)':margin>=25?'#ffaa00':'#ff3333'}}>{margin.toFixed(0)}%</span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
+          })()}
+<div className='card' style={{padding:'18px 20px',marginBottom:16}}>
               <p style={{fontSize:14,fontWeight:600,color:'var(--white)',marginBottom:14}}>Faturamento por dia</p>
               <ResponsiveContainer width='100%' height={200}>
                 <BarChart data={dailyArr} margin={{top:0,right:0,left:-20,bottom:0}}>
