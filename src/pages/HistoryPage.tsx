@@ -37,9 +37,9 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
 
   async function loadOrders(){
     setLoading(true)
-    let q=supabase.from('orders').select('*,sellers(name)').gte('created_at',dateFrom+'T00:00:00').lte('created_at',dateTo+'T23:59:59').order('created_at',{ascending:false})
+    let q:any=supabase.from('orders').select('*,sellers(name),order_payments(method,amount)').gte('created_at',dateFrom+'T00:00:00').lte('created_at',dateTo+'T23:59:59').order('created_at',{ascending:false})
     if(sellerId)q=q.eq('seller_id',sellerId)
-    if(sellerId)q=q.eq('seller_id',sellerId)
+    if(typeof typeFilter!=='undefined'&&typeFilter&&typeFilter!=='all')q=q.eq('type',typeFilter)
     const{data}=await q
     setOrders(data||[])
     setLoading(false)
