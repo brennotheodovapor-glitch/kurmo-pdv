@@ -142,7 +142,7 @@ export default function FiadoPage(){
           const StatusIcon=STATUS_ICON[cr.status]||AlertTriangle
           const isOverdue=cr.due_date&&cr.status!=='paid'&&new Date(cr.due_date)<new Date()
           return(
-            <div key={cr.id} className='card' style={{marginBottom:8,padding:'12px 14px',borderLeft:'3px solid '+(STATUS_COLOR[cr.status]||'var(--border)'),(isOverdue?{boxShadow:'0 0 8px rgba(255,51,51,0.2)'}:{}) as any}}>
+            <div key={cr.id} className='card' style={{marginBottom:8,padding:'12px 14px',borderLeft:'3px solid '+(STATUS_COLOR[cr.status]||'var(--border)'),boxShadow:isOverdue?'0 0 8px rgba(255,51,51,0.2)':'none'}}>
               <div style={{display:'flex',alignItems:'flex-start',gap:10}}>
                 <div style={{flex:1}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:3,flexWrap:'wrap'}}>
