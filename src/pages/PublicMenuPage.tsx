@@ -154,7 +154,7 @@ export default function PublicMenuPage(){
   )
 
   return(
-    <div style={{minHeight:'100vh',background:'#0a0a0a',color:'#fff',fontFamily:'Inter,sans-serif',maxWidth:480,margin:'0 auto',position:'relative'}}>
+    <div style={{minHeight:'100vh',background:'#0a0a0a',color:'#fff',fontFamily:'Inter,sans-serif',maxWidth:600,margin:'0 auto',position:'relative',overflowX:'hidden'}}>
 
       {/* Banner */}
       {settings.store_banner_url?(
