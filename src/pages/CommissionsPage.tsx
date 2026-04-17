@@ -8,9 +8,9 @@ const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'
 const todayStr=()=>new Date().toISOString().split('T')[0]
 const monthStr=()=>new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().split('T')[0]
 
-export default function CommissionsPage(){
+export default function CommissionsPage({sellerId:propSellerId}:{sellerId?:string|null}={}){
   const[sellers,setSellers]=useState<Seller[]>([])
-  const[selectedSeller,setSelectedSeller]=useState<string>('all')
+  const[selectedSeller,setSelectedSeller]=useState<string>(propSellerId||'all')
   const[orders,setOrders]=useState<Order[]>([])
   const[loading,setLoading]=useState(true)
   const[dateFrom,setDateFrom]=useState(monthStr())
