@@ -100,9 +100,11 @@ export default function CustomersPage(){
         {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:
         filtered.length===0?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}><Users size={32} style={{opacity:0.2,marginBottom:8}}/><p>Nenhum cliente</p></div>:
         filtered.map(c=>{
-          const loy=loyalty(c.orders_count||0)
-          const isExp=expanded===c.id
+          // Use actual loaded completed orders count when available, fallback to DB count
           const cos=ordersMap[c.id]||[]
+          const realCount=ordersMap.hasOwnProperty(c.id)?cos.length:(c.orders_count||0)
+          const loy=loyalty(realCount)
+          const isExp=expanded===c.id
 
           return(
             <div key={c.id} className='card' style={{marginBottom:8,overflow:'hidden'}}>
