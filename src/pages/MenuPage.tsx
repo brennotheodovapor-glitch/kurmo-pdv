@@ -74,14 +74,17 @@ const{error}=await supabase.from('store_settings').update({...settingsData,updat
   async function uploadImg(file:File,field:'store_logo_url'|'store_banner_url',setUploading:(v:boolean)=>void){
     setUploading(true)
     try{
-      const ext=file.name.split('.').pop()||'jpg'
-      const path='store/'+field+'.'+ext
-      const{error}=await supabase.storage.from('product-images').upload(path,file,{upsert:true,contentType:file.type})
-      if(error)throw error
+      const ext=file.name.split('.').pop()?.toLowerCase()||'jpg'
+      // Use timestamp in path to force new URL and avoid CDN cache
+      const path='store/'+field+'_'+Date.now()+'.'+ext
+      const{error:upErr}=await supabase.storage.from('product-images').upload(path,file,{upsert:false,contentType:file.type})
+      if(upErr)throw upErr
       const{data:{publicUrl}}=supabase.storage.from('product-images').getPublicUrl(path)
       setSettings((s:any)=>({...s,[field]:publicUrl}))
-      // Save directly to DB without needing to click save
-      await supabase.from('store_settings').update({[field]:publicUrl,updated_at:new Date().toISOString()}).eq('id',settings.id||'77ddd33f-bdc6-4be5-921a-c5064d869cf5')
+      // Save to DB with the real settings ID
+      const settingsId=settings.id||'77ddd33f-bdc6-4be5-921a-c5064d869cf5'
+      const{error:dbErr}=await supabase.from('store_settings').update({[field]:publicUrl,updated_at:new Date().toISOString()}).eq('id',settingsId)
+      if(dbErr)throw dbErr
       toast.success('Imagem salva com sucesso!')
     }catch(e:any){toast.error('Erro: '+e.message)}
     finally{setUploading(false)}
