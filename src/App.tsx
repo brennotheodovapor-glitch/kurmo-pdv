@@ -19,6 +19,7 @@ import CommissionsPage from '@/pages/CommissionsPage'
 import PublicMenuPage from '@/pages/PublicMenuPage'
 import DeliveryZonesPage from '@/pages/DeliveryZonesPage'
 import CashRegisterPage from '@/pages/CashRegisterPage'
+import FiadoPage from '@/pages/FiadoPage'
 
 export default function App(){
   const[session,setSession]=useState<any>(null)
@@ -82,6 +83,7 @@ export default function App(){
         <Route path='pdv' element={<PDVPage sellerId={profile?.seller_id} sellerName={sellerName}/>}/>
         <Route path='delivery' element={<DeliveryPage/>}/>
         <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:profile?.seller_id}/>}/>
+        <Route path='fiado' element={<FiadoPage/>}/>
         {isAdmin&&<Route path='dashboard' element={<DashboardPage/>}/>}
         {isAdmin&&<Route path='caixa' element={<CashRegisterPage/>}/>}
         {isAdmin&&<Route path='cardapio' element={<MenuPage/>}/>}
