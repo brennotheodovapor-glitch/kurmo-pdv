@@ -1,4 +1,5 @@
-import{NavLink,useLocation,Outlet}from 'react-router-dom'
+import{NavLink,useLocation,Outlet,useNavigate}from 'react-router-dom'
+import{supabase}from '@/lib/supabase'
 import{ShoppingCart,Truck,History,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard,CreditCard}from 'lucide-react'
 import{useState,useEffect}from 'react'
 
@@ -36,6 +37,8 @@ const MOBILE_NAV:NavItem[]=[
 
 export default function Layout({children,userRole,sellerName}:{children?:React.ReactNode;userRole?:string;sellerName?:string}){
   const location=useLocation()
+  const navigate=useNavigate()
+  async function handleLogout(){await supabase.auth.signOut();navigate('/login',{replace:true})}
   const isAdmin=userRole==='admin'||!userRole
   const configPaths=CONFIG_NAV.map(n=>n.to)
   const isConfigActive=configPaths.some(p=>location.pathname.startsWith(p))
@@ -120,10 +123,10 @@ export default function Layout({children,userRole,sellerName}:{children?:React.R
           </nav>
           {/* Footer */}
           <div style={{padding:'10px 14px',borderTop:'1px solid var(--border)'}}>
-            <NavLink to='/sair' style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'var(--muted)',textDecoration:'none',fontFamily:'Bangers,cursive'}}>
+            <button onClick={handleLogout} style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'var(--muted)',background:'none',border:'none',cursor:'pointer',fontFamily:'Bangers,cursive',width:'100%',padding:0}}>
               <svg width='13' height='13' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/><line x1='21' y1='12' x2='9' y2='12'/></svg>
               SAIR
-            </NavLink>
+            </button>
           </div>
         </div>
 
