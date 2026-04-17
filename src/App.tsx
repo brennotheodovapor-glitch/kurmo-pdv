@@ -27,34 +27,58 @@ export default function App(){
   const[loading,setLoading]=useState(true)
 
   useEffect(()=>{
-    // Get session immediately, don't block on profile
     supabase.auth.getSession().then(({data})=>{
       setSession(data.session)
       setLoading(false)
-      // Load profile in background without blocking
-      if(data.session)loadProfile(data.session.user.id)
+      if(data.session)loadProfile(data.session.user)
     })
     const{data:{subscription}}=supabase.auth.onAuthStateChange((_e,s)=>{
       setSession(s)
       setLoading(false)
-      if(s)loadProfile(s.user.id)
+      if(s)loadProfile(s.user)
       else setProfile({role:'admin'})
     })
     return()=>subscription.unsubscribe()
   },[])
 
-  async function loadProfile(userId:string){
-    const timer=setTimeout(()=>setProfile({role:'admin'}),3000)
+  async function loadProfile(user:any){
+    const timer=setTimeout(()=>setProfile({role:'admin'}),5000)
     try{
+      // 1. Try to find seller by auth user email
+      const email=user.email
+      if(email){
+        const{data:seller}=await supabase
+          .from('sellers')
+          .select('id,name,role,commission_pct,email')
+          .eq('email',email)
+          .maybeSingle()
+        if(seller){
+          clearTimeout(timer)
+          setProfile({
+            id:user.id,
+            seller_id:seller.id,
+            name:seller.name,
+            role:seller.role||'seller',
+            sellers:seller
+          })
+          return
+        }
+      }
+      // 2. Try profiles table
       const{data}=await supabase.from('profiles')
-        .select('*,sellers(id,name,commission_pct,role)')
-        .eq('id',userId)
+        .select('*,sellers(id,name,commission_pct,role,email)')
+        .eq('id',user.id)
         .maybeSingle()
       clearTimeout(timer)
-      if(data){
-        const role=data.sellers?.role||data.role||'admin'
-        setProfile({...data,role})
-      }else{setProfile({role:'admin'})}
+      if(data&&data.sellers){
+        const role=data.sellers.role||data.role||'admin'
+        setProfile({...data,role,seller_id:data.sellers.id})
+      }else if(data){
+        setProfile({...data,role:data.role||'admin'})
+      }else{
+        // 3. Fallback: check if this is the admin email
+        setProfile({role:'admin',id:user.id})
+      }
     }catch{clearTimeout(timer);setProfile({role:'admin'})}
   }
 
@@ -71,8 +95,9 @@ export default function App(){
 
   if(!session) return<LoginPage onLogin={()=>supabase.auth.getSession().then(({data})=>setSession(data.session))}/>
 
-  const isAdmin=!profile?.role||profile?.role==='admin'
+  const isAdmin=profile?.role==='admin'||!profile?.role
   const sellerName=profile?.sellers?.name||profile?.name
+  const sellerId=profile?.seller_id||null
 
   return(
     <Routes>
@@ -80,10 +105,11 @@ export default function App(){
       <Route path='/menu/*' element={<PublicMenuPage/>}/>
       <Route path='/' element={<Layout userRole={profile?.role} sellerName={sellerName}/>}>
         <Route index element={<Navigate to='/pdv' replace/>}/>
-        <Route path='pdv' element={<PDVPage sellerId={profile?.seller_id} sellerName={sellerName}/>}/>
+        <Route path='pdv' element={<PDVPage sellerId={sellerId} sellerName={sellerName}/>}/>
         <Route path='delivery' element={<DeliveryPage/>}/>
-        <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:profile?.seller_id}/>}/>
+        <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:sellerId}/>}/>
         <Route path='fiado' element={<FiadoPage/>}/>
+        {!isAdmin&&<Route path='comissoes' element={<CommissionsPage sellerId={sellerId}/>}/>}
         {isAdmin&&<Route path='dashboard' element={<DashboardPage/>}/>}
         {isAdmin&&<Route path='caixa' element={<CashRegisterPage/>}/>}
         {isAdmin&&<Route path='cardapio' element={<MenuPage/>}/>}
