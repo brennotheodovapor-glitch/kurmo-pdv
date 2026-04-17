@@ -52,7 +52,7 @@ export default function PublicMenuPage(){
       supabase.from('products').select('*').eq('active',true).gt('stock',0).order('sort_order').order('name'),
       supabase.from('categories').select('*').order('name'),
       supabase.from('delivery_zones').select('*').eq('active',true).order('name'),
-      supabase.from('store_settings').select('*').eq('id',1).maybeSingle(),
+      supabase.from('store_settings').select('*').limit(1).maybeSingle(),
       supabase.from('product_variants').select('*').eq('active',true),
     ])
     setProducts(p.data||[])
