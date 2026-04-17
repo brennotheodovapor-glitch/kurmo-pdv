@@ -22,34 +22,43 @@ import CashRegisterPage from '@/pages/CashRegisterPage'
 
 export default function App(){
   const[session,setSession]=useState<any>(null)
-  const[profile,setProfile]=useState<any>(null)
+  const[profile,setProfile]=useState<any>({role:'admin'})
   const[loading,setLoading]=useState(true)
 
   useEffect(()=>{
-    supabase.auth.getSession().then(async({data})=>{
+    // Get session immediately, don't block on profile
+    supabase.auth.getSession().then(({data})=>{
       setSession(data.session)
-      if(data.session)await loadProfile(data.session.user.id)
       setLoading(false)
+      // Load profile in background without blocking
+      if(data.session)loadProfile(data.session.user.id)
     })
-    const{data:{subscription}}=supabase.auth.onAuthStateChange(async(_e,s)=>{
+    const{data:{subscription}}=supabase.auth.onAuthStateChange((_e,s)=>{
       setSession(s)
-      if(s)await loadProfile(s.user.id)
-      else setProfile(null)
+      setLoading(false)
+      if(s)loadProfile(s.user.id)
+      else setProfile({role:'admin'})
     })
     return()=>subscription.unsubscribe()
   },[])
 
-  async function loadProfile(userId:string){
-    try{
-      const{data}=await supabase.from('profiles').select('*,sellers(id,name,commission_pct,role)').eq('id',userId).maybeSingle()
-      if(data){
-        // role comes from sellers table if linked, else admin
-        const sellerRole=data.sellers?.role||data.role
-        setProfile({...data,role:sellerRole||'admin'})
-      } else {
-        setProfile({role:'admin'})
-      }
-    }catch{setProfile({role:'admin'})}
+  function loadProfile(userId:string){
+    // Non-blocking profile load with timeout
+    const timer=setTimeout(()=>setProfile({role:'admin'}),3000)
+    supabase.from('profiles')
+      .select('*,sellers(id,name,commission_pct,role)')
+      .eq('id',userId)
+      .maybeSingle()
+      .then(({data})=>{
+        clearTimeout(timer)
+        if(data){
+          const role=data.sellers?.role||data.role||'admin'
+          setProfile({...data,role})
+        }else{
+          setProfile({role:'admin'})
+        }
+      })
+      .catch(()=>{clearTimeout(timer);setProfile({role:'admin'})})
   }
 
   if(window.location.pathname==='/menu'||window.location.pathname.startsWith('/menu/')){
