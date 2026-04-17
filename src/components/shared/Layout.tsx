@@ -51,10 +51,24 @@ export default function Layout({children,userRole,sellerName}:{children?:React.R
     </NavLink>
   )
 
+  const isMobile=typeof window!=='undefined'&&window.innerWidth<=640
   return(
-    <div style={{height:'100vh',display:'flex',overflow:'hidden',background:'var(--bg)'}}>
-      {/* Sidebar */}
-      <div style={{width:190,flexShrink:0,background:'var(--surface)',borderRight:'1px solid var(--border)',display:'flex',flexDirection:'column',overflow:'hidden'}}>
+    <div style={{height:'100vh',display:'flex',overflow:'hidden',background:'var(--bg)',flexDirection:'column'}}>
+      <style>{`
+        @media(max-width:640px){
+          .sidebar-desktop{display:none!important}
+          .bottom-nav{display:flex!important}
+          .main-content{padding-bottom:56px}
+        }
+        @media(min-width:641px){
+          .sidebar-desktop{display:flex!important}
+          .bottom-nav{display:none!important}
+          .main-content{padding-bottom:0}
+        }
+      `}</style>
+      <div style={{flex:1,display:'flex',overflow:'hidden',minHeight:0}}>
+      {/* Sidebar DESKTOP */}
+      <div className='sidebar-desktop' style={{width:190,flexShrink:0,background:'var(--surface)',borderRight:'1px solid var(--border)',flexDirection:'column',overflow:'hidden'}}>
         {/* Logo */}
         <div style={{padding:'14px 16px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',gap:10}}>
           <div style={{width:32,height:32,borderRadius:10,background:'var(--neon-glow)',border:'1px solid var(--neon-dim)',display:'flex',alignItems:'center',justifyContent:'center'}}>
