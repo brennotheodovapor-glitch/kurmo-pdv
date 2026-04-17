@@ -29,14 +29,21 @@ export default function CustomersPage(){
     setExpanded(c.id)
     if(ordersMap[c.id])return
     setLoadingId(c.id)
-    const phone=c.phone.replace(/\D/g,'')
-    const{data}=await supabase.from('orders')
-      .select('id,order_number,total,status,type,created_at')
-      .or('customer_phone.eq.'+phone+',customer_phone.eq.'+c.phone)
-      .in('status',['completed','delivered'])
-      .order('created_at',{ascending:false})
-    setOrdersMap(m=>({...m,[c.id]:data||[]}))
-    setLoadingId(null)
+    try{
+      const phone=c.phone.replace(/\D/g,'')
+      // Search by phone (with and without formatting) OR by name
+      const{data}=await supabase.from('orders')
+        .select('id,order_number,total,status,type,created_at')
+        .in('status',['completed','delivered'])
+        .or('customer_phone.eq.'+phone+',customer_phone.ilike.%'+phone+'%,customer_name.ilike.%'+c.name.split(' ')[0]+'%')
+        .order('created_at',{ascending:false})
+        .limit(50)
+      setOrdersMap(m=>({...m,[c.id]:data||[]}))
+    }catch(e){
+      setOrdersMap(m=>({...m,[c.id]:[]}))
+    }finally{
+      setLoadingId(null)
+    }
   }
 
   const filtered=customers.filter(c=>
