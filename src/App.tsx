@@ -28,12 +28,12 @@ export default function App(){
   useEffect(()=>{
     supabase.auth.getSession().then(async({data})=>{
       setSession(data.session)
-      if(data.session){setProfile({role:'admin'});loadProfile(data.session.user.id)}
+      if(data.session)await loadProfile(data.session.user.id)
       setLoading(false)
     })
     const{data:{subscription}}=supabase.auth.onAuthStateChange(async(_e,s)=>{
       setSession(s)
-      if(s){setProfile({role:'admin'});loadProfile(s.user.id)}
+      if(s)await loadProfile(s.user.id)
       else setProfile(null)
     })
     return()=>subscription.unsubscribe()
@@ -41,9 +41,14 @@ export default function App(){
 
   async function loadProfile(userId:string){
     try{
-      const{data}=await supabase.from('profiles').select('*,sellers(name,commission_pct)').eq('id',userId).maybeSingle()
-      if(data)setProfile(data)
-      else setProfile({role:'admin'})
+      const{data}=await supabase.from('profiles').select('*,sellers(id,name,commission_pct,role)').eq('id',userId).maybeSingle()
+      if(data){
+        // role comes from sellers table if linked, else admin
+        const sellerRole=data.sellers?.role||data.role
+        setProfile({...data,role:sellerRole||'admin'})
+      } else {
+        setProfile({role:'admin'})
+      }
     }catch{setProfile({role:'admin'})}
   }
 
@@ -61,30 +66,29 @@ export default function App(){
   if(!session) return<LoginPage onLogin={()=>supabase.auth.getSession().then(({data})=>setSession(data.session))}/>
 
   const isAdmin=!profile?.role||profile?.role==='admin'
+  const sellerName=profile?.sellers?.name||profile?.name
 
   return(
     <Routes>
       <Route path='/menu' element={<PublicMenuPage/>}/>
       <Route path='/menu/*' element={<PublicMenuPage/>}/>
-      <Route path='/' element={<Layout/>}>
+      <Route path='/' element={<Layout userRole={profile?.role} sellerName={sellerName}/>}>
         <Route index element={<Navigate to='/pdv' replace/>}/>
-        <Route path='pdv' element={<PDVPage sellerId={profile?.seller_id} sellerName={profile?.sellers?.name}/>}/>
+        <Route path='pdv' element={<PDVPage sellerId={profile?.seller_id} sellerName={sellerName}/>}/>
         <Route path='delivery' element={<DeliveryPage/>}/>
         <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:profile?.seller_id}/>}/>
-        <Route path='dashboard' element={<DashboardPage/>}/>
-        <Route path='caixa' element={<CashRegisterPage/>}/>
-        <Route path='cardapio' element={<MenuPage/>}/>
-        <Route path='bairros' element={<DeliveryZonesPage/>}/>
-        <Route path='relatorios' element={<ReportsPage/>}/>
-        <Route path='comissoes' element={<CommissionsPage/>}/>
-        <Route path='clientes' element={<CustomersPage/>}/>
-        {isAdmin&&<>
-          <Route path='categorias' element={<CategoriesPage/>}/>
-          <Route path='produtos' element={<ProductsPage/>}/>
-          <Route path='vendedores' element={<SellersPage/>}/>
-          <Route path='cupons' element={<CouponsPage/>}/>
-          <Route path='configuracoes' element={<SettingsPage/>}/>
-        </>}
+        {isAdmin&&<Route path='dashboard' element={<DashboardPage/>}/>}
+        {isAdmin&&<Route path='caixa' element={<CashRegisterPage/>}/>}
+        {isAdmin&&<Route path='cardapio' element={<MenuPage/>}/>}
+        {isAdmin&&<Route path='bairros' element={<DeliveryZonesPage/>}/>}
+        {isAdmin&&<Route path='relatorios' element={<ReportsPage/>}/>}
+        {isAdmin&&<Route path='comissoes' element={<CommissionsPage/>}/>}
+        {isAdmin&&<Route path='clientes' element={<CustomersPage/>}/>}
+        {isAdmin&&<Route path='categorias' element={<CategoriesPage/>}/>}
+        {isAdmin&&<Route path='produtos' element={<ProductsPage/>}/>}
+        {isAdmin&&<Route path='vendedores' element={<SellersPage/>}/>}
+        {isAdmin&&<Route path='cupons' element={<CouponsPage/>}/>}
+        {isAdmin&&<Route path='configuracoes' element={<SettingsPage/>}/>}
         <Route path='*' element={<Navigate to='/pdv' replace/>}/>
       </Route>
     </Routes>
