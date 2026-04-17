@@ -3,10 +3,10 @@ import{Plus,Search,Edit2,Trash2,X,Check,Image,Package,AlertTriangle,Shirt}from '
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-type Product={id:string;name:string;price:number;cost_price:number;stock:number;stock_alert?:number;category_id:string|null;active:boolean;image_url?:string;description?:string;has_sizes?:boolean;sizes?:string[]}
+type Product={id:string;name:string;price:number;cost_price:number;stock:number;stock_alert?:number;category_id:string|null;active:boolean;image_url?:string;description?:string;has_sizes?:boolean;sizes?:string[];sizes_stock?:Record<string,number>}
 type Category={id:string;name:string;color:string}
 
-const EMPTY:Omit<Product,'id'>={name:'',price:0,cost_price:0,stock:0,stock_alert:5,category_id:null,active:true,image_url:'',description:'',has_sizes:false,sizes:[]}
+const EMPTY:Omit<Product,'id'>={name:'',price:0,cost_price:0,stock:0,stock_alert:5,category_id:null,active:true,image_url:'',description:'',has_sizes:false,sizes:[],sizes_stock:{}}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
 const SIZE_PRESETS=[
   {label:'P-GG',sizes:['P','M','G','GG']},
@@ -35,7 +35,7 @@ export default function ProductsPage(){
   async function loadData(){
     setLoading(true)
     const[p,c]=await Promise.all([
-      supabase.from('products').select('id,name,price,cost_price,stock,stock_alert,category_id,active,image_url,description,has_sizes,sizes').order('name'),
+      supabase.from('products').select('id,name,price,cost_price,stock,stock_alert,category_id,active,image_url,description,has_sizes,sizes,sizes_stock').order('name'),
       supabase.from('categories').select('*').order('name')
     ])
     setProducts(p.data||[])
@@ -54,7 +54,7 @@ export default function ProductsPage(){
   const openNew=()=>{setEdit(null);setForm(EMPTY);setPreview(null);setNewSize('');setModal(true)}
   const openEdit=(p:Product)=>{
     setEdit(p)
-    setForm({name:p.name,price:p.price,cost_price:p.cost_price,stock:p.stock,stock_alert:p.stock_alert??5,category_id:p.category_id,active:p.active,image_url:p.image_url||'',description:p.description||'',has_sizes:p.has_sizes||false,sizes:p.sizes||[]})
+    setForm({name:p.name,price:p.price,cost_price:p.cost_price,stock:p.stock,stock_alert:p.stock_alert??5,category_id:p.category_id,active:p.active,image_url:p.image_url||'',description:p.description||'',has_sizes:p.has_sizes||false,sizes:p.sizes||[],sizes_stock:p.sizes_stock||{}})
     setPreview(p.image_url&&p.image_url.startsWith('http')?p.image_url:null)
     setNewSize('');setModal(true)
   }
@@ -91,7 +91,10 @@ export default function ProductsPage(){
       stock:Number(form.stock)||0,stock_alert:Number(form.stock_alert)||5,
       category_id:form.category_id||null,active:form.active,image_url:form.image_url||'',
       has_sizes:form.has_sizes||false,
-      sizes:form.has_sizes?(form.sizes||[]):[]
+      sizes:form.has_sizes?(form.sizes||[]):[],
+      sizes_stock:form.has_sizes?(form.sizes_stock||{}):{},
+      // Auto-calc total stock from sizes_stock if has_sizes
+      ...(form.has_sizes&&Object.keys(form.sizes_stock||{}).length>0?{stock:Object.values(form.sizes_stock||{}).reduce((s:number,v:any)=>s+Number(v||0),0)}:{})
     }
     if(edit){
       const{error}=await supabase.from('products').update(payload).eq('id',edit.id)
@@ -241,13 +244,30 @@ export default function ProductsPage(){
                     ))}
                   </div>
                   {(form.sizes||[]).length>0&&(
-                    <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
-                      {(form.sizes||[]).map(s=>(
-                        <button key={s} onClick={()=>toggleSize(s)} style={{padding:'6px 12px',borderRadius:8,border:'2px solid #06b6d4',background:'rgba(6,182,212,0.15)',color:'#06b6d4',cursor:'pointer',fontSize:13,fontWeight:700,fontFamily:'Bangers,cursive',display:'flex',alignItems:'center',gap:5}}>
-                          {s} <span style={{fontSize:14,lineHeight:1}}>×</span>
-                        </button>
-                      ))}
-                    </div>
+                    <>
+                      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+                        {(form.sizes||[]).map(s=>(
+                          <button key={s} onClick={()=>toggleSize(s)} style={{padding:'5px 10px',borderRadius:8,border:'2px solid #06b6d4',background:'rgba(6,182,212,0.15)',color:'#06b6d4',cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'Bangers,cursive',display:'flex',alignItems:'center',gap:4}}>
+                            {s} <span style={{fontSize:14,lineHeight:1}}>×</span>
+                          </button>
+                        ))}
+                      </div>
+                      {/* Qty per size */}
+                      <div style={{background:'rgba(6,182,212,0.04)',borderRadius:8,padding:'8px 10px',marginBottom:8,border:'1px solid rgba(6,182,212,0.15)'}}>
+                        <p style={{fontSize:10,color:'var(--muted)',marginBottom:7,letterSpacing:0.5}}>QUANTIDADE POR TAMANHO:</p>
+                        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                          {(form.sizes||[]).map(s=>(
+                            <div key={s} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+                              <span style={{fontSize:10,color:'#06b6d4',fontWeight:700}}>{s}</span>
+                              <input type='number' min='0' value={(form.sizes_stock||{})[s]??''} onChange={e=>{const v=parseInt(e.target.value)||0;setForm(f=>({...f,sizes_stock:{...(f.sizes_stock||{}),[s]:v}}))}} style={{width:52,textAlign:'center',fontSize:13,padding:'4px 6px'}} placeholder='0'/>
+                            </div>
+                          ))}
+                        </div>
+                        {Object.values(form.sizes_stock||{}).some(v=>Number(v)>0)&&(
+                          <p style={{fontSize:10,color:'var(--muted)',marginTop:6}}>Total calculado: <strong style={{color:'var(--neon)'}}>{Object.values(form.sizes_stock||{}).reduce((s:number,v:any)=>s+Number(v||0),0)} unidades</strong></p>
+                        )}
+                      </div>
+                    </>
                   )}
                   <div style={{display:'flex',gap:6}}>
                     <input value={newSize} onChange={e=>setNewSize(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&addCustomSize()} placeholder='Tamanho personalizado...' style={{flex:1,fontSize:13}}/>
