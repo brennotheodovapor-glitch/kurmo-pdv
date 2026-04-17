@@ -74,7 +74,17 @@ export default function PublicMenuPage(){
       setAddr(d.logradouro||'')
       setBairro(d.bairro||'')
       setCidade(d.localidade||'')
-      const z=zones.find(z=>d.bairro?.toLowerCase().includes(z.name.toLowerCase())||z.name.toLowerCase().includes((d.bairro||'').toLowerCase().split(' ')[0]))
+      const bairroVia=(d.bairro||'').toLowerCase().trim()
+      // 1. Exact match
+      let z=zones.find(z=>z.name.toLowerCase()===bairroVia)
+      // 2. Zone name fully contained in bairro string
+      if(!z)z=zones.find(z=>bairroVia===z.name.toLowerCase())
+      // 3. bairro contains zone name (full words)
+      if(!z)z=zones.find(z=>bairroVia.includes(z.name.toLowerCase()))
+      // 4. Zone name contains bairro (full words)
+      if(!z)z=zones.find(z=>z.name.toLowerCase().includes(bairroVia))
+      // 5. First significant word match (skip "de","da","do","dos","das")
+      if(!z){const skip=new Set(['de','da','do','dos','das','e','a','o']);const words=bairroVia.split(' ').filter(w=>w.length>2&&!skip.has(w));z=zones.find(z=>words.some(w=>z.name.toLowerCase().includes(w)&&w.length>=4))}
       setMatchedZone(z||null)
       if(z)toast.success('Entregamos em '+z.name+'! Frete: '+fmt(z.fee))
       else toast.error('Fora da área de entrega. Verifique com a loja.')
