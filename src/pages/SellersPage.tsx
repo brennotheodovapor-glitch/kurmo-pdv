@@ -1,152 +1,208 @@
 import{useState,useEffect}from 'react'
-import{Users,Plus,Edit2,Trash2,X,Check,Percent,Mail,Phone,Key,UserPlus,CreditCard}from 'lucide-react'
+import{UserCheck,Plus,Edit2,Trash2,X,Check,Eye,EyeOff,ShieldCheck,User}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
-type Seller={id:string;name:string;email:string;phone:string;cpf:string;commission_pct:number;active:boolean;auth_user_id?:string}
-const EMPTY={name:'',email:'',phone:'',cpf:'',commission_pct:0,active:true}
-const fmtCPF=(v:string)=>v?v.replace(/D/g,'').replace(/(d{3})(d{3})(d{3})(d{2})/,'$1.$2.$3-$4'):''
+
+type Seller={id:string;name:string;email?:string;commission_pct:number;active:boolean;role?:string}
+const EMPTY={name:'',email:'',password:'',commission_pct:10,active:true,role:'seller'}
+
 export default function SellersPage(){
   const[sellers,setSellers]=useState<Seller[]>([])
   const[loading,setLoading]=useState(true)
   const[modal,setModal]=useState(false)
-  const[loginModal,setLoginModal]=useState<Seller|null>(null)
   const[edit,setEdit]=useState<Seller|null>(null)
   const[form,setForm]=useState(EMPTY)
-  const[newPass,setNewPass]=useState('')
-  const[creating,setCreating]=useState(false)
-  useEffect(()=>{loadSellers()},[])
-  async function loadSellers(){
+  const[saving,setSaving]=useState(false)
+  const[showPwd,setShowPwd]=useState(false)
+
+  useEffect(()=>{load()},[])
+
+  async function load(){
     setLoading(true)
     const{data}=await supabase.from('sellers').select('*').order('name')
-    setSellers(data||[]);setLoading(false)
+    setSellers(data||[])
+    setLoading(false)
   }
-  const openC=()=>{setEdit(null);setForm(EMPTY);setModal(true)}
-  const openE=(s:Seller)=>{setEdit(s);setForm({...s});setModal(true)}
+
+  function openNew(){setEdit(null);setForm(EMPTY);setShowPwd(false);setModal(true)}
+  function openEdit(s:Seller){
+    setEdit(s)
+    setForm({name:s.name,email:s.email||'',password:'',commission_pct:s.commission_pct,active:s.active,role:s.role||'seller'})
+    setShowPwd(false);setModal(true)
+  }
+
   async function save(){
-    if(!form.name.trim()||!form.email.trim()){toast.error('Nome e email obrigatorios');return}
-    if(edit){const{error}=await supabase.from('sellers').update(form).eq('id',edit.id);if(error){toast.error('Erro: '+error.message);return};toast.success('Atualizado!')}
-    else{const{error}=await supabase.from('sellers').insert(form);if(error){toast.error('Erro: '+error.message);return};toast.success('Cadastrado!')}
-    setModal(false);loadSellers()
-  }
-  async function del(id:string){if(!confirm('Remover?'))return;await supabase.from('sellers').delete().eq('id',id);toast.success('Removido');loadSellers()}
-  async function createLogin(seller:Seller){
-    if(!newPass||newPass.length<6){toast.error('Senha precisa ter 6+ caracteres');return}
-    setCreating(true)
+    if(!form.name.trim()){toast.error('Nome obrigatório');return}
+    if(!edit&&!form.email.trim()){toast.error('Email obrigatório para novo vendedor');return}
+    if(!edit&&!form.password.trim()){toast.error('Senha obrigatória para novo vendedor');return}
+    if(!edit&&form.password.length<6){toast.error('Senha mínimo 6 caracteres');return}
+    setSaving(true)
     try{
-      const{data:d2,error:e2}=await supabase.auth.signUp({email:seller.email,password:newPass,options:{data:{name:seller.name,role:'seller',seller_id:seller.id}}})
-      if(e2&&!e2.message.includes('already')){toast.error('Erro: '+e2.message);setCreating(false);return}
-      const uid=d2?.user?.id
-      if(uid){
-        await supabase.from('profiles').upsert({id:uid,role:'seller',seller_id:seller.id,name:seller.name},{onConflict:'id'})
-        await supabase.from('sellers').update({auth_user_id:uid}).eq('id',seller.id)
+      if(edit){
+        // Update seller record
+        const upd:any={name:form.name,commission_pct:Number(form.commission_pct),active:form.active,role:form.role}
+        if(form.email)upd.email=form.email
+        const{error}=await supabase.from('sellers').update(upd).eq('id',edit.id)
+        if(error)throw error
+        toast.success('Vendedor atualizado!')
+      }else{
+        // Create auth user first via admin API (needs service role) 
+        // Workaround: create seller record and link via email
+        // First check if email already exists
+        const{data:existing}=await supabase.from('sellers').select('id').eq('email',form.email).maybeSingle()
+        if(existing){toast.error('Email já cadastrado');setSaving(false);return}
+        
+        // Create auth user via supabase signUp (they can confirm later)
+        const{data:authData,error:authErr}=await supabase.auth.signUp({
+          email:form.email,
+          password:form.password,
+          options:{data:{name:form.name,role:form.role}}
+        })
+        if(authErr)throw authErr
+        
+        // Create seller record
+        const{error:sellerErr}=await supabase.from('sellers').insert({
+          name:form.name,
+          email:form.email,
+          commission_pct:Number(form.commission_pct),
+          active:form.active,
+          role:form.role
+        })
+        if(sellerErr)throw sellerErr
+        
+        // If profile was created, update it
+        if(authData.user){
+          await supabase.from('profiles').upsert({
+            id:authData.user.id,
+            email:form.email,
+            role:form.role,
+            name:form.name
+          })
+        }
+        toast.success('Vendedor criado! Login: '+form.email)
       }
-      toast.success('Login criado!\nEmail: '+seller.email+'\nSenha: '+newPass,{duration:6000})
-      setLoginModal(null);setNewPass('');loadSellers()
+      setModal(false);load()
     }catch(e:any){toast.error('Erro: '+e.message)}
-    finally{setCreating(false)}
+    finally{setSaving(false)}
   }
+
+  async function del(s:Seller){
+    if(!confirm('Remover '+s.name+'?'))return
+    await supabase.from('sellers').delete().eq('id',s.id)
+    toast.success('Removido');load()
+  }
+
+  const ROLE_LABELS:Record<string,string>={admin:'Administrador',seller:'Vendedor'}
+  const ROLE_COLORS:Record<string,string>={admin:'#f59e0b',seller:'#06b6d4'}
+
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
-      <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-        <Users size={20} color="var(--neon)"/>
-        <h1 className="font-bangers neon-text-sm" style={{fontSize:26}}>VENDEDORES</h1>
-        <span style={{fontSize:12,color:'var(--muted)',background:'var(--card)',padding:'4px 10px',borderRadius:20}}>{sellers.length} vendedores</span>
-        <button onClick={openC} className="btn-neon-fill" style={{marginLeft:'auto',fontSize:13,padding:'8px 16px'}}><Plus size={14} style={{display:'inline',marginRight:6}}/>NOVO VENDEDOR</button>
+      <div style={{padding:'10px 16px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexShrink:0}}>
+        <UserCheck size={18} color='var(--neon)'/>
+        <h1 className='font-bangers neon-text-sm' style={{fontSize:24}}>VENDEDORES</h1>
+        <span style={{fontSize:12,color:'var(--muted)'}}>({sellers.length})</span>
+        <button onClick={openNew} className='btn-neon-fill' style={{marginLeft:'auto',fontSize:12,padding:'7px 14px',display:'flex',alignItems:'center',gap:5}}><Plus size={13}/>NOVO VENDEDOR</button>
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
-        {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:sellers.length===0?(
-          <div style={{textAlign:'center',padding:64,color:'var(--muted)'}}><Users size={48} style={{marginBottom:16,opacity:0.3}}/><p style={{fontFamily:'Bangers,cursive',fontSize:18}}>NENHUM VENDEDOR</p></div>
-        ):(
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(290px,1fr))',gap:16}}>
-            {sellers.map(s=>(
-              <div key={s.id} className="card card-hover" style={{padding:18}}>
-                <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:12}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <div style={{width:44,height:44,borderRadius:'50%',background:'var(--neon-glow)',border:'2px solid var(--neon-dim)',display:'flex',alignItems:'center',justifyContent:'center',fontFamily:'Bangers,cursive',fontSize:20,color:'var(--neon)',flexShrink:0}}>{s.name.charAt(0).toUpperCase()}</div>
-                    <div>
-                      <p style={{fontWeight:700,color:'var(--white)',fontSize:14}}>{s.name}</p>
-                      <div style={{display:'flex',gap:5,marginTop:3,flexWrap:'wrap'}}>
-                        <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:s.active?'rgba(0,255,65,0.1)':'rgba(255,51,51,0.1)',color:s.active?'var(--neon)':'#ff3333'}}>{s.active?'ATIVO':'INATIVO'}</span>
-                        <span style={{fontSize:10,padding:'2px 7px',borderRadius:20,background:s.auth_user_id?'rgba(6,182,212,0.1)':'rgba(100,116,139,0.1)',color:s.auth_user_id?'#06b6d4':'var(--muted)'}}>{s.auth_user_id?'â LOGIN':'SEM LOGIN'}</span>
+
+      <div style={{flex:1,overflowY:'auto',padding:'12px 14px'}}>
+        {/* Info box */}
+        <div style={{padding:'10px 14px',background:'rgba(6,182,212,0.06)',border:'1px solid rgba(6,182,212,0.2)',borderRadius:10,marginBottom:14,fontSize:12,color:'var(--muted)',display:'flex',gap:8,alignItems:'flex-start'}}>
+          <ShieldCheck size={14} color='#06b6d4' style={{flexShrink:0,marginTop:1}}/>
+          <div>
+            <p style={{color:'#06b6d4',fontWeight:600,marginBottom:2}}>Controle de acesso por perfil</p>
+            <p><strong style={{color:'var(--white)'}}>Vendedor</strong> — acessa apenas PDV, Delivery e Histórico de Vendas</p>
+            <p><strong style={{color:'#f59e0b)'}}>Administrador</strong> — acessa tudo, incluindo relatórios, produtos, configurações</p>
+          </div>
+        </div>
+
+        {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:(
+          <div className='card' style={{overflow:'hidden'}}>
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <thead><tr style={{borderBottom:'1px solid var(--border)',background:'var(--surface)'}}>
+                {['VENDEDOR','EMAIL','PERFIL','COMISSÃO','STATUS',''].map(h=>(
+                  <th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>{h}</th>
+                ))}
+              </tr></thead>
+              <tbody>
+                {sellers.map(s=>(
+                  <tr key={s.id} style={{borderBottom:'1px solid rgba(26,46,26,0.5)',opacity:s.active?1:0.5}}>
+                    <td style={{padding:'9px 12px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8}}>
+                        <div style={{width:32,height:32,borderRadius:8,background:s.role==='admin'?'rgba(245,158,11,0.15)':'rgba(6,182,212,0.15)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                          {s.role==='admin'?<ShieldCheck size={14} color='#f59e0b'/>:<User size={14} color='#06b6d4'/>}
+                        </div>
+                        <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{s.name}</p>
                       </div>
-                    </div>
-                  </div>
-                  <div style={{display:'flex',gap:4}}>
-                    <button onClick={()=>openE(s)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Edit2 size={12}/></button>
-                    <button onClick={()=>del(s.id)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'#ff3333',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={12}/></button>
-                  </div>
-                </div>
-                <div style={{display:'flex',flexDirection:'column',gap:6}}>
-                  <div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'var(--muted)'}}><Mail size={11}/>{s.email}</div>
-                  {s.phone&&<div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'var(--muted)'}}><Phone size={11}/>{s.phone}</div>}
-                  {s.cpf&&<div style={{display:'flex',alignItems:'center',gap:6,fontSize:12,color:'var(--muted)'}}><CreditCard size={11}/>CPF: {fmtCPF(s.cpf)}</div>}
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:4,padding:'8px 12px',background:'var(--surface)',borderRadius:8}}>
-                    <span style={{fontSize:11,color:'var(--muted)',display:'flex',alignItems:'center',gap:5}}><Percent size={11}/>Comissao</span>
-                    <span style={{fontSize:18,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{s.commission_pct}%</span>
-                  </div>
-                  <button onClick={()=>{setLoginModal(s);setNewPass('')}} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'7px',borderRadius:8,border:'1px solid '+(s.auth_user_id?'var(--border)':'#06b6d4'),background:s.auth_user_id?'transparent':'rgba(6,182,212,0.1)',color:s.auth_user_id?'var(--muted)':'#06b6d4',cursor:'pointer',fontSize:12,marginTop:2}}>
-                    {s.auth_user_id?<><Key size={12}/>Redefinir Senha</>:<><UserPlus size={12}/>Criar Login PDV</>}
-                  </button>
-                </div>
-              </div>
-            ))}
+                    </td>
+                    <td style={{padding:'9px 12px',fontSize:12,color:'var(--muted)'}}>{s.email||'—'}</td>
+                    <td style={{padding:'9px 12px'}}>
+                      <span style={{fontSize:11,fontWeight:700,padding:'2px 9px',borderRadius:20,background:(ROLE_COLORS[s.role||'seller'])+'22',color:ROLE_COLORS[s.role||'seller']||'#06b6d4'}}>
+                        {ROLE_LABELS[s.role||'seller']||s.role}
+                      </span>
+                    </td>
+                    <td style={{padding:'9px 12px',fontSize:12,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{s.commission_pct}%</td>
+                    <td style={{padding:'9px 12px'}}>
+                      <span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:s.active?'rgba(16,185,129,0.1)':'rgba(255,51,51,0.1)',color:s.active?'#10b981':'#ff3333'}}>{s.active?'Ativo':'Inativo'}</span>
+                    </td>
+                    <td style={{padding:'9px 12px'}}>
+                      <div style={{display:'flex',gap:5}}>
+                        <button onClick={()=>openEdit(s)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Edit2 size={12}/></button>
+                        <button onClick={()=>del(s)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'#ff3333',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={12}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {sellers.length===0&&<div style={{padding:48,textAlign:'center',color:'var(--muted)'}}>Nenhum vendedor cadastrado</div>}
           </div>
         )}
       </div>
+
       {modal&&(
-        <div className="animate-fade-in" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
-          <div className="animate-slide-in card" style={{width:'100%',maxWidth:460,padding:24,border:'1px solid var(--border-bright)'}}>
+        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
+          <div className='card' style={{width:'100%',maxWidth:420,padding:22,border:'1px solid var(--border-bright)',borderRadius:16}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-              <h2 className="font-bangers neon-text-sm" style={{fontSize:22}}>{edit?'EDITAR':'NOVO'} VENDEDOR</h2>
-              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={20}/></button>
+              <h2 className='font-bangers neon-text-sm' style={{fontSize:22}}>{edit?'EDITAR':'NOVO'} VENDEDOR</h2>
+              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={18}/></button>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:11}}>
-              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:4,letterSpacing:1}}>NOME COMPLETO</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Ex: Mateus Santos"/></div>
-              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:4,letterSpacing:1}}>EMAIL (para login)</label><input value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder="mateus@email.com"/></div>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-                <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:4,letterSpacing:1}}>CPF</label><input value={form.cpf} onChange={e=>setForm(f=>({...f,cpf:e.target.value.replace(/D/g,'').substring(0,11)}))} placeholder="000.000.000-00"/></div>
-                <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:4,letterSpacing:1}}>TELEFONE</label><input value={form.phone} onChange={e=>setForm(f=>({...f,phone:e.target.value}))} placeholder="(27) 99999-9999"/></div>
-              </div>
+              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>NOME *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder='Nome completo'/></div>
+              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>EMAIL {!edit&&'*'}</label><input type='email' value={form.email} onChange={e=>setForm(f=>({...f,email:e.target.value}))} placeholder='email@exemplo.com' disabled={!!edit}/></div>
+              {!edit&&(
+                <div>
+                  <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>SENHA * (mín. 6 caracteres)</label>
+                  <div style={{position:'relative'}}>
+                    <input type={showPwd?'text':'password'} value={form.password} onChange={e=>setForm(f=>({...f,password:e.target.value}))} placeholder='Senha de acesso' style={{paddingRight:38}}/>
+                    <button onClick={()=>setShowPwd(v=>!v)} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}>{showPwd?<EyeOff size={14}/>:<Eye size={14}/>}</button>
+                  </div>
+                </div>
+              )}
               <div>
-                <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:4,letterSpacing:1}}>COMISSAO (%)</label>
-                <div style={{position:'relative'}}>
-                  <input type="number" min="0" max="100" step="0.5" value={form.commission_pct===0?'':form.commission_pct} onChange={e=>setForm(f=>({...f,commission_pct:e.target.value===''?0:parseFloat(e.target.value)||0}))} placeholder="0" style={{paddingRight:36}}/>
-                  <Percent size={13} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',color:'var(--neon)'}}/>
+                <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>PERFIL DE ACESSO *</label>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+                  <button onClick={()=>setForm(f=>({...f,role:'seller'}))} style={{padding:'10px',borderRadius:9,border:form.role==='seller'?'2px solid #06b6d4':'1px solid var(--border)',background:form.role==='seller'?'rgba(6,182,212,0.1)':'var(--surface)',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}>
+                    <User size={18} color={form.role==='seller'?'#06b6d4':'var(--muted)'}/>
+                    <span style={{fontSize:12,fontWeight:700,color:form.role==='seller'?'#06b6d4':'var(--muted)',fontFamily:'Bangers,cursive'}}>VENDEDOR</span>
+                    <span style={{fontSize:9,color:'var(--muted)',textAlign:'center'}}>PDV · Delivery · Histórico</span>
+                  </button>
+                  <button onClick={()=>setForm(f=>({...f,role:'admin'}))} style={{padding:'10px',borderRadius:9,border:form.role==='admin'?'2px solid #f59e0b':'1px solid var(--border)',background:form.role==='admin'?'rgba(245,158,11,0.1)':'var(--surface)',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:5}}>
+                    <ShieldCheck size={18} color={form.role==='admin'?'#f59e0b':'var(--muted)'}/>
+                    <span style={{fontSize:12,fontWeight:700,color:form.role==='admin'?'#f59e0b':'var(--muted)',fontFamily:'Bangers,cursive'}}>ADMIN</span>
+                    <span style={{fontSize:9,color:'var(--muted)',textAlign:'center'}}>Acesso completo</span>
+                  </button>
                 </div>
               </div>
-              <div style={{display:'flex',alignItems:'center',gap:10,padding:'9px 12px',background:'var(--surface)',borderRadius:8}}>
-                <input type="checkbox" id="active_s" checked={form.active} onChange={e=>setForm(f=>({...f,active:e.target.checked}))} style={{width:16,height:16,accentColor:'var(--neon)'}}/>
-                <label htmlFor="active_s" style={{fontSize:13,color:'var(--text)',cursor:'pointer'}}>Vendedor ativo</label>
-              </div>
+              <div><label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:3}}>COMISSÃO (%)</label><input type='number' min='0' max='100' step='0.5' value={form.commission_pct} onChange={e=>setForm(f=>({...f,commission_pct:parseFloat(e.target.value)||0}))}/></div>
+              <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer',fontSize:13,color:'var(--muted)'}}>
+                <input type='checkbox' checked={form.active} onChange={e=>setForm(f=>({...f,active:e.target.checked}))} style={{width:14,height:14}}/>
+                Vendedor ativo
+              </label>
             </div>
-            <div style={{display:'flex',gap:10,marginTop:16}}>
+            <div style={{display:'flex',gap:8,marginTop:16}}>
               <button onClick={()=>setModal(false)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
-              <button onClick={save} className="btn-neon-fill" style={{flex:2,fontSize:14}}><Check size={13} style={{display:'inline',marginRight:5}}/>SALVAR</button>
-            </div>
-          </div>
-        </div>
-      )}
-      {loginModal&&(
-        <div className="animate-fade-in" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
-          <div className="card" style={{width:'100%',maxWidth:400,padding:24,border:'1px solid #06b6d4',boxShadow:'0 0 30px rgba(6,182,212,0.15)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:16}}>
-              <Key size={18} color="#06b6d4"/>
-              <h2 className="font-bangers" style={{fontSize:20,color:'#06b6d4'}}>{loginModal.auth_user_id?'REDEFINIR SENHA':'CRIAR LOGIN PDV'}</h2>
-            </div>
-            <div style={{padding:'12px 14px',background:'var(--surface)',borderRadius:8,marginBottom:14}}>
-              <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{loginModal.name}</p>
-              <p style={{fontSize:12,color:'var(--muted)',marginTop:2}}>Login: <span style={{color:'var(--neon)'}}>{loginModal.email}</span></p>
-              {loginModal.cpf&&<p style={{fontSize:12,color:'var(--muted)',marginTop:2}}>CPF: {fmtCPF(loginModal.cpf)}</p>}
-              <p style={{fontSize:11,color:'var(--muted)',marginTop:6,padding:'5px 8px',background:'rgba(6,182,212,0.08)',borderRadius:6}}>Acesso: PDV, Delivery e Historico apenas</p>
-            </div>
-            <div>
-              <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>DEFINIR SENHA</label>
-              <input type="password" value={newPass} onChange={e=>setNewPass(e.target.value)} placeholder="Minimo 6 caracteres" autoFocus/>
-            </div>
-            <div style={{display:'flex',gap:10,marginTop:14}}>
-              <button onClick={()=>{setLoginModal(null);setNewPass('')}} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:13}}>CANCELAR</button>
-              <button onClick={()=>createLogin(loginModal)} disabled={creating} style={{flex:2,padding:10,borderRadius:8,border:'none',background:'#06b6d4',color:'#000',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14,fontWeight:700,opacity:creating?0.7:1}}>
-                {creating?'CRIANDO...':'CRIAR LOGIN'}
+              <button onClick={save} disabled={saving} className='btn-neon-fill' style={{flex:2,fontSize:14}}>
+                <Check size={13} style={{display:'inline',marginRight:5}}/>{saving?'SALVANDO...':'SALVAR'}
               </button>
             </div>
           </div>
