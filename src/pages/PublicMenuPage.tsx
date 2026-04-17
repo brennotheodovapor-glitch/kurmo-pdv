@@ -38,6 +38,10 @@ export default function PublicMenuPage(){
   const[cepLoading,setCepLoading]=useState(false)
   const[sending,setSending]=useState(false)
   const[orderType,setOrderType]=useState<'delivery'|'retirada'>('delivery')
+  const[paymentMethod,setPaymentMethod]=useState<string>('pix')
+  const[couponCode,setCouponCode]=useState('')
+  const[couponData,setCouponData]=useState<any>(null)
+  const[couponLoading,setCouponLoading]=useState(false)
   const promoRef=useRef<HTMLDivElement>(null)
 
   useEffect(()=>{load()},[])
@@ -100,10 +104,27 @@ export default function PublicMenuPage(){
   const updQty=(id:string,d:number)=>setCart(c=>c.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+d)}:i).filter(i=>i.qty>0))
   const subtotal=cart.reduce((s,i)=>s+(i.is_promo&&i.promo_price?i.promo_price:i.price)*i.qty,0)
   const fee=orderType==='delivery'?(matchedZone?.fee||0):0
-  const total=subtotal+fee
+  const couponDiscount=couponData?(couponData.discount_type==='percent'?subtotal*(couponData.discount_value/100):Math.min(couponData.discount_value,subtotal)):0
+  const total=Math.max(0,subtotal+fee-couponDiscount)
   const itemCount=cart.reduce((s,i)=>s+i.qty,0)
   const promoProducts=products.filter(p=>p.is_promo)
   const filtered=products.filter(p=>!selCat||p.category_id===selCat)
+
+  async function applyCoupon(){
+    if(!couponCode.trim())return
+    setCouponLoading(true)
+    try{
+      const{data}=await supabase.from('coupons').select('*').eq('code',couponCode.toUpperCase().trim()).eq('active',true).maybeSingle()
+      if(!data){toast.error('Cupom inválido ou expirado');setCouponData(null);return}
+      if(data.expires_at&&new Date(data.expires_at)<new Date()){toast.error('Cupom expirado');setCouponData(null);return}
+      if(data.max_uses&&data.used_count>=data.max_uses){toast.error('Cupom esgotado');setCouponData(null);return}
+      if(data.min_order&&subtotal<data.min_order){toast.error('Pedido mínimo para cupom: '+fmt(data.min_order));setCouponData(null);return}
+      setCouponData(data)
+      const disc=data.discount_type==='percent'?subtotal*(data.discount_value/100):Math.min(data.discount_value,subtotal)
+      toast.success('Cupom aplicado! -'+fmt(disc))
+    }catch{toast.error('Erro ao validar cupom')}
+    finally{setCouponLoading(false)}
+  }
 
   async function sendOrder(){
     if(!name.trim()){toast.error('Informe seu nome');return}
@@ -119,7 +140,9 @@ export default function PublicMenuPage(){
       const{data:order,error}=await supabase.from('orders').insert({
         customer_name:name,customer_phone:phone.replace(/\D/g,''),
         type:'delivery',status:'pending',
-        subtotal,discount:0,delivery_fee:fee,total,
+        subtotal,discount:couponDiscount,delivery_fee:fee,total,
+        coupon_code:couponData?.code||null,
+        payment_method:paymentMethod,
         delivery_zone_id:matchedZone?.id||null,
         notes:fullAddr,
       }).select().single()
@@ -339,7 +362,42 @@ export default function PublicMenuPage(){
                 </>)}
               </>)}
             </div>
-            {/* Totals */}
+            {/* Forma de pagamento */}
+        <div style={{marginBottom:14}}>
+          <p style={{...LBL,marginBottom:8}}>FORMA DE PAGAMENTO *</p>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+            {[
+              {key:'pix',label:'PIX',icon:'💚'},
+              {key:'dinheiro',label:'Dinheiro',icon:'💵'},
+              {key:'debito',label:'Débito',icon:'💳'},
+              {key:'credito',label:'Crédito',icon:'💳'},
+            ].map(m=>(
+              <button key={m.key} onClick={()=>setPaymentMethod(m.key)}
+                style={{padding:'10px 8px',borderRadius:10,border:paymentMethod===m.key?'2px solid #00ff41':'1px solid #333',background:paymentMethod===m.key?'rgba(0,255,65,0.1)':'#1a1a1a',color:paymentMethod===m.key?'#00ff41':'#666',cursor:'pointer',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
+                <span>{m.icon}</span>{m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Cupom de desconto */}
+        <div style={{marginBottom:14}}>
+          <p style={{...LBL,marginBottom:8}}>CUPOM DE DESCONTO</p>
+          {couponData?(
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:'rgba(0,255,65,0.08)',borderRadius:10,border:'1px solid rgba(0,255,65,0.3)'}}>
+              <div>
+                <p style={{fontSize:13,fontWeight:700,color:'#00ff41'}}>{couponData.code}</p>
+                <p style={{fontSize:11,color:'#888'}}>-{couponData.discount_type==='percent'?couponData.discount_value+'%':fmt(couponData.discount_value)} de desconto</p>
+              </div>
+              <button onClick={()=>{setCouponData(null);setCouponCode('')}} style={{background:'#333',border:'none',color:'#ff5555',cursor:'pointer',borderRadius:6,padding:'4px 8px',fontSize:11}}>Remover</button>
+            </div>
+          ):(
+            <div style={{display:'flex',gap:8}}>
+              <input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&applyCoupon()} placeholder='CÓDIGO DO CUPOM' style={{...INP,flex:1,letterSpacing:1,fontFamily:'monospace',textTransform:'uppercase'}}/>
+              <button onClick={applyCoupon} disabled={couponLoading||!couponCode.trim()} style={{padding:'10px 16px',borderRadius:8,border:'none',background:couponCode.trim()?'#00ff41':'#333',color:couponCode.trim()?'#000':'#666',cursor:couponCode.trim()?'pointer':'default',fontSize:13,fontWeight:700,whiteSpace:'nowrap',minWidth:60}}>{couponLoading?'...':'OK'}</button>
+            </div>
+          )}
+        </div>
+        {/* Totals */}
             <div style={{padding:'12px 14px',background:'#1a1a1a',borderRadius:10,marginBottom:14}}>
               <div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'#888',marginBottom:5}}><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
               {orderType==='delivery'&&fee>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'#888',marginBottom:5}}><span>Entrega</span><span style={{color:'#f59e0b'}}>{fmt(fee)}</span></div>}
