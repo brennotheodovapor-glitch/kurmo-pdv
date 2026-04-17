@@ -59,9 +59,23 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
 
   async function cancelOrder(){
     if(!cancelModal||!cancelReason.trim()){toast.error('Informe o motivo');return}
+    // First get order items to restore stock
+    const{data:items}=await supabase.from('order_items').select('product_id,quantity').eq('order_id',cancelModal.id)
+    // Cancel the order
     const{error}=await supabase.from('orders').update({status:'cancelled',cancel_reason:cancelReason,cancelled_at:new Date().toISOString()}).eq('id',cancelModal.id)
     if(error){toast.error(error.message);return}
-    toast.success('Venda #'+cancelModal.order_number+' cancelada')
+    // Restore stock for each item
+    if(items&&items.length>0){
+      for(const item of items){
+        if(!item.product_id)continue
+        // Get current stock first
+        const{data:prod}=await supabase.from('products').select('stock').eq('id',item.product_id).single()
+        if(prod){
+          await supabase.from('products').update({stock:(prod.stock||0)+item.quantity}).eq('id',item.product_id)
+        }
+      }
+    }
+    toast.success('Venda #'+cancelModal.order_number+' cancelada — estoque restaurado!')
     setCancelModal(null);setCancelReason('');loadOrders()
   }
 
