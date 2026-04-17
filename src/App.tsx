@@ -42,23 +42,19 @@ export default function App(){
     return()=>subscription.unsubscribe()
   },[])
 
-  function loadProfile(userId:string){
-    // Non-blocking profile load with timeout
+  async function loadProfile(userId:string){
     const timer=setTimeout(()=>setProfile({role:'admin'}),3000)
-    supabase.from('profiles')
-      .select('*,sellers(id,name,commission_pct,role)')
-      .eq('id',userId)
-      .maybeSingle()
-      .then(({data})=>{
-        clearTimeout(timer)
-        if(data){
-          const role=data.sellers?.role||data.role||'admin'
-          setProfile({...data,role})
-        }else{
-          setProfile({role:'admin'})
-        }
-      })
-      .catch(()=>{clearTimeout(timer);setProfile({role:'admin'})})
+    try{
+      const{data}=await supabase.from('profiles')
+        .select('*,sellers(id,name,commission_pct,role)')
+        .eq('id',userId)
+        .maybeSingle()
+      clearTimeout(timer)
+      if(data){
+        const role=data.sellers?.role||data.role||'admin'
+        setProfile({...data,role})
+      }else{setProfile({role:'admin'})}
+    }catch{clearTimeout(timer);setProfile({role:'admin'})}
   }
 
   if(window.location.pathname==='/menu'||window.location.pathname.startsWith('/menu/')){
