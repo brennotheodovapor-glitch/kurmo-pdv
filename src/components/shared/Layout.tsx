@@ -128,7 +128,7 @@ export default function Layout({children,userRole,sellerName}:{children?:React.R
         </div>
 
         {/* Main content */}
-        <div className='main-area' style={{flex:1,overflow:'hidden',display:'flex',flexDirection:'column'}}>
+        <div className='main-area' style={{flex:1,overflow:'auto',display:'flex',flexDirection:'column'}}>
           {children??<Outlet/>}
         </div>
 
