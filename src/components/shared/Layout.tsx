@@ -1,5 +1,5 @@
 import{NavLink,useLocation,Outlet}from 'react-router-dom'
-import{ShoppingCart,Truck,History,BarChart3,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard}from 'lucide-react'
+import{ShoppingCart,Truck,History,BarChart3,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard,CreditCard}from 'lucide-react'
 import{useState,useEffect}from 'react'
 
 type NavItem={to:string;icon:any;label:string;adminOnly?:boolean}
