@@ -4,7 +4,7 @@ import{Truck,Plus,X,Check,Phone,MapPin,AlertTriangle,ChevronDown,ChevronUp,Searc
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
-type Order={id:string;order_number:number;customer_name:string;customer_phone:string;status:string;total:number;delivery_fee:number;created_at:string;notes:string|null;cash_requested?:number;change_amount?:number;payment_method?:string}
+type Order={id:string;order_number:number;customer_name:string;customer_phone:string;status:string;total:number;subtotal:number;discount:number;delivery_fee:number;created_at:string;notes:string|null;cash_requested?:number;change_amount?:number;payment_method?:string;coupon_code?:string|null}
 type Product={id:string;name:string;price:number;stock:number;image_url?:string;description?:string}
 type CartItem=Product&{qty:number}
 type DeliveryForm={nome:string;sobrenome:string;whatsapp:string;cep:string;numero:string;endereco:string;complemento:string;bairro:string;cidade:string;estado:string;referencia:string}
@@ -305,7 +305,28 @@ export default function DeliveryPage(){
             {expanded===o.id&&(
               <div style={{padding:'0 14px 12px',borderTop:'1px solid var(--border)'}}>
                 {o.notes&&<div style={{padding:'7px 10px',background:'var(--surface)',borderRadius:7,marginBottom:8,fontSize:12,color:'var(--text)',display:'flex',gap:6}}><MapPin size={11} style={{flexShrink:0,marginTop:1,color:'var(--muted)'}}/><span>{o.notes}</span></div>}
-                {(o as any).cash_requested>0&&<div style={{padding:'5px 10px',background:'rgba(16,185,129,0.08)',borderRadius:7,marginBottom:8,fontSize:12,color:'#10b981',display:'flex',justifyContent:'space-between'}}><span>Pagar em dinheiro</span><span style={{fontWeight:700}}>Trazer: {fmt((o as any).cash_requested)} | Troco: {fmt(Math.max(0,(o as any).cash_requested-o.total))}</span></div>}
+                {/* Pagamento + Cupom */}
+                  <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
+                    {o.payment_method&&(
+                      <div style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:6,background:'rgba(6,182,212,0.1)',border:'1px solid rgba(6,182,212,0.2)'}}>
+                        <span style={{fontSize:13}}>{o.payment_method==='pix'?'💚':o.payment_method==='dinheiro'?'💵':o.payment_method==='debito'?'💳':o.payment_method==='credito'?'💳':'💳'}</span>
+                        <span style={{fontSize:12,fontWeight:700,color:'#06b6d4',textTransform:'capitalize' as const}}>{o.payment_method==='pix'?'PIX':o.payment_method==='dinheiro'?'Dinheiro':o.payment_method==='debito'?'Débito':o.payment_method==='credito'?'Crédito':o.payment_method}</span>
+                      </div>
+                    )}
+                    {o.coupon_code&&(
+                      <div style={{display:'flex',alignItems:'center',gap:5,padding:'4px 10px',borderRadius:6,background:'rgba(245,158,11,0.1)',border:'1px solid rgba(245,158,11,0.2)'}}>
+                        <span style={{fontSize:11}}>🏷️</span>
+                        <span style={{fontSize:12,fontWeight:700,color:'#f59e0b'}}>Cupom: {o.coupon_code}</span>
+                        {o.discount>0&&<span style={{fontSize:11,color:'#f59e0b',opacity:0.8}}>(-{fmt(o.discount)})</span>}
+                      </div>
+                    )}
+                    {!o.coupon_code&&o.payment_method&&(
+                      <div style={{display:'flex',alignItems:'center',gap:4,padding:'4px 10px',borderRadius:6,background:'rgba(100,100,100,0.08)',border:'1px solid rgba(100,100,100,0.15)'}}>
+                        <span style={{fontSize:10,color:'var(--muted)'}}>Sem cupom</span>
+                      </div>
+                    )}
+                  </div>
+                  {o.cash_requested>0&&<div style={{padding:'5px 10px',background:'rgba(16,185,129,0.08)',borderRadius:7,marginBottom:8,fontSize:12,color:'#10b981',display:'flex',justifyContent:'space-between'}}><span>Pagar em dinheiro</span><span style={{fontWeight:700}}>Trazer: {fmt(o.cash_requested)} | Troco: {fmt(Math.max(0,o.cash_requested-o.total))}</span></div>}
                 <div style={{marginBottom:8}}>{(itemsCache[o.id]||[]).map(i=>(<div key={i.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'2px 0'}}><span style={{color:'var(--text)'}}>{i.quantity}x {i.product_name}</span><span style={{color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(i.total_price)}</span></div>))}</div>
                 <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
                   {o.status==='pending'&&(
