@@ -52,6 +52,7 @@ export default function PublicMenuPage(){
   const[matchedZone,setMatchedZone]=useState<Zone|null>(null)
   const[cepLoading,setCepLoading]=useState(false)
   const[sending,setSending]=useState(false)
+  const[submittedOrder,setSubmittedOrder]=useState<any>(null)
   const[orderType,setOrderType]=useState<'delivery'|'retirada'>('delivery')
   const[paymentMethod,setPaymentMethod]=useState<string>('pix')
   const[couponCode,setCouponCode]=useState('')
@@ -59,7 +60,14 @@ export default function PublicMenuPage(){
   const[couponLoading,setCouponLoading]=useState(false)
   const promoRef=useRef<HTMLDivElement>(null)
 
-  useEffect(()=>{load()},[])
+  useEffect(()=>{
+    load()
+    // Realtime subscription for products
+    const sub=supabase.channel('products-realtime')
+      .on('postgres_changes',{event:'*',schema:'public',table:'products'},()=>load())
+      .subscribe()
+    return()=>{supabase.removeChannel(sub)}
+  },[])
 
   async function load(){
     setLoading(true)
@@ -183,6 +191,101 @@ export default function PublicMenuPage(){
 
   const INP={width:'100%',background:'#1a1a1a',border:'1px solid #333',borderRadius:8,padding:'10px 14px',color:'#fff',fontSize:14,outline:'none',boxSizing:'border-box' as const}
   const LBL={fontSize:11,color:'#888',display:'block' as const,marginBottom:4,letterSpacing:0.5}
+
+  // Real-time order status tracking
+  useEffect(()=>{
+    if(!submittedOrder)return
+    const sub=supabase.channel('order-status-'+submittedOrder.id)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'orders',filter:'id=eq.'+submittedOrder.id},(payload:any)=>{
+        setSubmittedOrder((prev:any)=>({...prev,...payload.new}))
+      })
+      .subscribe()
+    return()=>{supabase.removeChannel(sub)}
+  },[submittedOrder?.id])
+
+  const STATUS_INFO:Record<string,{label:string;icon:string;color:string;desc:string}>={
+    pending:{label:'Aguardando',icon:'⏳',color:'#ffaa00',desc:'Seu pedido foi enviado e aguarda confirmação da loja'},
+    accepted:{label:'Aceito!',icon:'✅',color:'#00ff41',desc:'Oba! A loja aceitou seu pedido'},
+    preparing:{label:'Preparando',icon:'👨‍🍳',color:'#06b6d4',desc:'A loja está preparando seu pedido'},
+    ready:{label:'Pronto!',icon:'📦',color:'#00ff41',desc:'Seu pedido está pronto'},
+    delivering:{label:'A caminho!',icon:'🛵',color:'#f59e0b',desc:'Seu pedido saiu para entrega'},
+    delivered:{label:'Entregue!',icon:'🎉',color:'#10b981',desc:'Pedido entregue. Obrigado!'},
+    completed:{label:'Concluído!',icon:'🎉',color:'#10b981',desc:'Pedido finalizado. Obrigado!'},
+    cancelled:{label:'Recusado',icon:'❌',color:'#ff3333',desc:'Infelizmente a loja não pôde aceitar seu pedido'},
+  }
+  const FLOW=['pending','accepted','preparing','ready','delivering','delivered']
+
+  if(submittedOrder) return(
+    <div style={{minHeight:'100vh',background:'#0a0a0a',color:'#fff',fontFamily:'Inter,sans-serif',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
+      <div style={{width:'100%',maxWidth:480,textAlign:'center'}}>
+        <div style={{fontSize:72,marginBottom:16}}>{STATUS_INFO[submittedOrder.status]?.icon||'⏳'}</div>
+        <h1 style={{fontFamily:'Bangers,cursive',fontSize:32,color:STATUS_INFO[submittedOrder.status]?.color||'#ffaa00',letterSpacing:2,marginBottom:8}}>
+          {STATUS_INFO[submittedOrder.status]?.label||'Aguardando'}
+        </h1>
+        <p style={{fontSize:15,color:'#aaa',marginBottom:24}}>{STATUS_INFO[submittedOrder.status]?.desc||''}</p>
+        {/* Order info */}
+        <div style={{background:'#111',borderRadius:16,padding:20,marginBottom:24,textAlign:'left',border:'1px solid #222'}}>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+            <span style={{fontSize:13,color:'#666'}}>Pedido</span>
+            <span style={{fontSize:15,fontWeight:700,color:'#00ff41',fontFamily:'monospace'}}>#{submittedOrder.order_number}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+            <span style={{fontSize:13,color:'#666'}}>Total</span>
+            <span style={{fontSize:15,fontWeight:700,color:'#fff'}}>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(submittedOrder.total))}</span>
+          </div>
+          <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
+            <span style={{fontSize:13,color:'#666'}}>Pagamento</span>
+            <span style={{fontSize:13,color:'#fff',textTransform:'capitalize'}}>{submittedOrder.payment_method==='pix'?'💚 PIX':submittedOrder.payment_method==='dinheiro'?'💵 Dinheiro':submittedOrder.payment_method==='debito'?'💳 Débito':'💳 Crédito'}</span>
+          </div>
+          {/* Status timeline */}
+          <div style={{marginTop:16}}>
+            <p style={{fontSize:11,color:'#555',marginBottom:10,textTransform:'uppercase',letterSpacing:1}}>Progresso</p>
+            <div style={{display:'flex',alignItems:'center',gap:4}}>
+              {FLOW.map((s,i)=>{
+                const done=FLOW.indexOf(submittedOrder.status)>=i
+                const active=submittedOrder.status===s
+                return(
+                  <div key={s} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
+                    <div style={{width:'100%',height:4,borderRadius:2,background:done?'#00ff41':submittedOrder.status==='cancelled'&&i===0?'#ff3333':'#222',transition:'background 0.5s'}}/>
+                    {active&&<div style={{width:6,height:6,borderRadius:'50%',background:submittedOrder.status==='cancelled'?'#ff3333':'#00ff41'}}/>}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+        {/* Items */}
+        {submittedOrder.items&&submittedOrder.items.length>0&&(
+          <div style={{background:'#111',borderRadius:12,padding:16,marginBottom:20,textAlign:'left',border:'1px solid #222'}}>
+            <p style={{fontSize:11,color:'#555',marginBottom:10,textTransform:'uppercase',letterSpacing:1}}>Itens do pedido</p>
+            {submittedOrder.items.map((item:any,i:number)=>(
+              <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'4px 0',borderBottom:i<submittedOrder.items.length-1?'1px solid #1a1a1a':'none'}}>
+                <span style={{color:'#ccc'}}>{item.qty}x {item.name}</span>
+                <span style={{color:'#00ff41'}}>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format((item.is_promo&&item.promo_price?item.promo_price:item.price)*item.qty)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {submittedOrder.status==='cancelled'?(
+          <div>
+            <p style={{fontSize:13,color:'#666',marginBottom:16}}>Pedido recusado. Caso queira, faça um novo pedido.</p>
+            <button onClick={()=>setSubmittedOrder(null)} style={{width:'100%',padding:14,borderRadius:12,border:'none',background:'#00ff41',color:'#000',cursor:'pointer',fontSize:16,fontWeight:700,fontFamily:'Bangers,cursive',letterSpacing:1}}>
+              FAZER NOVO PEDIDO
+            </button>
+          </div>
+        ):(submittedOrder.status==='delivered'||submittedOrder.status==='completed')?(
+          <div>
+            <p style={{fontSize:13,color:'#666',marginBottom:16}}>Esperamos que tenha gostado!</p>
+            <button onClick={()=>setSubmittedOrder(null)} style={{width:'100%',padding:14,borderRadius:12,border:'none',background:'#00ff41',color:'#000',cursor:'pointer',fontSize:16,fontWeight:700,fontFamily:'Bangers,cursive',letterSpacing:1}}>
+              FAZER NOVO PEDIDO
+            </button>
+          </div>
+        ):(
+          <p style={{fontSize:12,color:'#555',marginTop:8}}>Esta página atualiza automaticamente quando o status mudar</p>
+        )}
+      </div>
+    </div>
+  )
 
   if(loading) return(
     <div style={{minHeight:'100vh',background:'#0a0a0a',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
