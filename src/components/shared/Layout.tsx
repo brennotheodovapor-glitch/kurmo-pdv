@@ -8,6 +8,7 @@ const MAIN_NAV:NavItem[]=[
   {to:'/pdv',icon:ShoppingCart,label:'PDV'},
   {to:'/delivery',icon:Truck,label:'Delivery'},
   {to:'/historico',icon:History,label:'Historico'},
+  {to:'/fiado',icon:CreditCard,label:'Fiado'},
   {to:'/dashboard',icon:LayoutDashboard,label:'Dashboard'},
   {to:'/caixa',icon:DollarSign,label:'Caixa'},
   {to:'/cardapio',icon:QrCode,label:'Catalogo'},
