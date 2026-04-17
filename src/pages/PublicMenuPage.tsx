@@ -15,6 +15,21 @@ type CartItem=Product&{qty:number}
 type Settings={store_name:string;store_logo_url?:string;store_banner_url?:string;store_description?:string;whatsapp?:string;min_order?:number;promo_title?:string;promo_description?:string}
 
 export default function PublicMenuPage(){
+  // Fix: reset body overflow so the page can scroll (PDV layout sets overflow:hidden globally)
+  useEffect(()=>{
+    const prev=document.body.style.overflow
+    const prevHtml=document.documentElement.style.overflow
+    document.body.style.overflow='auto'
+    document.body.style.height='auto'
+    document.documentElement.style.overflow='auto'
+    document.documentElement.style.height='auto'
+    return()=>{
+      document.body.style.overflow=prev
+      document.body.style.height=''
+      document.documentElement.style.overflow=prevHtml
+      document.documentElement.style.height=''
+    }
+  },[])
   const[products,setProducts]=useState<Product[]>([])
   const[categories,setCategories]=useState<Category[]>([])
   const[zones,setZones]=useState<Zone[]>([])
