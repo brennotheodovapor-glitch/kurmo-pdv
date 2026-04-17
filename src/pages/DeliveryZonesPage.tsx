@@ -39,7 +39,7 @@ export default function DeliveryZonesPage(){
     if(!form.name.trim()){toast.error('Informe o nome');return}
     setSaving(true)
     if(edit){
-      const{error}=await supabase.from('delivery_zones').update({...form,updated_at:new Date().toISOString()}).eq('id',edit.id)
+      const{error}=await supabase.from('delivery_zones').update({...form}).eq('id',edit.id)
       if(error){toast.error(error.message);setSaving(false);return}
       toast.success('Atualizado!')
     }else{
