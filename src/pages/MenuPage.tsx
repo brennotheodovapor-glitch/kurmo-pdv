@@ -39,7 +39,7 @@ export default function MenuPage(){
     const[o,p,s]=await Promise.all([
       supabase.from('orders').select('*,order_items(product_name,quantity,unit_price,total_price)').eq('type','delivery').in('status',['pending','accepted','preparing','ready','delivering']).order('created_at'),
       supabase.from('products').select('*').eq('active',true).order('sort_order').order('name'),
-      supabase.from('store_settings').select('*').eq('id',1).maybeSingle(),
+      supabase.from('store_settings').select('*').limit(1).maybeSingle(),
     ])
     setOrders(o.data||[])
     setProducts(p.data||[])
@@ -64,7 +64,7 @@ export default function MenuPage(){
 
   async function saveSettings(){
     setSavingSettings(true)
-    const{error}=await supabase.from('store_settings').upsert({...settings,id:1,updated_at:new Date().toISOString()})
+    const{error}=await supabase.from('store_settings').update({...settings,id:1,updated_at:new Date().toISOString()}).eq('id',settings.id||'77ddd33f-bdc6-4be5-921a-c5064d869cf5')
     if(error)toast.error(error.message)
     else toast.success('Configurações salvas!')
     setSavingSettings(false)
@@ -80,7 +80,7 @@ export default function MenuPage(){
       const{data:{publicUrl}}=supabase.storage.from('product-images').getPublicUrl(path)
       setSettings((s:any)=>({...s,[field]:publicUrl}))
       // Save directly to DB without needing to click save
-      await supabase.from('store_settings').upsert({id:1,[field]:publicUrl,updated_at:new Date().toISOString()})
+      await supabase.from('store_settings').upsert({[field]:publicUrl,updated_at:new Date().toISOString()})
       toast.success('Imagem salva com sucesso!')
     }catch(e:any){toast.error('Erro: '+e.message)}
     finally{setUploading(false)}
