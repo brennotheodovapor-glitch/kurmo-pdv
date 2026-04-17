@@ -79,7 +79,9 @@ export default function MenuPage(){
       if(error)throw error
       const{data:{publicUrl}}=supabase.storage.from('product-images').getPublicUrl(path)
       setSettings((s:any)=>({...s,[field]:publicUrl}))
-      toast.success('Imagem enviada! Clique em Salvar.')
+      // Save directly to DB without needing to click save
+      await supabase.from('store_settings').upsert({id:1,[field]:publicUrl,updated_at:new Date().toISOString()})
+      toast.success('Imagem salva com sucesso!')
     }catch(e:any){toast.error('Erro: '+e.message)}
     finally{setUploading(false)}
   }
