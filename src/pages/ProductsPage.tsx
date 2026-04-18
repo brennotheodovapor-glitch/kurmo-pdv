@@ -76,11 +76,13 @@ export default function ProductsPage(){
     setUploading(true)
     try{
       const ext=file.name.split('.').pop()?.toLowerCase()||'jpg'
-      const{error}=await supabase.storage.from('product-images').upload('products/'+Date.now()+'.'+ext,file,{upsert:true,contentType:file.type})
-      if(error){toast.error('Erro: '+error.message);return}
-      const{data:{publicUrl}}=supabase.storage.from('product-images').getPublicUrl('products/'+Date.now()+'.'+ext)
-      setForm(f=>({...f,image_url:publicUrl}));toast.success('Foto enviada!')
-    }catch(err:any){toast.error(err.message)}finally{setUploading(false)}
+      const path='products/'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.'+ext
+      const{error}=await supabase.storage.from('product-images').upload(path,file,{upsert:false,contentType:file.type})
+      if(error)throw error
+      const{data:{publicUrl}}=supabase.storage.from('product-images').getPublicUrl(path)
+      setForm(f=>({...f,image_url:publicUrl}))
+      toast.success('Foto enviada! Clique SALVAR para confirmar.')
+    }catch(err:any){toast.error('Erro upload: '+err.message)}finally{setUploading(false)}
   }
 
   async function save(){
