@@ -103,10 +103,7 @@ export default function CustomersPage(){
           // Use actual loaded completed orders count when available, fallback to DB count
           const cos=ordersMap[c.id]||[]
           const realCount=ordersMap.hasOwnProperty(c.id)?cos.length:(c.orders_count||0)
-          // Calculate real total from loaded completed orders only (excludes cancelled)
-          const realTotal=ordersMap.hasOwnProperty(c.id)
-            ?cos.reduce((s,o)=>s+Number(o.total),0)
-            :Number(c.total_spent)||0
+          const realTotal=ordersMap.hasOwnProperty(c.id)?cos.reduce((s:number,o:any)=>s+Number(o.total),0):Number(c.total_spent)||0
           const loy=loyalty(realCount)
           const isExp=expanded===c.id
 
