@@ -1,4 +1,5 @@
 import{useState,useEffect}from 'react'
+import{useGlobalAlarm}from '@/lib/alarm'
 import{Routes,Route,Navigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
 import Layout from '@/components/shared/Layout'
@@ -40,6 +41,13 @@ export default function App(){
     })
     return()=>subscription.unsubscribe()
   },[])
+
+  // Listen for alarms in ANY tab (even when not on Delivery page)
+  useEffect(()=>{
+    if(!session)return
+    const cleanup=useGlobalAlarm(true)
+    return cleanup
+  },[session])
 
   async function loadProfile(user:any){
     const timer=setTimeout(()=>setProfile({role:'admin'}),5000)
