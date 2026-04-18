@@ -28,6 +28,7 @@ export default function App(){
   const[loading,setLoading]=useState(true)
   const prevPendingRef=useRef(0)
   const soundOnRef=useRef(true)
+  const[pendingCount,setPendingCount]=useState(0)
 
   useEffect(()=>{
     supabase.auth.getSession().then(({data})=>{
@@ -63,10 +64,11 @@ export default function App(){
         .eq('type','delivery')
         .eq('status','pending')
       const count=data?.length||0
+      setPendingCount(count)
       if(count>prevPendingRef.current&&prevPendingRef.current>=0){
         if(soundOnRef.current){
-          playAlarmSound()   // play in THIS tab
-          broadcastAlarm()   // signal ALL other tabs
+          playAlarmSound()
+          broadcastAlarm()
         }
       }
       prevPendingRef.current=count
@@ -118,7 +120,7 @@ export default function App(){
     <Routes>
       <Route path='/menu' element={<PublicMenuPage/>}/>
       <Route path='/menu/*' element={<PublicMenuPage/>}/>
-      <Route path='/' element={<Layout userRole={profile?.role} sellerName={sellerName}/>}>
+      <Route path='/' element={<Layout userRole={profile?.role} sellerName={sellerName} pendingOrders={pendingCount}/>}>
         <Route index element={<Navigate to='/pdv' replace/>}/>
         <Route path='pdv' element={<PDVPage sellerId={sellerId} sellerName={sellerName}/>}/>
         <Route path='delivery' element={<DeliveryPage soundOnRef={soundOnRef}/>}/>
