@@ -35,7 +35,7 @@ const MOBILE_NAV:NavItem[]=[
   {to:'/dashboard',icon:LayoutDashboard,label:'Mais'},
 ]
 
-export default function Layout({children,userRole,sellerName,pendingOrders}:{children?:React.ReactNode;userRole?:string;sellerName?:string;pendingOrders?:number}){
+export default function Layout({children,userRole,sellerName,pendingOrders,soundEnabledRef}:{children?:React.ReactNode;userRole?:string;sellerName?:string;pendingOrders?:number;soundEnabledRef?:React.MutableRefObject<boolean>}){
   const location=useLocation()
   const navigate=useNavigate()
   async function handleLogout(){await supabase.auth.signOut();navigate('/login',{replace:true})}
@@ -43,6 +43,8 @@ export default function Layout({children,userRole,sellerName,pendingOrders}:{chi
   const configPaths=CONFIG_NAV.map(n=>n.to)
   const isConfigActive=configPaths.some(p=>location.pathname.startsWith(p))
   const[configOpen,setConfigOpen]=useState(isConfigActive)
+  const[soundOnState,setSoundOnState]=useState(true)
+  function toggleSound(){const next=!soundOnState;setSoundOnState(next);if(soundEnabledRef)soundEnabledRef.current=next}
 
   useEffect(()=>{
     if(isConfigActive)setConfigOpen(true)
@@ -133,7 +135,10 @@ export default function Layout({children,userRole,sellerName,pendingOrders}:{chi
             )}
           </nav>
           {/* Footer */}
-          <div style={{padding:'10px 14px',borderTop:'1px solid var(--border)'}}>
+          <div style={{padding:'10px 14px',borderTop:'1px solid var(--border)',display:'flex',flexDirection:'column',gap:6}}>
+            <button onClick={toggleSound} style={{display:'flex',alignItems:'center',gap:8,fontSize:11,color:soundOnState?'var(--neon)':'var(--muted)',background:'none',border:'1px solid '+(soundOnState?'var(--neon-dim)':'var(--border)'),borderRadius:6,cursor:'pointer',fontFamily:'Bangers,cursive',padding:'4px 8px',width:'100%',justifyContent:'center'}}>
+              {soundOnState?'🔔 SOM ON':'🔕 SOM OFF'}
+            </button>
             <button onClick={handleLogout} style={{display:'flex',alignItems:'center',gap:8,fontSize:12,color:'var(--muted)',background:'none',border:'none',cursor:'pointer',fontFamily:'Bangers,cursive',width:'100%',padding:0}}>
               <svg width='13' height='13' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><path d='M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4'/><polyline points='16 17 21 12 16 7'/><line x1='21' y1='12' x2='9' y2='12'/></svg>
               SAIR
