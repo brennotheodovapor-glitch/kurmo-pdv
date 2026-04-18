@@ -2,7 +2,6 @@ import{sendWhatsApp,WA_MESSAGES}from '@/lib/whatsapp'
 import{useState,useEffect,useRef,useCallback}from 'react'
 import{Truck,Plus,X,Check,Phone,MapPin,AlertTriangle,ChevronDown,ChevronUp,Search,Loader2,CheckCircle,Minus,ShoppingCart,Bell,BellOff,MessageCircle,Send,ExternalLink,Clock,Package,User,Copy}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
-import{triggerGlobalAlarm}from '@/lib/alarm'
 import toast from 'react-hot-toast'
 
 type Order={id:string;order_number:number;customer_name:string;customer_phone:string;status:string;total:number;subtotal:number;discount:number;delivery_fee:number;created_at:string;notes:string|null;cash_requested?:number;change_amount?:number;payment_method?:string;coupon_code?:string|null}
@@ -23,7 +22,7 @@ const fmtWA=(v:string)=>{const n=v.replace(/\D/g,'').substring(0,11);if(n.length
 const INP={width:'100%',background:'var(--card)',border:'1px solid var(--border)',borderRadius:8,padding:'11px 14px',color:'var(--text)',fontSize:14,outline:'none',boxSizing:'border-box' as const}
 const LBL={fontSize:11,color:'var(--muted)',display:'block' as const,marginBottom:5,fontWeight:600,letterSpacing:'0.06em'}
 
-export default function DeliveryPage(){
+export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefObject<boolean>}={}){
   const[orders,setOrders]=useState<Order[]>([])
   const[products,setProducts]=useState<Product[]>([])
   const[zones,setZones]=useState<Zone[]>([])
@@ -48,6 +47,8 @@ export default function DeliveryPage(){
   const[saving,setSaving]=useState(false)
   // Sound alarm
   const[soundOn,setSoundOn]=useState(true)
+  // Sync local soundOn state with App-level ref
+  useEffect(()=>{if(soundOnRef)soundOnRef.current=soundOn},[soundOn,soundOnRef])
   const[pendingCount,setPendingCount]=useState(0)
   const audioRef=useRef<AudioContext|null>(null)
   // Chat
@@ -59,9 +60,7 @@ export default function DeliveryPage(){
 
   useEffect(()=>{loadData();const i=setInterval(loadData,15000);return()=>clearInterval(i)},[])
 
-  function playAlarm(){
-    triggerGlobalAlarm() // plays here + broadcasts to ALL other open tabs
-  }
+  function playAlarm(){} // alarm is now handled globally in App.tsx
 
   async function loadData(){
     const[o,p,z]=await Promise.all([
@@ -74,7 +73,7 @@ export default function DeliveryPage(){
     setLoading(false)
     const pending=newOrders.filter(x=>x.status==='pending').length
     setPendingCount(pending)
-    if(soundOn&&pending>prevPendingRef.current&&prevPendingRef.current>=0)playAlarm()
+    // alarm now handled by App.tsx global polling
     prevPendingRef.current=pending
   }
 
