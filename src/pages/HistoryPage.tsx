@@ -1,18 +1,16 @@
 import{useState,useEffect}from 'react'
-import{History,Search,ChevronDown,ChevronUp,Calendar,Edit2,AlertTriangle,Check,X}from 'lucide-react'
+import{History,Search,ChevronDown,ChevronUp,Calendar,Edit2,AlertTriangle,Check,X,CreditCard,MapPin,Phone}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import{useCashRegister}from '@/hooks/useCashRegister'
 import toast from 'react-hot-toast'
-
-type Order={id:string;order_number:number;customer_name:string;status:string;total:number;type:string;payment_method:string|null;seller_id:string|null;created_at:string;cancel_reason:string|null;subtotal:number;discount:number}
+type Order={id:string;order_number:number;customer_name:string;customer_phone:string|null;status:string;total:number;subtotal:number;discount:number;delivery_fee:number;type:string;payment_method:string|null;coupon_code:string|null;seller_id:string|null;created_at:string;cancel_reason:string|null;notes:string|null}
 type Payment={id?:string;method:string;amount:number}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
-const SC:Record<string,string>={pending:'#ffaa00',accepted:'#06b6d4',completed:'#00ff41',cancelled:'#ff3333',delivered:'#10b981'}
+const SC:Record<string,string>={pending:'#ffaa00',accepted:'#06b6d4',preparing:'#7c3aed',ready:'#00ff41',delivering:'#f59e0b',delivered:'#10b981',completed:'#00ff41',cancelled:'#ff3333'}
 const SL:Record<string,string>={pending:'Pendente',accepted:'Aceito',preparing:'Preparando',ready:'Pronto',delivering:'A caminho',delivered:'Entregue',completed:'Concluido',cancelled:'Cancelado'}
-const PL:Record<string,string>={pix:'PIX',dinheiro:'Dinheiro',debito:'Debito',credito:'Credito'}
+const PL:Record<string,string>={pix:'💚 PIX',dinheiro:'💵 Dinheiro',debito:'💳 Débito',credito:'💳 Crédito'}
 const METHODS=[{key:'pix',label:'PIX'},{key:'dinheiro',label:'Dinheiro'},{key:'debito',label:'Debito'},{key:'credito',label:'Credito'}]
 const today=()=>new Date().toISOString().split('T')[0]
-
 export default function HistoryPage({sellerId}:{sellerId?:string|null}){
   const cash=useCashRegister()
   const[orders,setOrders]=useState<Order[]>([])
@@ -25,25 +23,20 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
   const[dateTo,setDateTo]=useState(today())
   const[statusF,setStatusF]=useState('all')
   const[typeF,setTypeF]=useState('all')
-  // Cancel modal
   const[cancelModal,setCancelModal]=useState<Order|null>(null)
   const[cancelReason,setCancelReason]=useState('')
-  // Edit payment modal
   const[editModal,setEditModal]=useState<Order|null>(null)
   const[editPays,setEditPays]=useState<Payment[]>([])
   const[saving,setSaving]=useState(false)
-
   useEffect(()=>{loadOrders()},[dateFrom,dateTo])
-
   async function loadOrders(){
     setLoading(true)
-    let q:any=supabase.from('orders').select('*,sellers(name),order_payments(method,amount)').gte('created_at',dateFrom+'T00:00:00').lte('created_at',dateTo+'T23:59:59').order('created_at',{ascending:false})
+    let q:any=supabase.from('orders').select('*').gte('created_at',dateFrom+'T00:00:00').lte('created_at',dateTo+'T23:59:59').order('created_at',{ascending:false})
     if(sellerId)q=q.eq('seller_id',sellerId)
     const{data}=await q
     setOrders(data||[])
     setLoading(false)
   }
-
   async function expandOrder(id:string){
     if(expanded===id){setExpanded(null);return}
     setExpanded(id)
@@ -56,52 +49,41 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
       setPaymentsCache(c=>({...c,[id]:pays.data||[]}))
     }
   }
-
   async function cancelOrder(){
     if(!cancelModal||!cancelReason.trim()){toast.error('Informe o motivo');return}
-    // First get order items to restore stock
     const{data:items}=await supabase.from('order_items').select('product_id,quantity').eq('order_id',cancelModal.id)
-    // Cancel the order
     const{error}=await supabase.from('orders').update({status:'cancelled',cancel_reason:cancelReason,cancelled_at:new Date().toISOString()}).eq('id',cancelModal.id)
     if(error){toast.error(error.message);return}
-    // Restore stock for each item
     if(items&&items.length>0){
       for(const item of items){
         if(!item.product_id)continue
-        // Get current stock first
         const{data:prod}=await supabase.from('products').select('stock').eq('id',item.product_id).single()
-        if(prod){
-          await supabase.from('products').update({stock:(prod.stock||0)+item.quantity}).eq('id',item.product_id)
-        }
+        if(prod)await supabase.from('products').update({stock:(prod.stock||0)+item.quantity}).eq('id',item.product_id)
       }
     }
     toast.success('Venda #'+cancelModal.order_number+' cancelada — estoque restaurado!')
     setCancelModal(null);setCancelReason('');loadOrders()
   }
-
   function openEdit(o:Order){
     setEditModal(o)
     const pays=paymentsCache[o.id]||[]
-    setEditPays(pays.length>0?pays:[{method:'pix',amount:o.total}])
+    setEditPays(pays.length>0?pays:[{method:o.payment_method||'pix',amount:o.total}])
   }
-
   async function saveEditPays(){
     if(!editModal)return
-    const total=editPays.reduce((s,p)=>s+p.amount,0)
     setSaving(true)
     try{
-      // Delete old payments and insert new
       await supabase.from('order_payments').delete().eq('order_id',editModal.id)
-      if(editPays.filter(p=>p.amount>0).length>0){
-        await supabase.from('order_payments').insert(editPays.filter(p=>p.amount>0).map(p=>({order_id:editModal!.id,method:p.method,amount:p.amount})))
-      }
+      const valid=editPays.filter(p=>p.amount>0)
+      if(valid.length>0)await supabase.from('order_payments').insert(valid.map(p=>({order_id:editModal!.id,method:p.method,amount:p.amount})))
+      // Update main payment_method too
+      if(valid.length===1)await supabase.from('orders').update({payment_method:valid[0].method}).eq('id',editModal.id)
       toast.success('Pagamento atualizado!')
-      setPaymentsCache(c=>({...c,[editModal.id]:editPays.filter(p=>p.amount>0)}))
+      setPaymentsCache(c=>({...c,[editModal.id]:valid}))
       setEditModal(null)
     }catch(e:any){toast.error(e.message)}
     finally{setSaving(false)}
   }
-
   function setPreset(p:string){
     const d=new Date()
     if(p==='today'){setDateFrom(today());setDateTo(today())}
@@ -109,21 +91,17 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
     else if(p==='week'){const w=new Date(d);w.setDate(d.getDate()-7);setDateFrom(w.toISOString().split('T')[0]);setDateTo(today())}
     else if(p==='month'){setDateFrom(new Date(d.getFullYear(),d.getMonth(),1).toISOString().split('T')[0]);setDateTo(today())}
   }
-
   const filtered=orders.filter(o=>{
     if(statusF!=='all'&&o.status!==statusF)return false
     if(typeF!=='all'&&o.type!==typeF)return false
     if(search&&!(o.customer_name||'').toLowerCase().includes(search.toLowerCase())&&!String(o.order_number).includes(search))return false
     return true
   })
-
   const totalV=filtered.filter(o=>o.status!=='cancelled').reduce((s,o)=>s+Number(o.total),0)
   const qtdV=filtered.filter(o=>o.status!=='cancelled').length
   const qtdC=filtered.filter(o=>o.status==='cancelled').length
-
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
-
       <div style={{padding:'12px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
         <History size={20} color='var(--neon)'/>
         <h1 className='font-bangers neon-text-sm' style={{fontSize:26}}>HISTORICO</h1>
@@ -132,13 +110,11 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar cliente ou #...' style={{paddingLeft:28,fontSize:13}}/>
         </div>
       </div>
-
-      {/* Cash status bar */}
       <div style={{padding:'8px 20px',borderBottom:'1px solid var(--border)',background:cash.isOpen?'rgba(0,255,65,0.03)':'rgba(255,170,0,0.04)',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
         <div style={{display:'flex',alignItems:'center',gap:7}}>
           <div style={{width:8,height:8,borderRadius:'50%',background:cash.isOpen?'var(--neon)':'#ffaa00',flexShrink:0}}/>
           <span style={{fontSize:12,color:cash.isOpen?'var(--neon)':'#ffaa00',fontFamily:'Bangers,cursive',letterSpacing:1}}>
-            {cash.isOpen?'CAIXA ABERTO — '+new Date(cash.current!.opened_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}):'CAIXA FECHADO'}
+            {cash.isOpen?'CAIXA ABERTO':'CAIXA FECHADO'}
           </span>
         </div>
         {cash.isOpen
@@ -146,8 +122,6 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
           :<button onClick={()=>cash.setOpenModal(true)} style={{padding:'5px 14px',borderRadius:8,border:'1px solid #ffaa00',background:'rgba(255,170,0,0.08)',color:'#ffaa00',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:12}}>ABRIR CAIXA</button>
         }
       </div>
-
-      {/* Date filter */}
       <div style={{padding:'8px 20px',borderBottom:'1px solid var(--border)',background:'var(--card)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
         <Calendar size={13} color='var(--muted)'/>
         {[{k:'today',l:'Hoje'},{k:'yesterday',l:'Ontem'},{k:'week',l:'7 dias'},{k:'month',l:'Este mes'}].map(p=>(
@@ -163,22 +137,19 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
               {t==='all'?'Todos':t.toUpperCase()}
             </button>
           ))}
-          {['all','completed','cancelled'].map(s=>(
+          {['all','completed','delivered','cancelled'].map(s=>(
             <button key={s} onClick={()=>setStatusF(s)} style={{padding:'3px 8px',borderRadius:6,border:statusF===s?'1px solid var(--neon)':'1px solid var(--border)',background:statusF===s?'var(--neon-glow)':'transparent',color:statusF===s?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:11,fontFamily:'Bangers,cursive'}}>
-              {s==='all'?'Tudo':s==='completed'?'Concluidas':'Canceladas'}
+              {s==='all'?'Tudo':s==='completed'?'Concluidas':s==='delivered'?'Entregues':'Canceladas'}
             </button>
           ))}
         </div>
       </div>
-
-      {/* Summary */}
       <div style={{padding:'6px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',gap:20,flexWrap:'wrap'}}>
         <div style={{display:'flex',alignItems:'center',gap:5}}><span style={{fontSize:11,color:'var(--muted)'}}>Total:</span><span style={{fontSize:14,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(totalV)}</span></div>
         <div style={{display:'flex',alignItems:'center',gap:5}}><span style={{fontSize:11,color:'var(--muted)'}}>Vendas:</span><span style={{fontSize:14,fontWeight:700,color:'var(--white)'}}>{qtdV}</span></div>
         <div style={{display:'flex',alignItems:'center',gap:5}}><span style={{fontSize:11,color:'var(--muted)'}}>Canceladas:</span><span style={{fontSize:14,fontWeight:700,color:'#ff3333'}}>{qtdC}</span></div>
         <div style={{display:'flex',alignItems:'center',gap:5}}><span style={{fontSize:11,color:'var(--muted)'}}>Ticket medio:</span><span style={{fontSize:14,fontWeight:700,color:'var(--white)',fontFamily:'JetBrains Mono,monospace'}}>{qtdV>0?fmt(totalV/qtdV):'—'}</span></div>
       </div>
-
       <div style={{flex:1,overflowY:'auto',padding:'12px 20px'}}>
         {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:
         filtered.length===0?(
@@ -189,31 +160,47 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
               <span style={{fontFamily:'JetBrains Mono,monospace',fontSize:12,color:'var(--neon)',minWidth:34}}>#{o.order_number}</span>
               <div style={{flex:1,minWidth:0}}>
                 <p style={{fontSize:13,fontWeight:600,color:'var(--white)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.customer_name||'Cliente Avulso'}</p>
-                <div style={{display:'flex',gap:8,marginTop:2,flexWrap:'wrap'}}>
+                <div style={{display:'flex',gap:8,marginTop:2,flexWrap:'wrap',alignItems:'center'}}>
                   <span style={{fontSize:11,color:'var(--muted)'}}>{new Date(o.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
                   <span style={{fontSize:11,color:'var(--muted)',background:'var(--surface)',padding:'1px 6px',borderRadius:4}}>{o.type==='delivery'?'Delivery':'PDV'}</span>
+                  {o.payment_method&&<span style={{fontSize:11,color:'#06b6d4',background:'rgba(6,182,212,0.08)',padding:'1px 6px',borderRadius:4}}>{PL[o.payment_method]||o.payment_method}</span>}
+                  {o.coupon_code&&<span style={{fontSize:10,color:'#f59e0b',background:'rgba(245,158,11,0.08)',padding:'1px 6px',borderRadius:4}}>🏷️ {o.coupon_code}</span>}
                 </div>
               </div>
               <span style={{fontSize:10,fontWeight:700,padding:'2px 8px',borderRadius:20,background:(SC[o.status]||'#888')+'20',color:SC[o.status]||'#888',whiteSpace:'nowrap'}}>{SL[o.status]||o.status}</span>
               <span style={{fontSize:14,fontWeight:700,color:o.status==='cancelled'?'#ff3333':'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(o.total))}</span>
               {expanded===o.id?<ChevronUp size={13} color='var(--muted)'/>:<ChevronDown size={13} color='var(--muted)'/>}
             </div>
-
             {expanded===o.id&&(
-              <div style={{padding:'0 16px 12px',borderTop:'1px solid var(--border)'}}>
-                {o.cancel_reason&&<div style={{padding:'6px 10px',background:'rgba(255,51,51,0.06)',borderRadius:7,margin:'8px 0',fontSize:12,color:'#ff8888'}}><strong>Motivo cancelamento:</strong> {o.cancel_reason}</div>}
-                {/* Items */}
-                <div style={{marginBottom:8,paddingTop:8}}>
-                  {(itemsCache[o.id]||[]).map(i=>(
-                    <div key={i.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'2px 0'}}>
-                      <span style={{color:'var(--text)'}}>{i.quantity}x {i.product_name}</span>
-                      <span style={{color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(i.total_price)}</span>
+              <div style={{padding:'0 16px 14px',borderTop:'1px solid var(--border)'}}>
+                {/* Customer & delivery info */}
+                <div style={{display:'flex',gap:8,flexWrap:'wrap',padding:'8px 0',marginBottom:4}}>
+                  {o.customer_phone&&<span style={{fontSize:11,color:'var(--muted)',display:'flex',alignItems:'center',gap:3}}><Phone size={10}/>{o.customer_phone}</span>}
+                  {o.notes&&<span style={{fontSize:11,color:'var(--muted)',display:'flex',alignItems:'center',gap:3}}><MapPin size={10}/>{o.notes}</span>}
+                </div>
+                {/* Payment details box */}
+                <div style={{padding:'8px 12px',background:'rgba(6,182,212,0.06)',borderRadius:8,border:'1px solid rgba(6,182,212,0.15)',marginBottom:8}}>
+                  <p style={{fontSize:10,color:'var(--muted)',marginBottom:5,fontWeight:600,letterSpacing:0.5}}>PAGAMENTO</p>
+                  <div style={{display:'flex',gap:16,flexWrap:'wrap',alignItems:'center'}}>
+                    <div>
+                      <p style={{fontSize:11,color:'var(--muted)'}}>Forma</p>
+                      <p style={{fontSize:13,fontWeight:700,color:'#06b6d4'}}>{o.payment_method?PL[o.payment_method]||o.payment_method:'—'}</p>
                     </div>
-                  ))}
+                    {Number(o.subtotal)>0&&Number(o.subtotal)!==Number(o.total)&&(
+                      <div><p style={{fontSize:11,color:'var(--muted)'}}>Subtotal</p><p style={{fontSize:13,color:'var(--text)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(o.subtotal))}</p></div>
+                    )}
+                    {Number(o.delivery_fee)>0&&(
+                      <div><p style={{fontSize:11,color:'var(--muted)'}}>Entrega</p><p style={{fontSize:13,color:'#f59e0b',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(o.delivery_fee))}</p></div>
+                    )}
+                    {Number(o.discount)>0&&(
+                      <div><p style={{fontSize:11,color:'var(--muted)'}}>Desconto{o.coupon_code?' ('+o.coupon_code+')':''}</p><p style={{fontSize:13,color:'#00ff41',fontFamily:'JetBrains Mono,monospace'}}>-{fmt(Number(o.discount))}</p></div>
+                    )}
+                    <div><p style={{fontSize:11,color:'var(--muted)'}}>Total</p><p style={{fontSize:15,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(o.total))}</p></div>
+                  </div>
                   {(paymentsCache[o.id]||[]).length>0&&(
-                    <div style={{borderTop:'1px solid var(--border)',paddingTop:6,marginTop:4}}>
+                    <div style={{marginTop:6,paddingTop:6,borderTop:'1px solid rgba(6,182,212,0.15)'}}>
                       {(paymentsCache[o.id]||[]).map((p,i)=>(
-                        <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'2px 0'}}>
+                        <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:11,padding:'1px 0'}}>
                           <span style={{color:'var(--muted)'}}>{PL[p.method]||p.method}</span>
                           <span style={{color:'var(--muted)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(p.amount)}</span>
                         </div>
@@ -221,20 +208,25 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
                     </div>
                   )}
                 </div>
-                {/* Action buttons */}
+                {/* Items */}
+                <div style={{marginBottom:8}}>
+                  {(itemsCache[o.id]||[]).map(i=>(
+                    <div key={i.id} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'2px 0'}}>
+                      <span style={{color:'var(--text)'}}>{i.quantity}x {i.product_name}</span>
+                      <span style={{color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(i.total_price)}</span>
+                    </div>
+                  ))}
+                </div>
+                {o.cancel_reason&&<div style={{padding:'6px 10px',background:'rgba(255,51,51,0.06)',borderRadius:7,marginBottom:8,fontSize:12,color:'#ff8888'}}><strong>Motivo:</strong> {o.cancel_reason}</div>}
+                {/* Action buttons — CANCEL shown for ALL non-cancelled */}
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',paddingTop:4}}>
                   {o.status!=='cancelled'&&(
-                    <button onClick={()=>openEdit(o)} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:8,border:'1px solid var(--neon)',background:'var(--neon-glow)',color:'var(--neon)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive',letterSpacing:0.5}}>
+                    <button onClick={e=>{e.stopPropagation();openEdit(o)}} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:8,border:'1px solid var(--neon)',background:'var(--neon-glow)',color:'var(--neon)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive',letterSpacing:0.5}}>
                       <Edit2 size={12}/>EDITAR PAGAMENTO
                     </button>
                   )}
-                  {!['cancelled','delivered','completed'].includes(o.status)&&(
-                    <button onClick={()=>{setCancelModal(o);setCancelReason('')}} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.08)',color:'#ff3333',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive'}}>
-                      <X size={12}/>CANCELAR VENDA
-                    </button>
-                  )}
-                  {o.status==='completed'&&(
-                    <button onClick={()=>{setCancelModal(o);setCancelReason('')}} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.08)',color:'#ff3333',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive'}}>
+                  {o.status!=='cancelled'&&(
+                    <button onClick={e=>{e.stopPropagation();setCancelModal(o);setCancelReason('')}} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:8,border:'1px solid #ff3333',background:'rgba(255,51,51,0.08)',color:'#ff3333',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive'}}>
                       <X size={12}/>CANCELAR VENDA
                     </button>
                   )}
@@ -244,20 +236,17 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
           </div>
         ))}
       </div>
-
       {/* CANCEL MODAL */}
       {cancelModal&&(
         <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
           <div className='card' style={{width:'100%',maxWidth:440,padding:24,border:'2px solid #ff3333',boxShadow:'0 0 30px rgba(255,51,51,0.2)'}}>
             <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:14}}>
-              <div style={{width:40,height:40,borderRadius:12,background:'rgba(255,51,51,0.1)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><AlertTriangle size={20} color='#ff3333'/></div>
+              <AlertTriangle size={20} color='#ff3333'/>
               <div><h2 className='font-bangers' style={{fontSize:20,color:'#ff3333'}}>CANCELAR VENDA #{cancelModal.order_number}</h2><p style={{fontSize:12,color:'var(--muted)'}}>{cancelModal.customer_name||'Cliente Avulso'} | {fmt(Number(cancelModal.total))}</p></div>
             </div>
-            <div style={{padding:'8px 12px',background:'rgba(255,51,51,0.06)',borderRadius:8,marginBottom:14,fontSize:12,color:'#ff8888'}}>Esta acao nao pode ser desfeita.</div>
-            <div style={{marginBottom:12}}>
-              <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>MOTIVO DO CANCELAMENTO *</label>
-              <textarea value={cancelReason} onChange={e=>setCancelReason(e.target.value)} placeholder='Ex: Erro no pedido, solicitacao do cliente...' rows={3} autoFocus style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text)',borderRadius:8,padding:'9px 12px',fontSize:13,resize:'none',outline:'none',boxSizing:'border-box' as const}}/>
-            </div>
+            <div style={{padding:'8px 12px',background:'rgba(255,51,51,0.06)',borderRadius:8,marginBottom:14,fontSize:12,color:'#ff8888'}}>Esta acao nao pode ser desfeita. O estoque sera restaurado.</div>
+            <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>MOTIVO DO CANCELAMENTO *</label>
+            <textarea value={cancelReason} onChange={e=>setCancelReason(e.target.value)} placeholder='Ex: Erro no pedido...' rows={3} autoFocus style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text)',borderRadius:8,padding:'9px 12px',fontSize:13,resize:'none' as const,outline:'none',boxSizing:'border-box' as const,marginBottom:10}}/>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,marginBottom:14}}>
               {['Erro no pedido','Produto em falta','Solicitacao do cliente','Pedido duplicado'].map(r=>(
                 <button key={r} onClick={()=>setCancelReason(r)} style={{padding:'6px 10px',borderRadius:8,border:cancelReason===r?'1px solid #ff3333':'1px solid var(--border)',background:cancelReason===r?'rgba(255,51,51,0.1)':'transparent',color:cancelReason===r?'#ff3333':'var(--muted)',cursor:'pointer',fontSize:11,textAlign:'left' as const}}>{r}</button>
@@ -270,7 +259,6 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
           </div>
         </div>
       )}
-
       {/* EDIT PAYMENT MODAL */}
       {editModal&&(
         <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
@@ -304,8 +292,6 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
           </div>
         </div>
       )}
-
-      {/* Cash modals */}
       {cash.openModal&&(
         <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:60,padding:16}}>
           <div className='card' style={{width:'100%',maxWidth:380,padding:24,border:'2px solid #ffaa00'}}>
@@ -332,7 +318,7 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
             <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>SALDO FISICO CONTADO (R$)</label>
             <input type='number' min='0' step='0.01' value={cash.closeBal} onChange={e=>cash.setCloseBal(e.target.value)} placeholder='0,00' autoFocus style={{fontSize:16,textAlign:'center',fontFamily:'JetBrains Mono,monospace',marginBottom:10}}/>
             <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>OBSERVACOES</label>
-            <textarea value={cash.closeNotes} onChange={e=>cash.setCloseNotes(e.target.value)} rows={2} style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',color:'var(--text)',fontSize:13,resize:'none',outline:'none',boxSizing:'border-box' as const,marginBottom:14}}/>
+            <textarea value={cash.closeNotes} onChange={e=>cash.setCloseNotes(e.target.value)} rows={2} style={{width:'100%',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,padding:'8px 12px',color:'var(--text)',fontSize:13,resize:'none' as const,outline:'none',boxSizing:'border-box' as const,marginBottom:14}}/>
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>cash.setCloseModal(false)} style={{flex:1,padding:11,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
               <button onClick={()=>cash.closeCash((Number(cash.current!.opening_balance)||0)+totalV)} disabled={cash.saving} style={{flex:2,padding:11,borderRadius:8,border:'none',background:'#ff3333',color:'white',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:15,opacity:cash.saving?0.7:1}}>{cash.saving?'FECHANDO...':'FECHAR CAIXA'}</button>
