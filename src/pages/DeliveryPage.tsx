@@ -2,6 +2,7 @@ import{sendWhatsApp,WA_MESSAGES}from '@/lib/whatsapp'
 import{useState,useEffect,useRef,useCallback}from 'react'
 import{Truck,Plus,X,Check,Phone,MapPin,AlertTriangle,ChevronDown,ChevronUp,Search,Loader2,CheckCircle,Minus,ShoppingCart,Bell,BellOff,MessageCircle,Send,ExternalLink,Clock,Package,User,Copy}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
+import{triggerGlobalAlarm,playAlarmSound}from '@/lib/alarm'
 import toast from 'react-hot-toast'
 
 type Order={id:string;order_number:number;customer_name:string;customer_phone:string;status:string;total:number;subtotal:number;discount:number;delivery_fee:number;created_at:string;notes:string|null;cash_requested?:number;change_amount?:number;payment_method?:string;coupon_code?:string|null}
@@ -59,19 +60,8 @@ export default function DeliveryPage(){
   useEffect(()=>{loadData();const i=setInterval(loadData,15000);return()=>clearInterval(i)},[])
 
   function playAlarm(){
-    try{
-      if(!audioRef.current)audioRef.current=new AudioContext()
-      const ctx=audioRef.current
-      const osc=ctx.createOscillator()
-      const gain=ctx.createGain()
-      osc.connect(gain);gain.connect(ctx.destination)
-      osc.frequency.setValueAtTime(880,ctx.currentTime)
-      osc.frequency.setValueAtTime(660,ctx.currentTime+0.1)
-      osc.frequency.setValueAtTime(880,ctx.currentTime+0.2)
-      gain.gain.setValueAtTime(0.3,ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.5)
-      osc.start(ctx.currentTime);osc.stop(ctx.currentTime+0.5)
-    }catch(e){}
+    playAlarmSound() // plays in this tab
+    triggerGlobalAlarm() // broadcasts to ALL other tabs
   }
 
   async function loadData(){
