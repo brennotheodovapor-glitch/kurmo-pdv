@@ -103,6 +103,10 @@ export default function CustomersPage(){
           // Use actual loaded completed orders count when available, fallback to DB count
           const cos=ordersMap[c.id]||[]
           const realCount=ordersMap.hasOwnProperty(c.id)?cos.length:(c.orders_count||0)
+          // Calculate real total from loaded completed orders only (excludes cancelled)
+          const realTotal=ordersMap.hasOwnProperty(c.id)
+            ?cos.reduce((s,o)=>s+Number(o.total),0)
+            :Number(c.total_spent)||0
           const loy=loyalty(realCount)
           const isExp=expanded===c.id
 
@@ -144,7 +148,7 @@ export default function CustomersPage(){
                 </div>
 
                 <div style={{textAlign:'right',flexShrink:0}}>
-                  <p style={{fontSize:15,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(c.total_spent)||0)}</p>
+                  <p style={{fontSize:15,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(realTotal)}</p>
                   <p style={{fontSize:10,color:'var(--muted)'}}>total gasto</p>
                 </div>
                 {isExp?<ChevronUp size={14} color='var(--muted)'/>:<ChevronDown size={14} color='var(--muted)'/>}
