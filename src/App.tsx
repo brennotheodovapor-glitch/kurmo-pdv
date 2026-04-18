@@ -45,6 +45,17 @@ export default function App(){
     return()=>subscription.unsubscribe()
   },[])
 
+  // Unlock AudioContext on first user interaction (browsers require this)
+  useEffect(()=>{
+    const unlock=()=>{
+      try{new(window.AudioContext||(window as any).webkitAudioContext)().resume()}catch{}
+      document.removeEventListener('click',unlock)
+      document.removeEventListener('touchstart',unlock)
+    }
+    document.addEventListener('click',unlock,{once:true})
+    document.addEventListener('touchstart',unlock,{once:true})
+  },[])
+
   // GLOBAL: listen for alarms from OTHER tabs (BroadcastChannel + localStorage)
   useEffect(()=>{
     if(!session)return
@@ -58,12 +69,12 @@ export default function App(){
   useEffect(()=>{
     if(!session)return
     const check=async()=>{
-      const{data}=await supabase
+      const{data,count:cnt}=await supabase
         .from('orders')
-        .select('id',{count:'exact'})
+        .select('id',{count:'exact',head:false})
         .eq('type','delivery')
         .eq('status','pending')
-      const count=data?.length||0
+      const count=cnt||data?.length||0
       setPendingCount(count)
       if(count>prevPendingRef.current&&prevPendingRef.current>=0){
         if(soundOnRef.current){
