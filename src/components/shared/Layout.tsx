@@ -35,7 +35,7 @@ const MOBILE_NAV:NavItem[]=[
   {to:'/dashboard',icon:LayoutDashboard,label:'Mais'},
 ]
 
-export default function Layout({children,userRole,sellerName}:{children?:React.ReactNode;userRole?:string;sellerName?:string}){
+export default function Layout({children,userRole,sellerName,pendingOrders}:{children?:React.ReactNode;userRole?:string;sellerName?:string;pendingOrders?:number}){
   const location=useLocation()
   const navigate=useNavigate()
   async function handleLogout(){await supabase.auth.signOut();navigate('/login',{replace:true})}
@@ -58,7 +58,18 @@ export default function Layout({children,userRole,sellerName}:{children?:React.R
       borderLeft:isActive?'2px solid var(--neon)':'2px solid transparent',
     })}>
       <item.icon size={15}/>
-      {item.label}
+      <span style={{flex:1}}>{item.label}</span>
+      {item.to==='/delivery'&&(pendingOrders||0)>0&&(
+        <span style={{
+          minWidth:18,height:18,borderRadius:9,
+          background:'#ff3333',color:'#fff',
+          fontSize:10,fontWeight:700,fontFamily:'Inter,sans-serif',
+          display:'inline-flex',alignItems:'center',justifyContent:'center',
+          padding:'0 4px',lineHeight:1,
+          animation:'neon-pulse 1s ease-in-out infinite',
+          boxShadow:'0 0 6px rgba(255,51,51,0.6)'
+        }}>{(pendingOrders||0)>9?'9+':(pendingOrders||0)}</span>
+      )}
     </NavLink>
   )
 
