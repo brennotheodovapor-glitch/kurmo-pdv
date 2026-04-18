@@ -26,9 +26,9 @@ export default function App(){
   const[session,setSession]=useState<any>(null)
   const[profile,setProfile]=useState<any>({role:'admin'})
   const[loading,setLoading]=useState(true)
-  const prevPendingRef=useRef(0)
-  const soundOnRef=useRef(true)
   const[pendingCount,setPendingCount]=useState(0)
+  const prevPendingRef=useRef(-1)
+  const soundEnabledRef=useRef(true)
 
   useEffect(()=>{
     supabase.auth.getSession().then(({data})=>{
@@ -37,91 +37,64 @@ export default function App(){
       if(data.session)loadProfile(data.session.user)
     })
     const{data:{subscription}}=supabase.auth.onAuthStateChange((_e,s)=>{
-      setSession(s)
-      setLoading(false)
+      setSession(s);setLoading(false)
       if(s)loadProfile(s.user)
       else setProfile({role:'admin'})
     })
     return()=>subscription.unsubscribe()
   },[])
 
-  // Unlock AudioContext on first user interaction (browsers require this)
-  useEffect(()=>{
-    const unlock=()=>{
-      try{new(window.AudioContext||(window as any).webkitAudioContext)().resume()}catch{}
-      document.removeEventListener('click',unlock)
-      document.removeEventListener('touchstart',unlock)
-    }
-    document.addEventListener('click',unlock,{once:true})
-    document.addEventListener('touchstart',unlock,{once:true})
-  },[])
-
-  // GLOBAL: listen for alarms from OTHER tabs (BroadcastChannel + localStorage)
+  // Listen for alarm from OTHER tabs
   useEffect(()=>{
     if(!session)return
-    const cleanup=setupAlarmListener(()=>{
-      if(soundOnRef.current)playAlarmSound()
+    return setupAlarmListener(()=>{
+      if(soundEnabledRef.current)playAlarmSound()
     })
-    return cleanup
   },[session])
 
-  // GLOBAL: poll for new pending delivery orders from ANY tab/page
+  // Poll pending delivery orders every 8s from ANY tab
   useEffect(()=>{
     if(!session)return
-    const check=async()=>{
-      const{data,count:cnt}=await supabase
-        .from('orders')
-        .select('id',{count:'exact',head:false})
-        .eq('type','delivery')
-        .eq('status','pending')
-      const count=cnt||data?.length||0
-      setPendingCount(count)
-      if(count>prevPendingRef.current&&prevPendingRef.current>=0){
-        if(soundOnRef.current){
+    const poll=async()=>{
+      try{
+        const{data}=await supabase.from('orders').select('id').eq('type','delivery').eq('status','pending')
+        const count=(data||[]).length
+        setPendingCount(count)
+        if(count>prevPendingRef.current&&prevPendingRef.current>=0&&soundEnabledRef.current){
           playAlarmSound()
           broadcastAlarm()
         }
-      }
-      prevPendingRef.current=count
+        prevPendingRef.current=count
+      }catch{}
     }
-    // Check immediately on mount, then every 8 seconds
-    check()
-    const interval=setInterval(check,8000)
+    poll()
+    const interval=setInterval(poll,8000)
     return()=>clearInterval(interval)
   },[session])
 
   async function loadProfile(user:any){
     const timer=setTimeout(()=>setProfile({role:'admin'}),5000)
     try{
-      const email=user.email
-      if(email){
-        const{data:seller}=await supabase.from('sellers').select('id,name,role,commission_pct,email').eq('email',email).maybeSingle()
-        if(seller){
-          clearTimeout(timer)
-          setProfile({id:user.id,seller_id:seller.id,name:seller.name,role:seller.role||'seller',sellers:seller})
-          return
-        }
-      }
+      const{data:seller}=await supabase.from('sellers').select('id,name,role,commission_pct,email').eq('email',user.email||'').maybeSingle()
+      if(seller){clearTimeout(timer);setProfile({id:user.id,seller_id:seller.id,name:seller.name,role:seller.role||'seller',sellers:seller});return}
       const{data}=await supabase.from('profiles').select('*,sellers(id,name,commission_pct,role,email)').eq('id',user.id).maybeSingle()
       clearTimeout(timer)
-      if(data&&data.sellers){setProfile({...data,role:data.sellers.role||data.role||'admin',seller_id:data.sellers.id})}
-      else if(data){setProfile({...data,role:data.role||'admin'})}
-      else{setProfile({role:'admin',id:user.id})}
+      if(data&&data.sellers)setProfile({...data,role:data.sellers.role||data.role||'admin',seller_id:data.sellers.id})
+      else if(data)setProfile({...data,role:data.role||'admin'})
+      else setProfile({role:'admin',id:user.id})
     }catch{clearTimeout(timer);setProfile({role:'admin'})}
   }
 
   if(window.location.pathname==='/menu'||window.location.pathname.startsWith('/menu/')){
     return<Routes><Route path='/menu' element={<PublicMenuPage/>}/><Route path='/menu/*' element={<PublicMenuPage/>}/></Routes>
   }
-
-  if(loading) return(
+  if(loading)return(
     <div style={{minHeight:'100vh',background:'var(--bg)',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16}}>
       <div style={{fontSize:56,animation:'neon-pulse 1s ease-in-out infinite'}}>⚡</div>
       <p style={{fontFamily:'Bangers,cursive',fontSize:22,color:'var(--neon)',letterSpacing:3}}>KURMO PDV</p>
     </div>
   )
-
-  if(!session) return<LoginPage onLogin={()=>supabase.auth.getSession().then(({data})=>setSession(data.session))}/>
+  if(!session)return<LoginPage onLogin={()=>supabase.auth.getSession().then(({data})=>setSession(data.session))}/>
 
   const isAdmin=profile?.role==='admin'||!profile?.role
   const sellerName=profile?.sellers?.name||profile?.name
@@ -131,10 +104,10 @@ export default function App(){
     <Routes>
       <Route path='/menu' element={<PublicMenuPage/>}/>
       <Route path='/menu/*' element={<PublicMenuPage/>}/>
-      <Route path='/' element={<Layout userRole={profile?.role} sellerName={sellerName} pendingOrders={pendingCount}/>}>
+      <Route path='/' element={<Layout userRole={profile?.role} sellerName={sellerName} pendingOrders={pendingCount} soundEnabledRef={soundEnabledRef}/>}>
         <Route index element={<Navigate to='/pdv' replace/>}/>
         <Route path='pdv' element={<PDVPage sellerId={sellerId} sellerName={sellerName}/>}/>
-        <Route path='delivery' element={<DeliveryPage soundOnRef={soundOnRef}/>}/>
+        <Route path='delivery' element={<DeliveryPage/>}/>
         <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:sellerId}/>}/>
         <Route path='fiado' element={<FiadoPage/>}/>
         {!isAdmin&&<Route path='comissoes' element={<CommissionsPage sellerId={sellerId}/>}/>}
