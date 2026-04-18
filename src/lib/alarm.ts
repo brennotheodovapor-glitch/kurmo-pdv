@@ -3,21 +3,48 @@ const ALARM_KEY='kurmo_alarm'
 export function playAlarmSound(){
   try{
     const ctx=new(window.AudioContext||(window as any).webkitAudioContext)()
-    const vol=ctx.createGain();vol.gain.value=0.7;vol.connect(ctx.destination)
-    const freqs=[1200,900,1200,900,1200,900,1200,900,1400,1000,1400,1000,1400,1000,1600,1000,1600,1000,1600,1000]
-    freqs.forEach((f,i)=>{
+    const master=ctx.createGain();master.gain.value=0.8;master.connect(ctx.destination)
+
+    // Phone ring pattern: RING-RING ... pause ... RING-RING
+    const ringBurst=(startTime:number)=>{
+      // Dual-tone like phone: 440Hz + 480Hz (classic DTMF ring)
+      [440,480,540,600].forEach(freq=>{
+        const o=ctx.createOscillator();const g=ctx.createGain()
+        o.type='sine';o.frequency.value=freq
+        o.connect(g);g.connect(master)
+        // Ring envelope: quick attack, sustained, quick release
+        g.gain.setValueAtTime(0,startTime)
+        g.gain.linearRampToValueAtTime(0.25,startTime+0.05)
+        g.gain.setValueAtTime(0.25,startTime+0.35)
+        g.gain.linearRampToValueAtTime(0,startTime+0.4)
+        o.start(startTime);o.stop(startTime+0.45)
+      })
+    }
+    // Vibrating ring modulation
+    const modRing=(startTime:number,duration:number)=>{
       const o=ctx.createOscillator();const g=ctx.createGain()
-      o.type='square';o.frequency.value=f
-      o.connect(g);g.connect(vol)
-      const t=ctx.currentTime+i*0.09
-      g.gain.setValueAtTime(0.7,t);g.gain.exponentialRampToValueAtTime(0.001,t+0.08)
-      o.start(t);o.stop(t+0.1)
-    })
-  }catch(e){console.warn('alarm sound error:',e)}
+      const lfo=ctx.createOscillator()
+      o.type='square';o.frequency.value=800
+      lfo.frequency.value=25// vibrato
+      lfo.connect(g.gain)
+      o.connect(g);g.connect(master)
+      g.gain.setValueAtTime(0.15,startTime)
+      o.start(startTime);o.stop(startTime+duration)
+      lfo.start(startTime);lfo.stop(startTime+duration)
+    }
+    // RING x2 pattern at t=0
+    ringBurst(0);ringBurst(0.5)
+    modRing(0,1.0)
+    // pause 1s then RING x2 again
+    ringBurst(2.0);ringBurst(2.5)
+    modRing(2.0,1.0)
+    // pause 1s then RING x2 again
+    ringBurst(4.0);ringBurst(4.5)
+    modRing(4.0,1.0)
+  }catch(e){console.warn('alarm:',e)}
 }
 
 export function broadcastAlarm(){
-  // Save timestamp to localStorage — triggers 'storage' event in ALL other tabs
   localStorage.setItem(ALARM_KEY,Date.now().toString())
   setTimeout(()=>localStorage.removeItem(ALARM_KEY),500)
   try{const bc=new BroadcastChannel(ALARM_KEY);bc.postMessage('ring');setTimeout(()=>bc.close(),300)}catch{}
