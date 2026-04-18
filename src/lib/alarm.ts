@@ -4,43 +4,34 @@ export function playAlarmSound(){
   try{
     const ctx=new(window.AudioContext||(window as any).webkitAudioContext)()
     const master=ctx.createGain();master.gain.value=0.8;master.connect(ctx.destination)
-
+    
     // Phone ring pattern: RING-RING ... pause ... RING-RING
-    const ringBurst=(startTime:number)=>{
-      // Dual-tone like phone: 440Hz + 480Hz (classic DTMF ring)
-      [440,480,540,600].forEach(freq=>{
-        const o=ctx.createOscillator();const g=ctx.createGain()
-        o.type='sine';o.frequency.value=freq
-        o.connect(g);g.connect(master)
-        // Ring envelope: quick attack, sustained, quick release
-        g.gain.setValueAtTime(0,startTime)
-        g.gain.linearRampToValueAtTime(0.25,startTime+0.05)
-        g.gain.setValueAtTime(0.25,startTime+0.35)
-        g.gain.linearRampToValueAtTime(0,startTime+0.4)
-        o.start(startTime);o.stop(startTime+0.45)
-      })
-    }
-    // Vibrating ring modulation
-    const modRing=(startTime:number,duration:number)=>{
+    function beep(freq:number,start:number,dur:number,vol=0.8,type:'sine'|'square'='sine'){
       const o=ctx.createOscillator();const g=ctx.createGain()
-      const lfo=ctx.createOscillator()
-      o.type='square';o.frequency.value=800
-      lfo.frequency.value=25// vibrato
-      lfo.connect(g.gain)
+      o.type=type;o.frequency.value=freq
       o.connect(g);g.connect(master)
-      g.gain.setValueAtTime(0.15,startTime)
-      o.start(startTime);o.stop(startTime+duration)
-      lfo.start(startTime);lfo.stop(startTime+duration)
+      g.gain.setValueAtTime(0,start)
+      g.gain.linearRampToValueAtTime(vol,start+0.01)
+      g.gain.setValueAtTime(vol,start+dur-0.02)
+      g.gain.linearRampToValueAtTime(0,start+dur)
+      o.start(start);o.stop(start+dur+0.05)
     }
-    // RING x2 pattern at t=0
-    ringBurst(0);ringBurst(0.5)
-    modRing(0,1.0)
-    // pause 1s then RING x2 again
-    ringBurst(2.0);ringBurst(2.5)
-    modRing(2.0,1.0)
-    // pause 1s then RING x2 again
-    ringBurst(4.0);ringBurst(4.5)
-    modRing(4.0,1.0)
+    
+    // Classic phone ring: alternating tones 480Hz + 620Hz, 2 bursts
+    // Burst 1: 0.0s - 0.5s
+    beep(480, 0.0, 0.4, 0.7)
+    beep(620, 0.0, 0.4, 0.7)
+    // Pause 0.5s - 0.7s
+    // Burst 2: 0.7s - 1.2s  
+    beep(480, 0.7, 0.4, 0.7)
+    beep(620, 0.7, 0.4, 0.7)
+    // Pause 1.2s - 2.0s
+    // Burst 3: 2.0s - 2.5s
+    beep(480, 2.0, 0.4, 0.7)
+    beep(620, 2.0, 0.4, 0.7)
+    // Burst 4: 2.7s - 3.2s
+    beep(480, 2.7, 0.4, 0.7)
+    beep(620, 2.7, 0.4, 0.7)
   }catch(e){console.warn('alarm:',e)}
 }
 
