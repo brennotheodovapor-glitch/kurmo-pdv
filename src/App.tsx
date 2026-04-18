@@ -1,5 +1,5 @@
-import{useState,useEffect}from 'react'
-import{setupAlarmListener,playAlarmSound}from '@/lib/alarm'
+import{useState,useEffect,useRef}from 'react'
+import{setupAlarmListener,playAlarmSound,broadcastAlarm}from '@/lib/alarm'
 import{Routes,Route,Navigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
 import Layout from '@/components/shared/Layout'
@@ -26,6 +26,8 @@ export default function App(){
   const[session,setSession]=useState<any>(null)
   const[profile,setProfile]=useState<any>({role:'admin'})
   const[loading,setLoading]=useState(true)
+  const prevPendingRef=useRef(0)
+  const soundOnRef=useRef(true)
 
   useEffect(()=>{
     supabase.auth.getSession().then(({data})=>{
@@ -42,51 +44,56 @@ export default function App(){
     return()=>subscription.unsubscribe()
   },[])
 
-  // Listen for delivery alarms from OTHER tabs (any page of the PDV)
+  // GLOBAL: listen for alarms from OTHER tabs (BroadcastChannel + localStorage)
   useEffect(()=>{
     if(!session)return
-    const cleanup=setupAlarmListener(()=>playAlarmSound())
+    const cleanup=setupAlarmListener(()=>{
+      if(soundOnRef.current)playAlarmSound()
+    })
     return cleanup
+  },[session])
+
+  // GLOBAL: poll for new pending delivery orders from ANY tab/page
+  useEffect(()=>{
+    if(!session)return
+    const check=async()=>{
+      const{data}=await supabase
+        .from('orders')
+        .select('id',{count:'exact'})
+        .eq('type','delivery')
+        .eq('status','pending')
+      const count=data?.length||0
+      if(count>prevPendingRef.current&&prevPendingRef.current>=0){
+        if(soundOnRef.current){
+          playAlarmSound()   // play in THIS tab
+          broadcastAlarm()   // signal ALL other tabs
+        }
+      }
+      prevPendingRef.current=count
+    }
+    // Check immediately on mount, then every 8 seconds
+    check()
+    const interval=setInterval(check,8000)
+    return()=>clearInterval(interval)
   },[session])
 
   async function loadProfile(user:any){
     const timer=setTimeout(()=>setProfile({role:'admin'}),5000)
     try{
-      // 1. Try to find seller by auth user email
       const email=user.email
       if(email){
-        const{data:seller}=await supabase
-          .from('sellers')
-          .select('id,name,role,commission_pct,email')
-          .eq('email',email)
-          .maybeSingle()
+        const{data:seller}=await supabase.from('sellers').select('id,name,role,commission_pct,email').eq('email',email).maybeSingle()
         if(seller){
           clearTimeout(timer)
-          setProfile({
-            id:user.id,
-            seller_id:seller.id,
-            name:seller.name,
-            role:seller.role||'seller',
-            sellers:seller
-          })
+          setProfile({id:user.id,seller_id:seller.id,name:seller.name,role:seller.role||'seller',sellers:seller})
           return
         }
       }
-      // 2. Try profiles table
-      const{data}=await supabase.from('profiles')
-        .select('*,sellers(id,name,commission_pct,role,email)')
-        .eq('id',user.id)
-        .maybeSingle()
+      const{data}=await supabase.from('profiles').select('*,sellers(id,name,commission_pct,role,email)').eq('id',user.id).maybeSingle()
       clearTimeout(timer)
-      if(data&&data.sellers){
-        const role=data.sellers.role||data.role||'admin'
-        setProfile({...data,role,seller_id:data.sellers.id})
-      }else if(data){
-        setProfile({...data,role:data.role||'admin'})
-      }else{
-        // 3. Fallback: check if this is the admin email
-        setProfile({role:'admin',id:user.id})
-      }
+      if(data&&data.sellers){setProfile({...data,role:data.sellers.role||data.role||'admin',seller_id:data.sellers.id})}
+      else if(data){setProfile({...data,role:data.role||'admin'})}
+      else{setProfile({role:'admin',id:user.id})}
     }catch{clearTimeout(timer);setProfile({role:'admin'})}
   }
 
@@ -114,7 +121,7 @@ export default function App(){
       <Route path='/' element={<Layout userRole={profile?.role} sellerName={sellerName}/>}>
         <Route index element={<Navigate to='/pdv' replace/>}/>
         <Route path='pdv' element={<PDVPage sellerId={sellerId} sellerName={sellerName}/>}/>
-        <Route path='delivery' element={<DeliveryPage/>}/>
+        <Route path='delivery' element={<DeliveryPage soundOnRef={soundOnRef}/>}/>
         <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:sellerId}/>}/>
         <Route path='fiado' element={<FiadoPage/>}/>
         {!isAdmin&&<Route path='comissoes' element={<CommissionsPage sellerId={sellerId}/>}/>}
