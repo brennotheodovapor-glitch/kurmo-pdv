@@ -1,5 +1,5 @@
 import{useState,useEffect}from 'react'
-import{useGlobalAlarm}from '@/lib/alarm'
+import{setupAlarmListener,playAlarmSound}from '@/lib/alarm'
 import{Routes,Route,Navigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
 import Layout from '@/components/shared/Layout'
@@ -42,10 +42,10 @@ export default function App(){
     return()=>subscription.unsubscribe()
   },[])
 
-  // Listen for alarms in ANY tab (even when not on Delivery page)
+  // Listen for delivery alarms from OTHER tabs (any page of the PDV)
   useEffect(()=>{
     if(!session)return
-    const cleanup=useGlobalAlarm(true)
+    const cleanup=setupAlarmListener(()=>playAlarmSound())
     return cleanup
   },[session])
 
