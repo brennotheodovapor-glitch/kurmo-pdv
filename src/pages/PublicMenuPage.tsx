@@ -122,9 +122,21 @@ export default function PublicMenuPage(){
   function addToCart(p:Product,size?:string){
     if(p.has_sizes&&!size){toast.error('Selecione um tamanho');return}
     const cartKey=p.id+(size?'_'+size:'')
-    setCart(c=>{const ex=c.find(i=>i.id===cartKey);if(ex)return c.map(i=>i.id===cartKey?{...i,qty:i.qty+1}:i);return[...c,{...p,id:cartKey,name:p.name+(size?' - '+size:''),qty:1}]})
+    setCart(c=>{
+      const ex=c.find(i=>i.id===cartKey)
+      const currentQty=ex?.qty||0
+      // Limit by product stock
+      if(currentQty>=p.stock){toast.error('Estoque máximo: '+p.stock+' unidades');return c}
+      if(ex)return c.map(i=>i.id===cartKey?{...i,qty:i.qty+1}:i)
+      return[...c,{...p,id:cartKey,name:p.name+(size?' - '+size:''),qty:1}]
+    })
   }
-  const updQty=(id:string,d:number)=>setCart(c=>c.map(i=>i.id===id?{...i,qty:Math.max(0,i.qty+d)}:i).filter(i=>i.qty>0))
+  const updQty=(id:string,delta:number)=>setCart(c=>c.map(i=>{
+    if(i.id!==id)return i
+    const newQty=Math.max(0,Math.min(i.qty+delta,i.stock))
+    if(delta>0&&newQty===i.qty)toast.error('Estoque máximo: '+i.stock+' unidades')
+    return{...i,qty:newQty}
+  }).filter(i=>i.qty>0))
   const subtotal=cart.reduce((s,i)=>s+(i.is_promo&&i.promo_price?i.promo_price:i.price)*i.qty,0)
   const fee=orderType==='delivery'?(matchedZone?.fee||0):0
   const couponDiscount=couponData?(couponData.discount_type==='percent'?subtotal*(couponData.discount_value/100):Math.min(couponData.discount_value,subtotal)):0
