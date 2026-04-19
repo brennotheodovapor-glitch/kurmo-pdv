@@ -1,3 +1,4 @@
+import CombosPage from '@/pages/CombosPage'
 import SchedulePage from '@/pages/SchedulePage'
 import AuditLogPage from '@/pages/AuditLogPage'
 import{useState,useEffect,useRef}from 'react'
@@ -127,6 +128,7 @@ export default function App(){
         {isAdmin&&<Route path='configuracoes' element={<SettingsPage/>}/>}
         {isAdmin&&<Route path='agenda' element={<SchedulePage/>}/>}
         {isAdmin&&<Route path='auditoria' element={<AuditLogPage/>}/>}
+        {isAdmin&&<Route path='combos' element={<CombosPage/>}/>}
         <Route path='*' element={<Navigate to='/pdv' replace/>}/>
       </Route>
     </Routes>
