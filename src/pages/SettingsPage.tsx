@@ -211,9 +211,10 @@ export default function SettingsPage(){
       {/* WhatsApp Railway */}
       <div className='card' style={{padding:'16px',marginBottom:12}}>
         <p style={{fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1,marginBottom:12}}>🤖 WHATSAPP AUTOMÁTICO (RAILWAY)</p>
-        <p style={{fontSize:11,color:'var(--muted)',marginBottom:10}}>Cole a URL da sua API no Railway para enviar mensagens automáticas de status do pedido.</p>
-        <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4}}>URL DA API (ex: https://seu-app.railway.app)</label>
-        <input value={(settings as any).whatsapp_api_url||''} onChange={e=>setSettings((s:any)=>({...s,whatsapp_api_url:e.target.value}))} placeholder='https://seu-app.up.railway.app' style={{width:'100%',fontSize:13}}/>
+        <p style={{fontSize:11,color:'var(--muted)',marginBottom:10}}>Cole a URL da sua API no Railway. O sistema enviará mensagens automáticas ao cliente quando o status do pedido mudar.</p>
+        <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4}}>URL DA API RAILWAY</label>
+        <input value={(settings as any).whatsapp_api_url||''} onChange={e=>setSettings((s:any)=>({...s,whatsapp_api_url:e.target.value}))} placeholder='https://seu-app.up.railway.app' style={{width:'100%',fontSize:13,marginBottom:8}}/>
+        <p style={{fontSize:10,color:'var(--muted)'}}>Sem Railway? Abrimos o WhatsApp Web como fallback.</p>
       </div>
     </div>
   )
