@@ -1,5 +1,6 @@
+import{printReceipt}from '@/lib/receipt'
 import{useState,useEffect}from 'react'
-import{History,Search,ChevronDown,ChevronUp,Calendar,Edit2,AlertTriangle,Check,X,CreditCard,MapPin,Phone}from 'lucide-react'
+import{History,Search,ChevronDown,ChevronUp,Calendar,Edit2,AlertTriangle,Check,X,CreditCard,MapPin,Phone,Printer}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import{useCashRegister}from '@/hooks/useCashRegister'
 import toast from 'react-hot-toast'
@@ -48,6 +49,26 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
       setItemsCache(c=>({...c,[id]:items.data||[]}))
       setPaymentsCache(c=>({...c,[id]:pays.data||[]}))
     }
+  }
+  async function handlePrint(o:Order){
+    const items=itemsCache[o.id]||[]
+    const pays=paymentsCache[o.id]||[]
+    printReceipt({
+      order_number:o.order_number,
+      customer_name:o.customer_name||'Cliente Avulso',
+      customer_phone:o.customer_phone,
+      type:o.type,status:o.status,
+      payment_method:o.payment_method,
+      subtotal:Number(o.subtotal)||Number(o.total),
+      delivery_fee:Number(o.delivery_fee)||0,
+      discount:Number(o.discount)||0,
+      total:Number(o.total),
+      coupon_code:o.coupon_code,
+      notes:o.notes,
+      created_at:o.created_at,
+      items:items.map((i:any)=>({product_name:i.product_name,quantity:i.quantity,unit_price:i.unit_price,total_price:i.total_price,discount:i.discount||0})),
+      payments:pays
+    })
   }
   async function cancelOrder(){
     if(!cancelModal||!cancelReason.trim()){toast.error('Informe o motivo');return}
@@ -220,6 +241,9 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
                 {o.cancel_reason&&<div style={{padding:'6px 10px',background:'rgba(255,51,51,0.06)',borderRadius:7,marginBottom:8,fontSize:12,color:'#ff8888'}}><strong>Motivo:</strong> {o.cancel_reason}</div>}
                 {/* Action buttons — CANCEL shown for ALL non-cancelled */}
                 <div style={{display:'flex',gap:8,flexWrap:'wrap',paddingTop:4}}>
+                  <button onClick={e=>{e.stopPropagation();handlePrint(o)}} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:8,border:'1px solid var(--muted)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive'}}>
+                      <Printer size={12}/>IMPRIMIR
+                    </button>
                   {o.status!=='cancelled'&&(
                     <button onClick={e=>{e.stopPropagation();openEdit(o)}} style={{display:'flex',alignItems:'center',gap:5,padding:'7px 14px',borderRadius:8,border:'1px solid var(--neon)',background:'var(--neon-glow)',color:'var(--neon)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive',letterSpacing:0.5}}>
                       <Edit2 size={12}/>EDITAR PAGAMENTO
