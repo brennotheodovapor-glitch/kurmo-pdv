@@ -1,6 +1,6 @@
 import{NavLink,useLocation,Outlet,useNavigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
-import{ShoppingCart,Truck,History,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard,CreditCard}from 'lucide-react'
+import{ShoppingCart,Truck,History,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard,CreditCard,Clock,FileText,Bell}from 'lucide-react'
 import{useState,useEffect}from 'react'
 
 type NavItem={to:string;icon:any;label:string;adminOnly?:boolean}
@@ -25,6 +25,8 @@ const CONFIG_NAV:NavItem[]=[
   {to:'/clientes',icon:Users,label:'Clientes'},
   {to:'/cupons',icon:Tag,label:'Cupons',adminOnly:true},
   {to:'/configuracoes',icon:Settings,label:'Configuracoes',adminOnly:true},
+  {to:'/agenda',icon:Clock,label:'Agenda',adminOnly:true},
+  {to:'/auditoria',icon:FileText,label:'Auditoria',adminOnly:true},
 ]
 
 const MOBILE_NAV:NavItem[]=[
