@@ -1,50 +1,44 @@
-// WhatsApp via Evolution API (Railway)
-// Variaveis no Vercel:
-//   VITE_EVO_URL      -> URL publica do Railway (ex: https://xyz.up.railway.app)
-//   VITE_EVO_KEY      -> API Key definida na Evolution API
-//   VITE_EVO_INSTANCE -> Nome da instancia (ex: uzt027)
+import{supabase}from './supabase'
+const fmt=(n:string)=>n.replace(/\D/g,'').replace(/^0/,'').replace(/^55/,'55')
 
-const EVO_URL=()=>import.meta.env.VITE_EVO_URL||''
-const EVO_KEY=()=>import.meta.env.VITE_EVO_KEY||''
-const EVO_INST=()=>import.meta.env.VITE_EVO_INSTANCE||'uzt027'
-
-function fmtPhone(phone:string):string{
-  let n=phone.replace(/\D/g,'')
-  if(n.startsWith('0'))n=n.slice(1)
-  if(!n.startsWith('55'))n='55'+n
-  return n+'@s.whatsapp.net'
+export const WA_MESSAGES:Record<string,Function>={
+  accepted:(name:string,num:number)=>`✅ Olá ${name}! Seu pedido #${num} foi ACEITO! Estamos preparando tudo com carinho. 🛵`,
+  preparing:(name:string,num:number)=>`👨‍🍳 Pedido #${num} sendo preparado agora! Em breve sairá para entrega.`,
+  ready:(name:string,num:number)=>`📦 Pedido #${num} PRONTO! Aguardando o entregador.`,
+  delivering:(name:string,num:number)=>`🛵 Seu pedido #${num} saiu para entrega! Fique de olho.`,
+  delivered:(name:string,num:number)=>`🎉 Pedido #${num} entregue! Obrigado pela preferência. Volte sempre! ⭐`,
+  cancelled:(name:string,num:number)=>`❌ Pedido #${num} cancelado. Sentimos muito. Entre em contato para mais informações.`,
 }
 
-export function isConfigured():boolean{
-  return!!(EVO_URL()&&EVO_KEY())
+// Send WhatsApp via Railway API (URL stored in store_settings.whatsapp_api_url)
+let _cachedApiUrl:string|null=null
+async function getApiUrl():Promise<string|null>{
+  if(_cachedApiUrl!==null)return _cachedApiUrl||null
+  try{
+    const{data}=await supabase.from('store_settings').select('whatsapp_api_url').limit(1).maybeSingle()
+    _cachedApiUrl=(data as any)?.whatsapp_api_url||''
+    return _cachedApiUrl||null
+  }catch{return null}
 }
 
 export async function sendWhatsApp(phone:string,message:string):Promise<boolean>{
-  const url=EVO_URL();const key=EVO_KEY();const inst=EVO_INST()
-  if(!url||!key){
-    console.warn('[WhatsApp] Nao configurado — adicione VITE_EVO_URL e VITE_EVO_KEY no Vercel')
-    return false
-  }
   try{
-    const res=await fetch(url+'/message/sendText/'+inst,{
+    const apiUrl=await getApiUrl()
+    if(!apiUrl){
+      // Fallback: open WhatsApp Web
+      const num=fmt(phone)
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(message)}`,'_blank')
+      return true
+    }
+    // Call Railway API
+    const r=await fetch(apiUrl+'/send',{
       method:'POST',
-      headers:{'Content-Type':'application/json','apikey':key},
-      body:JSON.stringify({number:fmtPhone(phone),textMessage:{text:message}})
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({phone:fmt(phone),message})
     })
-    if(res.ok){console.log('[WhatsApp] Enviado OK');return true}
-    const err=await res.json()
-    console.error('[WhatsApp] Erro:',err)
-    return false
+    return r.ok
   }catch(e){
-    console.error('[WhatsApp] Excecao:',e)
+    console.error('WhatsApp error:',e)
     return false
   }
-}
-
-export const WA_MESSAGES:Record<string,(name:string,num:number)=>string>={
-  accepted:  (name,num)=>`Oi ${name}! Seu pedido *#${num}* foi *ACEITO* e esta sendo preparado. Logo mais chega! UZT 027 `,
-  preparing: (_,num)  =>`*Pedido #${num}* esta sendo *PREPARADO* agora. Aguarde! UZT 027 `,
-  delivering:(_,num)  =>`*Pedido #${num}* SAIU PARA ENTREGA! O entregador esta a caminho. UZT 027 `,
-  delivered: (name,num)=>`${name}, seu *Pedido #${num}* foi *ENTREGUE*! Obrigado pela preferencia! UZT 027 `,
-  cancelled: (_,num)  =>`*Pedido #${num}* foi *CANCELADO*. Em caso de duvidas, fale conosco. UZT 027 `,
 }
