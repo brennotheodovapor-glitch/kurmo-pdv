@@ -208,6 +208,12 @@ export default function SettingsPage(){
           </div>
           <p style={{fontSize:11,color:'var(--muted)',marginTop:8}}>Vercel {'>'} seu projeto {'>'} Settings {'>'} Environment Variables {'>'} Redeploy</p>
         </div>
+      {/* WhatsApp Railway */}
+      <div className='card' style={{padding:'16px',marginBottom:12}}>
+        <p style={{fontSize:11,color:'var(--muted)',fontWeight:600,letterSpacing:1,marginBottom:12}}>🤖 WHATSAPP AUTOMÁTICO (RAILWAY)</p>
+        <p style={{fontSize:11,color:'var(--muted)',marginBottom:10}}>Cole a URL da sua API no Railway para enviar mensagens automáticas de status do pedido.</p>
+        <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4}}>URL DA API (ex: https://seu-app.railway.app)</label>
+        <input value={(settings as any).whatsapp_api_url||''} onChange={e=>setSettings((s:any)=>({...s,whatsapp_api_url:e.target.value}))} placeholder='https://seu-app.up.railway.app' style={{width:'100%',fontSize:13}}/>
       </div>
     </div>
   )
