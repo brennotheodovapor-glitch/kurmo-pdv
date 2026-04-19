@@ -104,7 +104,7 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
       if(couponData)await supabase.from('coupons').update({used_count:(couponData.used_count||0)+1}).eq('id',couponData.id)
       setLastOrder({...order,items:cart.map(i=>({...i,qty:i.qty,product_name:i.name,total_price:i.price*i.qty}))})
       // Audit log
-  try{await supabase.from('audit_log').insert({table_name:'orders',record_id:order.id,action:'INSERT',new_data:{order_number:order.order_number,total:order.total,type:'pdv',customer:order.customer_name},user_name:sellerName||'Admin'})}catch{}
+  try{await supabase.from('audit_log').insert({table_name:'orders',record_id:order.id,action:'INSERT',new_data:{order_number:order.order_number,total:order.total,type:'pdv',customer:order.customer_name},user_name:'Admin'})}catch{}
   toast.success('Venda #'+order.order_number+' finalizada! '+fmt(total))
       if(change>0.01)toast('Troco: '+fmt(change),{duration:4000})
       setCart([]);setDiscount(0);setCustomerName('');setPayments([{method:'pix',amount:0}]);setCouponData(null);setCouponCode('')
