@@ -1,3 +1,5 @@
+import SchedulePage from '@/pages/SchedulePage'
+import AuditLogPage from '@/pages/AuditLogPage'
 import{useState,useEffect,useRef}from 'react'
 import{setupAlarmListener,playAlarmSound,broadcastAlarm}from '@/lib/alarm'
 import{Routes,Route,Navigate}from 'react-router-dom'
@@ -123,6 +125,8 @@ export default function App(){
         {isAdmin&&<Route path='vendedores' element={<SellersPage/>}/>}
         {isAdmin&&<Route path='cupons' element={<CouponsPage/>}/>}
         {isAdmin&&<Route path='configuracoes' element={<SettingsPage/>}/>}
+        {isAdmin&&<Route path='agenda' element={<SchedulePage/>}/>}
+        {isAdmin&&<Route path='auditoria' element={<AuditLogPage/>}/>}
         <Route path='*' element={<Navigate to='/pdv' replace/>}/>
       </Route>
     </Routes>
