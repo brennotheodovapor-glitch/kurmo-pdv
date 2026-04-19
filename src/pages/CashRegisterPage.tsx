@@ -15,6 +15,7 @@ export default function CashRegisterPage(){
   const cash=useCashRegister()
   const[regs,setRegs]=useState<CR[]>([])
   const[loading,setLoading]=useState(true)
+  const[payBreakdown,setPayBreakdown]=useState<Record<string,number>>({})
   const[salesMap,setSalesMap]=useState<Record<string,SalesData>>({})
   const[expanded,setExpanded]=useState<string|null>(null)
   const[dateFrom,setDateFrom]=useState(monthStr())
