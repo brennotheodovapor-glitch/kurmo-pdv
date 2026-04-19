@@ -35,6 +35,8 @@ export default function PublicMenuPage(){
   const[zones,setZones]=useState<Zone[]>([])
   const[settings,setSettings]=useState<Settings>({store_name:'UZT 027',store_description:'Vapes & Roupas'})
   const[loading,setLoading]=useState(true)
+  const[storeOpen,setStoreOpen]=useState<boolean|null>(null)
+  const[storeHours,setStoreHours]=useState<string>('')
   const[variants,setVariants]=useState<Record<string,Variant[]>>({})
   const[selectedSizes,setSelectedSizes]=useState<Record<string,string>>({})
   const[selCat,setSelCat]=useState<string|null>(null)
@@ -71,17 +73,27 @@ export default function PublicMenuPage(){
 
   async function load(){
     setLoading(true)
-    const[p,c,z,s,v]=await Promise.all([
+    const[p,cat,z,s,v,sched]=await Promise.all([
       supabase.from('products').select('*').eq('active',true).gt('stock',0).order('sort_order').order('name'),
       supabase.from('categories').select('*').order('name'),
       supabase.from('delivery_zones').select('*').eq('active',true).order('name'),
       supabase.from('store_settings').select('*').limit(1).maybeSingle(),
       supabase.from('product_variants').select('*').eq('active',true),
+      supabase.from('store_schedule').select('*').order('day_of_week'),
     ])
     setProducts(p.data||[])
-    setCategories(c.data||[])
+    setCategories(cat.data||[])
     setZones(z.data||[])
     if(s.data)setSettings(s.data)
+    // Check if store is open now
+    const now=new Date()
+    const todaySched=(sched.data||[]).find((d:any)=>d.day_of_week===now.getDay())
+    if(todaySched){
+      const t=now.toTimeString().substring(0,5)
+      const isOpen=todaySched.is_open&&t>=todaySched.open_time&&t<=todaySched.close_time
+      setStoreOpen(isOpen)
+      if(todaySched.is_open)setStoreHours(todaySched.open_time.substring(0,5)+' às '+todaySched.close_time.substring(0,5))
+    } else {setStoreOpen(true)}
     // Group variants by product
     const varMap:Record<string,Variant[]>={}
     ;(v.data||[]).forEach((vr:any)=>{if(!varMap[vr.product_id])varMap[vr.product_id]=[];varMap[vr.product_id].push(vr)})
@@ -334,7 +346,17 @@ export default function PublicMenuPage(){
           </div>
         </div>
 
-        {/* Promo banner */}
+        {/* Store status banner */}
+      {storeOpen===false&&(
+        <div style={{background:'rgba(255,51,51,0.1)',border:'1px solid rgba(255,51,51,0.3)',borderRadius:12,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
+          <span style={{fontSize:20}}>🔒</span>
+          <div>
+            <p style={{fontSize:14,fontWeight:700,color:'#ff5555'}}>Estamos fechados no momento</p>
+            <p style={{fontSize:12,color:'#888',marginTop:2}}>Horário de atendimento: {storeHours||'Consulte-nos'}</p>
+          </div>
+        </div>
+      )}
+      {/* Promo banner */}
         {settings.promo_title&&(
           <div ref={promoRef} style={{background:'linear-gradient(135deg,rgba(245,158,11,0.15),rgba(245,158,11,0.05))',border:'1px solid rgba(245,158,11,0.3)',borderRadius:12,padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
             <Tag size={16} color='#f59e0b'/>
@@ -418,7 +440,7 @@ export default function PublicMenuPage(){
       {/* Cart FAB */}
       {itemCount>0&&!checkoutOpen&&(
         <div style={{position:'fixed',bottom:16,left:'50%',transform:'translateX(-50%)',width:'calc(min(480px,100vw) - 32px)',zIndex:40}}>
-          <button onClick={()=>setCheckoutOpen(true)} style={{width:'100%',padding:'14px 20px',borderRadius:16,border:'none',background:'#00ff41',color:'#000',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:14,fontWeight:700,boxShadow:'0 4px 24px rgba(0,255,65,0.3)'}}>
+          <button onClick={()=>{if(storeOpen===false){alert('Loja fechada no momento. Tente mais tarde.');return}setCheckoutOpen(true)}} style={{width:'100%',padding:'14px 20px',borderRadius:16,border:'none',background:'#00ff41',color:'#000',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:14,fontWeight:700,boxShadow:'0 4px 24px rgba(0,255,65,0.3)'}}>
             <div style={{display:'flex',alignItems:'center',gap:8}}>
               <span style={{background:'#000',color:'#00ff41',borderRadius:'50%',width:24,height:24,fontSize:12,fontWeight:700,display:'inline-flex',alignItems:'center',justifyContent:'center'}}>{itemCount}</span>
               <span>Ver carrinho</span>
