@@ -53,17 +53,6 @@ export default function CategoriesPage(){
     finally{setUploading(false)}
   }
 
-  async function reorderCategories(from:number,to:number){
-    const newCats=[...categories]
-    const[moved]=newCats.splice(from,1)
-    newCats.splice(to,0,moved)
-    const updated=newCats.map((cat,i)=>({...cat,sort_order:i}))
-    setCategories(updated)
-    for(const cat of updated){
-      await supabase.from('categories').update({sort_order:cat.sort_order}).eq('id',cat.id)
-    }
-    toast.success('Ordem salva!')
-  }
   async function save(){
     if(!form.name.trim()){toast.error('Nome obrigatorio');return}
     const payload={name:form.name,color:form.color,image_url:form.image_url||null,active:form.active,icon:''}
