@@ -1,7 +1,7 @@
 import{printReceipt}from '@/lib/receipt'
 import{useCashRegister}from '@/hooks/useCashRegister'
 import{useState,useEffect,useRef}from 'react'
-import{Plus,Minus,X,Check,Search,ShoppingCart,AlertTriangle,User,Printer,Tag,ChevronRight}, Printer, Percent} , Printer, Percent} from 'lucide-react'
+import{Plus,Minus,X,Check,Search,ShoppingCart,AlertTriangle,User,Printer,Percent,Tag,ChevronRight}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
 
