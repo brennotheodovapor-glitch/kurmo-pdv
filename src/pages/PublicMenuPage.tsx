@@ -1,565 +1,388 @@
-import{useState,useEffect,useRef}from 'react'
-import{ShoppingCart,Plus,Minus,X,MapPin,ChevronDown,Loader2,Tag,Zap,Phone,Store}from 'lucide-react'
+import{useState,useEffect}from 'react'
+import{ShoppingCart,Search,ChevronLeft,X,Plus,Minus,Layers,MapPin,Phone,MessageCircle,Check,AlertCircle}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
-import toast from 'react-hot-toast'
-
+type Category={id:string;name:string;color:string;sort_order:number}
+type Variant={id:string;name:string;stock:number;price_modifier:number}
+type Product={id:string;name:string;description:string;price:number;promo_price:number|null;is_promo:boolean;stock:number;image_url:string;category_id:string;has_sizes:boolean;active:boolean}
+type CartItem={product_id:string;variant_id?:string;name:string;variant_name?:string;price:number;qty:number;stock:number}
+type Settings={store_name:string;store_description:string;promo_title:string;promo_description:string;store_logo_url:string;store_banner_url:string;whatsapp:string;min_order:number}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
-const fmtWA=(v:string)=>{const n=v.replace(/\D/g,'').substring(0,11);if(n.length<=2)return n;if(n.length<=7)return'('+n.slice(0,2)+') '+n.slice(2);return'('+n.slice(0,2)+') '+n.slice(2,7)+'-'+n.slice(7)}
-const fmtCEP=(v:string)=>v.replace(/\D/g,'').replace(/(\d{5})(\d{3})/,'$1-$2')
-
-type Product={id:string;name:string;price:number;promo_price?:number;is_promo?:boolean;stock:number;image_url?:string;description?:string;category_id:string|null;sort_order?:number;has_sizes?:boolean}
-type Variant={id:string;size:string;stock:number;active:boolean}
-type Category={id:string;name:string;color:string}
-type Zone={id:string;name:string;fee:number;min_time:number;max_time:number}
-type CartItem=Product&{qty:number}
-type Settings={store_name:string;store_logo_url?:string;store_banner_url?:string;store_description?:string;whatsapp?:string;min_order?:number;promo_title?:string;promo_description?:string}
-
 export default function PublicMenuPage(){
-  // Fix: reset body overflow so the page can scroll (PDV layout sets overflow:hidden globally)
-  useEffect(()=>{
-    const prev=document.body.style.overflow
-    const prevHtml=document.documentElement.style.overflow
-    document.body.style.overflow='auto'
-    document.body.style.height='auto'
-    document.documentElement.style.overflow='auto'
-    document.documentElement.style.height='auto'
-    return()=>{
-      document.body.style.overflow=prev
-      document.body.style.height=''
-      document.documentElement.style.overflow=prevHtml
-      document.documentElement.style.height=''
-    }
-  },[])
+  const[cats,setCats]=useState<Category[]>([])
   const[products,setProducts]=useState<Product[]>([])
-  const[categories,setCategories]=useState<Category[]>([])
-  const[zones,setZones]=useState<Zone[]>([])
-  const[settings,setSettings]=useState<Settings>({store_name:'UZT 027',store_description:'Vapes & Roupas'})
+  const[variantsMap,setVariantsMap]=useState<Record<string,Variant[]>>({})
+  const[settings,setSettings]=useState<Settings>({store_name:'KURMO PDV',store_description:'',promo_title:'',promo_description:'',store_logo_url:'',store_banner_url:'',whatsapp:'',min_order:0})
   const[loading,setLoading]=useState(true)
-  const[storeOpen,setStoreOpen]=useState<boolean|null>(null)
-  const[storeHours,setStoreHours]=useState<string>('')
-  const[variants,setVariants]=useState<Record<string,Variant[]>>({})
-  const[selectedSizes,setSelectedSizes]=useState<Record<string,string>>({})
-  const[selCat,setSelCat]=useState<string|null>(null)
+  const[search,setSearch]=useState('')
+  const[selectedCat,setSelectedCat]=useState<string|null>(null)
   const[cart,setCart]=useState<CartItem[]>([])
   const[cartOpen,setCartOpen]=useState(false)
+  const[variantModal,setVariantModal]=useState<Product|null>(null)
+  const[selectedVariant,setSelectedVariant]=useState<string|null>(null)
+  const[qty,setQty]=useState(1)
   const[checkoutOpen,setCheckoutOpen]=useState(false)
-  const[name,setName]=useState('')
-  const[phone,setPhone]=useState('')
-  const[cep,setCep]=useState('')
-  const[numero,setNumero]=useState('')
-  const[complemento,setComplemento]=useState('')
-  const[addr,setAddr]=useState('')
-  const[bairro,setBairro]=useState('')
-  const[cidade,setCidade]=useState('')
-  const[matchedZone,setMatchedZone]=useState<Zone|null>(null)
-  const[cepLoading,setCepLoading]=useState(false)
-  const[sending,setSending]=useState(false)
-  const[submittedOrder,setSubmittedOrder]=useState<any>(null)
-  const[orderType,setOrderType]=useState<'delivery'|'retirada'>('delivery')
-  const[paymentMethod,setPaymentMethod]=useState<string>('pix')
-  const[couponCode,setCouponCode]=useState('')
-  const[couponData,setCouponData]=useState<any>(null)
-  const[couponLoading,setCouponLoading]=useState(false)
-  const promoRef=useRef<HTMLDivElement>(null)
-
-  useEffect(()=>{
-    load()
-    // Realtime subscription for products
-    const sub=supabase.channel('products-realtime')
-      .on('postgres_changes',{event:'*',schema:'public',table:'products'},()=>load())
-      .subscribe()
-    return()=>{supabase.removeChannel(sub)}
-  },[])
-
+  const[customer,setCustomer]=useState({name:'',phone:'',address:'',neighborhood:'',complement:'',notes:''})
+  const[payMethod,setPayMethod]=useState('pix')
+  const[needChange,setNeedChange]=useState('')
+  const[submitting,setSubmitting]=useState(false)
+  const[orderDone,setOrderDone]=useState<any>(null)
+  const[storeOpen,setStoreOpen]=useState(true)
+  const[storeHours,setStoreHours]=useState('')
+  useEffect(()=>{load()},[])
   async function load(){
     setLoading(true)
-    const[p,cat,z,s,v,sched]=await Promise.all([
-      supabase.from('products').select('*').eq('active',true).gt('stock',0).order('sort_order').order('name'),
-      supabase.from('categories').select('*').order('name'),
-      supabase.from('delivery_zones').select('*').eq('active',true).order('name'),
+    const[p,c,s,sched,v]=await Promise.all([
+      supabase.from('products').select('*').eq('active',true),
+      supabase.from('categories').select('*').order('sort_order',{ascending:true}).order('name'),
       supabase.from('store_settings').select('*').limit(1).maybeSingle(),
-      supabase.from('product_variants').select('*').eq('active',true),
       supabase.from('store_schedule').select('*').order('day_of_week'),
+      supabase.from('product_variants').select('*').eq('active',true).order('sort_order')
     ])
     setProducts(p.data||[])
-    setCategories(cat.data||[])
-    setZones(z.data||[])
-    if(s.data)setSettings(s.data)
-    // Check if store is open now
+    setCats(c.data||[])
+    if(s.data)setSettings(s.data as any)
+    // Group variants by product
+    const vm:Record<string,Variant[]>={}
+    ;(v.data||[]).forEach((vr:any)=>{
+      if(!vm[vr.product_id])vm[vr.product_id]=[]
+      vm[vr.product_id].push(vr)
+    })
+    setVariantsMap(vm)
+    // Check store schedule
     const now=new Date()
     const todaySched=(sched.data||[]).find((d:any)=>d.day_of_week===now.getDay())
     if(todaySched){
       const t=now.toTimeString().substring(0,5)
-      const isOpen=todaySched.is_open&&t>=todaySched.open_time&&t<=todaySched.close_time
-      setStoreOpen(isOpen)
+      const open=todaySched.is_open&&t>=todaySched.open_time&&t<=todaySched.close_time
+      setStoreOpen(open)
       if(todaySched.is_open)setStoreHours(todaySched.open_time.substring(0,5)+' às '+todaySched.close_time.substring(0,5))
-    } else {setStoreOpen(true)}
-    // Group variants by product
-    const varMap:Record<string,Variant[]>={}
-    ;(v.data||[]).forEach((vr:any)=>{if(!varMap[vr.product_id])varMap[vr.product_id]=[];varMap[vr.product_id].push(vr)})
-    setVariants(varMap)
+    }
     setLoading(false)
   }
-
-  async function handleCEP(raw:string){
-    const clean=raw.replace(/\D/g,'')
-    setCep(clean)
-    if(clean.length!==8)return
-    setCepLoading(true)
-    try{
-      const r=await fetch('https://viacep.com.br/ws/'+clean+'/json/')
-      const d=await r.json()
-      if(d.erro){toast.error('CEP não encontrado');return}
-      setAddr(d.logradouro||'')
-      setBairro(d.bairro||'')
-      setCidade(d.localidade||'')
-      const bairroVia=(d.bairro||'').toLowerCase().trim()
-      // 1. Exact match
-      let z=zones.find(z=>z.name.toLowerCase()===bairroVia)
-      // 2. Zone name fully contained in bairro string
-      if(!z)z=zones.find(z=>bairroVia===z.name.toLowerCase())
-      // 3. bairro contains zone name (full words)
-      if(!z)z=zones.find(z=>bairroVia.includes(z.name.toLowerCase()))
-      // 4. Zone name contains bairro (full words)
-      if(!z)z=zones.find(z=>z.name.toLowerCase().includes(bairroVia))
-      // 5. First significant word match (skip "de","da","do","dos","das")
-      if(!z){const skip=new Set(['de','da','do','dos','das','e','a','o']);const words=bairroVia.split(' ').filter(w=>w.length>2&&!skip.has(w));z=zones.find(z=>words.some(w=>z.name.toLowerCase().includes(w)&&w.length>=4))}
-      setMatchedZone(z||null)
-      if(z)toast.success('Entregamos em '+z.name+'! Frete: '+fmt(z.fee))
-      else toast.error('Fora da área de entrega. Verifique com a loja.')
-    }catch{toast.error('Erro ao buscar CEP')}
-    finally{setCepLoading(false)}
+  const cartTotal=cart.reduce((s,i)=>s+i.price*i.qty,0)
+  const cartCount=cart.reduce((s,i)=>s+i.qty,0)
+  function openProduct(p:Product){
+    const variants=variantsMap[p.id]||[]
+    if(p.has_sizes&&variants.length>0){
+      setVariantModal(p);setSelectedVariant(null);setQty(1)
+    }else{
+      addToCart({product_id:p.id,name:p.name,price:p.is_promo&&p.promo_price?p.promo_price:p.price,qty:1,stock:p.stock})
+    }
   }
-
-  function addToCart(p:Product,size?:string){
-    if(p.has_sizes&&!size){toast.error('Selecione um tamanho');return}
-    const cartKey=p.id+(size?'_'+size:'')
+  function addToCart(item:CartItem){
     setCart(c=>{
-      const ex=c.find(i=>i.id===cartKey)
-      const currentQty=ex?.qty||0
-      // Limit by product stock
-      if(currentQty>=p.stock){toast.error('Estoque máximo: '+p.stock+' unidades');return c}
-      if(ex)return c.map(i=>i.id===cartKey?{...i,qty:i.qty+1}:i)
-      return[...c,{...p,id:cartKey,name:p.name+(size?' - '+size:''),qty:1}]
+      const key=item.product_id+(item.variant_id||'')
+      const existing=c.find(x=>x.product_id===item.product_id&&x.variant_id===item.variant_id)
+      if(existing)return c.map(x=>x.product_id===item.product_id&&x.variant_id===item.variant_id?{...x,qty:x.qty+item.qty}:x)
+      return[...c,item]
     })
+    setVariantModal(null)
   }
-  const updQty=(id:string,delta:number)=>setCart(c=>c.map(i=>{
-    if(i.id!==id)return i
-    const newQty=Math.max(0,Math.min(i.qty+delta,i.stock))
-    if(delta>0&&newQty===i.qty)toast.error('Estoque máximo: '+i.stock+' unidades')
-    return{...i,qty:newQty}
-  }).filter(i=>i.qty>0))
-  const subtotal=cart.reduce((s,i)=>s+(i.is_promo&&i.promo_price?i.promo_price:i.price)*i.qty,0)
-  const fee=orderType==='delivery'?(matchedZone?.fee||0):0
-  const couponDiscount=couponData?(couponData.discount_type==='percent'?subtotal*(couponData.discount_value/100):Math.min(couponData.discount_value,subtotal)):0
-  const total=Math.max(0,subtotal+fee-couponDiscount)
-  const itemCount=cart.reduce((s,i)=>s+i.qty,0)
-  const promoProducts=products.filter(p=>p.is_promo)
-  const filtered=products.filter(p=>!selCat||p.category_id===selCat)
-
-  async function applyCoupon(){
-    if(!couponCode.trim())return
-    setCouponLoading(true)
-    try{
-      const{data}=await supabase.from('coupons').select('*').eq('code',couponCode.toUpperCase().trim()).eq('active',true).maybeSingle()
-      if(!data){toast.error('Cupom inválido ou expirado');setCouponData(null);return}
-      if(data.expires_at&&new Date(data.expires_at)<new Date()){toast.error('Cupom expirado');setCouponData(null);return}
-      if(data.max_uses&&data.used_count>=data.max_uses){toast.error('Cupom esgotado');setCouponData(null);return}
-      if(data.min_order&&subtotal<data.min_order){toast.error('Pedido mínimo para cupom: '+fmt(data.min_order));setCouponData(null);return}
-      setCouponData(data)
-      const disc=data.discount_type==='percent'?subtotal*(data.discount_value/100):Math.min(data.discount_value,subtotal)
-      toast.success('Cupom aplicado! -'+fmt(disc))
-    }catch{toast.error('Erro ao validar cupom')}
-    finally{setCouponLoading(false)}
+  function addVariantToCart(){
+    if(!variantModal||!selectedVariant)return
+    const v=variantsMap[variantModal.id]?.find(x=>x.id===selectedVariant)
+    if(!v)return
+    const price=(variantModal.is_promo&&variantModal.promo_price?variantModal.promo_price:variantModal.price)+(v.price_modifier||0)
+    addToCart({product_id:variantModal.id,variant_id:v.id,name:variantModal.name,variant_name:v.name,price,qty,stock:v.stock})
   }
-
-  async function sendOrder(){
-    if(!name.trim()){toast.error('Informe seu nome');return}
-    if(!phone||phone.replace(/\D/g,'').length<10){toast.error('WhatsApp inválido');return}
-    if(orderType==='delivery'&&(!cep||cep.length<8)){toast.error('CEP inválido');return}
-    if(orderType==='delivery'&&!numero.trim()){toast.error('Informe o número');return}
-    if(cart.length===0){toast.error('Carrinho vazio');return}
-    const minOrder=settings.min_order||0
-    if(minOrder>0&&subtotal<minOrder){toast.error('Pedido mínimo: '+fmt(minOrder));return}
-    setSending(true)
+  function removeFromCart(product_id:string,variant_id?:string){
+    setCart(c=>c.filter(x=>!(x.product_id===product_id&&x.variant_id===variant_id)))
+  }
+  function updateCartQty(product_id:string,variant_id:string|undefined,delta:number){
+    setCart(c=>c.map(x=>x.product_id===product_id&&x.variant_id===variant_id?{...x,qty:Math.max(1,Math.min(x.qty+delta,x.stock))}:x))
+  }
+  async function submitOrder(){
+    if(!customer.name.trim()||!customer.phone.trim()){alert('Informe nome e telefone');return}
+    if(settings.min_order>0&&cartTotal<settings.min_order){alert('Pedido mínimo: '+fmt(settings.min_order));return}
+    setSubmitting(true)
     try{
-      const fullAddr=orderType==='delivery'?(addr+', '+numero+(complemento?' '+complemento:'')+' - '+bairro+' - '+cidade+' CEP:'+cep):'Retirada na loja'
-      const{data:order,error}=await supabase.from('orders').insert({
-        customer_name:name,customer_phone:phone.replace(/\D/g,''),
+      // Get or create customer
+      const phone=customer.phone.replace(/\D/g,'')
+      let customerId:string|null=null
+      const{data:existingCust}=await supabase.from('customers').select('id').eq('phone',phone).maybeSingle()
+      if(existingCust){customerId=existingCust.id}
+      else{
+        const{data:newCust}=await supabase.from('customers').insert({name:customer.name,phone,address:customer.address,neighborhood:customer.neighborhood,complement:customer.complement}).select().single()
+        if(newCust)customerId=newCust.id
+      }
+      // Create order
+      const{data:order,error:oErr}=await supabase.from('orders').insert({
+        customer_name:customer.name,customer_phone:phone,
         type:'delivery',status:'pending',
-        subtotal,discount:couponDiscount,delivery_fee:fee,total,
-        coupon_code:couponData?.code||null,
-        payment_method:paymentMethod,
-        delivery_zone_id:matchedZone?.id||null,
-        notes:fullAddr,
+        total:cartTotal,subtotal:cartTotal,
+        payment_method:payMethod,
+        cash_requested:payMethod==='dinheiro'&&needChange?parseFloat(needChange):null,
+        notes:customer.address+(customer.neighborhood?' — '+customer.neighborhood:'')+(customer.complement?' ('+customer.complement+')':'')+(customer.notes?' | '+customer.notes:''),
+        customer_id:customerId
       }).select().single()
-      if(error)throw error
-      await supabase.from('order_items').insert(cart.map(i=>({
-        order_id:order.id,product_id:i.id,product_name:i.name,
-        quantity:i.qty,
-        unit_price:i.is_promo&&i.promo_price?i.promo_price:i.price,
-        total_price:(i.is_promo&&i.promo_price?i.promo_price:i.price)*i.qty
-      })))
-      // Save customer
-      const phoneClean=phone.replace(/\D/g,'')
-      const{data:existCust}=await supabase.from('customers').select('id,orders_count,total_spent').eq('phone',phoneClean).maybeSingle()
-      const custData={name,phone:phoneClean,address:addr+', '+numero,neighborhood:bairro,zip_code:cep,updated_at:new Date().toISOString()}
-      if(existCust)await supabase.from('customers').update({...custData,orders_count:(existCust.orders_count||0)+1,total_spent:(Number(existCust.total_spent)||0)+total}).eq('id',existCust.id)
-      else await supabase.from('customers').insert({...custData,orders_count:1,total_spent:total})
-      toast.success('Pedido #'+order.order_number+' enviado! Aguarde confirmação.')
-      setCart([]);setCheckoutOpen(false);setCartOpen(false)
-      setName('');setPhone('');setCep('');setNumero('');setComplemento('');setAddr('');setBairro('');setCidade('');setMatchedZone(null)
-    }catch(e:any){toast.error('Erro: '+e.message)}
-    finally{setSending(false)}
+      if(oErr||!order)throw oErr||new Error('Erro ao criar pedido')
+      // Create order items
+      const items=cart.map(i=>({
+        order_id:order.id,product_id:i.product_id,
+        product_name:i.name+(i.variant_name?' — '+i.variant_name:''),
+        quantity:i.qty,unit_price:i.price,total_price:i.price*i.qty,
+        variant_id:i.variant_id||null
+      }))
+      await supabase.from('order_items').insert(items)
+      // Payment
+      await supabase.from('order_payments').insert({order_id:order.id,method:payMethod,amount:cartTotal})
+      // Decrement stock
+      for(const item of cart){
+        if(item.variant_id){
+          const{data:v}=await supabase.from('product_variants').select('stock').eq('id',item.variant_id).single()
+          if(v)await supabase.from('product_variants').update({stock:Math.max(0,v.stock-item.qty)}).eq('id',item.variant_id)
+        }else{
+          const{data:pr}=await supabase.from('products').select('stock').eq('id',item.product_id).single()
+          if(pr)await supabase.from('products').update({stock:Math.max(0,pr.stock-item.qty)}).eq('id',item.product_id)
+        }
+      }
+      setOrderDone(order);setCart([]);setCheckoutOpen(false)
+    }catch(e:any){alert('Erro: '+e.message)}
+    finally{setSubmitting(false)}
   }
-
-  const INP={width:'100%',background:'#1a1a1a',border:'1px solid #333',borderRadius:8,padding:'10px 14px',color:'#fff',fontSize:14,outline:'none',boxSizing:'border-box' as const}
-  const LBL={fontSize:11,color:'#888',display:'block' as const,marginBottom:4,letterSpacing:0.5}
-
-  // Real-time order status tracking
-  useEffect(()=>{
-    if(!submittedOrder)return
-    const sub=supabase.channel('order-status-'+submittedOrder.id)
-      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'orders',filter:'id=eq.'+submittedOrder.id},(payload:any)=>{
-        setSubmittedOrder((prev:any)=>({...prev,...payload.new}))
-      })
-      .subscribe()
-    return()=>{supabase.removeChannel(sub)}
-  },[submittedOrder?.id])
-
-  const STATUS_INFO:Record<string,{label:string;icon:string;color:string;desc:string}>={
-    pending:{label:'Aguardando',icon:'⏳',color:'#ffaa00',desc:'Seu pedido foi enviado e aguarda confirmação da loja'},
-    accepted:{label:'Aceito!',icon:'✅',color:'#00ff41',desc:'Oba! A loja aceitou seu pedido'},
-    preparing:{label:'Preparando',icon:'👨‍🍳',color:'#06b6d4',desc:'A loja está preparando seu pedido'},
-    ready:{label:'Pronto!',icon:'📦',color:'#00ff41',desc:'Seu pedido está pronto'},
-    delivering:{label:'A caminho!',icon:'🛵',color:'#f59e0b',desc:'Seu pedido saiu para entrega'},
-    delivered:{label:'Entregue!',icon:'🎉',color:'#10b981',desc:'Pedido entregue. Obrigado!'},
-    completed:{label:'Concluído!',icon:'🎉',color:'#10b981',desc:'Pedido finalizado. Obrigado!'},
-    cancelled:{label:'Recusado',icon:'❌',color:'#ff3333',desc:'Infelizmente a loja não pôde aceitar seu pedido'},
-  }
-  const FLOW=['pending','accepted','preparing','ready','delivering','delivered']
-
-  if(submittedOrder) return(
-    <div style={{minHeight:'100vh',background:'#0a0a0a',color:'#fff',fontFamily:'Inter,sans-serif',display:'flex',alignItems:'center',justifyContent:'center',padding:16}}>
-      <div style={{width:'100%',maxWidth:480,textAlign:'center'}}>
-        <div style={{fontSize:72,marginBottom:16}}>{STATUS_INFO[submittedOrder.status]?.icon||'⏳'}</div>
-        <h1 style={{fontFamily:'Bangers,cursive',fontSize:32,color:STATUS_INFO[submittedOrder.status]?.color||'#ffaa00',letterSpacing:2,marginBottom:8}}>
-          {STATUS_INFO[submittedOrder.status]?.label||'Aguardando'}
-        </h1>
-        <p style={{fontSize:15,color:'#aaa',marginBottom:24}}>{STATUS_INFO[submittedOrder.status]?.desc||''}</p>
-        {/* Order info */}
-        <div style={{background:'#111',borderRadius:16,padding:20,marginBottom:24,textAlign:'left',border:'1px solid #222'}}>
-          <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
-            <span style={{fontSize:13,color:'#666'}}>Pedido</span>
-            <span style={{fontSize:15,fontWeight:700,color:'#00ff41',fontFamily:'monospace'}}>#{submittedOrder.order_number}</span>
-          </div>
-          <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
-            <span style={{fontSize:13,color:'#666'}}>Total</span>
-            <span style={{fontSize:15,fontWeight:700,color:'#fff'}}>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(submittedOrder.total))}</span>
-          </div>
-          <div style={{display:'flex',justifyContent:'space-between',marginBottom:12}}>
-            <span style={{fontSize:13,color:'#666'}}>Pagamento</span>
-            <span style={{fontSize:13,color:'#fff',textTransform:'capitalize'}}>{submittedOrder.payment_method==='pix'?'💚 PIX':submittedOrder.payment_method==='dinheiro'?'💵 Dinheiro':submittedOrder.payment_method==='debito'?'💳 Débito':'💳 Crédito'}</span>
-          </div>
-          {/* Status timeline */}
-          <div style={{marginTop:16}}>
-            <p style={{fontSize:11,color:'#555',marginBottom:10,textTransform:'uppercase',letterSpacing:1}}>Progresso</p>
-            <div style={{display:'flex',alignItems:'center',gap:4}}>
-              {FLOW.map((s,i)=>{
-                const done=FLOW.indexOf(submittedOrder.status)>=i
-                const active=submittedOrder.status===s
-                return(
-                  <div key={s} style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-                    <div style={{width:'100%',height:4,borderRadius:2,background:done?'#00ff41':submittedOrder.status==='cancelled'&&i===0?'#ff3333':'#222',transition:'background 0.5s'}}/>
-                    {active&&<div style={{width:6,height:6,borderRadius:'50%',background:submittedOrder.status==='cancelled'?'#ff3333':'#00ff41'}}/>}
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+  const filteredProds=(cat:string)=>products.filter(p=>{
+    if(p.category_id!==cat)return false
+    if(search&&!p.name.toLowerCase().includes(search.toLowerCase()))return false
+    return true
+  })
+  const catsWithProds=cats.filter(c=>filteredProds(c.id).length>0||(search===''&&products.some(p=>p.category_id===c.id)))
+  if(orderDone)return(
+    <div style={{minHeight:'100vh',background:'#0a0a0a',display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+      <div style={{textAlign:'center',maxWidth:360}}>
+        <div style={{width:80,height:80,borderRadius:'50%',background:'rgba(0,255,65,0.1)',border:'2px solid var(--neon)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px'}}>
+          <Check size={36} color='var(--neon)'/>
         </div>
-        {/* Items */}
-        {submittedOrder.items&&submittedOrder.items.length>0&&(
-          <div style={{background:'#111',borderRadius:12,padding:16,marginBottom:20,textAlign:'left',border:'1px solid #222'}}>
-            <p style={{fontSize:11,color:'#555',marginBottom:10,textTransform:'uppercase',letterSpacing:1}}>Itens do pedido</p>
-            {submittedOrder.items.map((item:any,i:number)=>(
-              <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'4px 0',borderBottom:i<submittedOrder.items.length-1?'1px solid #1a1a1a':'none'}}>
-                <span style={{color:'#ccc'}}>{item.qty}x {item.name}</span>
-                <span style={{color:'#00ff41'}}>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format((item.is_promo&&item.promo_price?item.promo_price:item.price)*item.qty)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        {submittedOrder.status==='cancelled'?(
-          <div>
-            <p style={{fontSize:13,color:'#666',marginBottom:16}}>Pedido recusado. Caso queira, faça um novo pedido.</p>
-            <button onClick={()=>setSubmittedOrder(null)} style={{width:'100%',padding:14,borderRadius:12,border:'none',background:'#00ff41',color:'#000',cursor:'pointer',fontSize:16,fontWeight:700,fontFamily:'Bangers,cursive',letterSpacing:1}}>
-              FAZER NOVO PEDIDO
-            </button>
-          </div>
-        ):(submittedOrder.status==='delivered'||submittedOrder.status==='completed')?(
-          <div>
-            <p style={{fontSize:13,color:'#666',marginBottom:16}}>Esperamos que tenha gostado!</p>
-            <button onClick={()=>setSubmittedOrder(null)} style={{width:'100%',padding:14,borderRadius:12,border:'none',background:'#00ff41',color:'#000',cursor:'pointer',fontSize:16,fontWeight:700,fontFamily:'Bangers,cursive',letterSpacing:1}}>
-              FAZER NOVO PEDIDO
-            </button>
-          </div>
-        ):(
-          <p style={{fontSize:12,color:'#555',marginTop:8}}>Esta página atualiza automaticamente quando o status mudar</p>
-        )}
+        <h2 style={{fontFamily:'Bangers,cursive',fontSize:28,color:'var(--neon)',letterSpacing:2,marginBottom:8}}>PEDIDO ENVIADO!</h2>
+        <p style={{fontSize:14,color:'#ccc',marginBottom:4}}>Pedido #{orderDone.order_number}</p>
+        <p style={{fontSize:12,color:'#888',marginBottom:20}}>Acompanhe o status pelo WhatsApp</p>
+        <button onClick={()=>setOrderDone(null)} style={{padding:'12px 28px',borderRadius:10,background:'var(--neon)',color:'#000',border:'none',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:16,letterSpacing:1}}>FAZER NOVO PEDIDO</button>
       </div>
     </div>
   )
-
-  if(loading) return(
-    <div style={{minHeight:'100vh',background:'#0a0a0a',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
-      <Loader2 size={32} color='#00ff41' style={{animation:'spin 1s linear infinite'}}/>
-      <p style={{color:'#00ff41',fontFamily:'Bangers,cursive',fontSize:18,letterSpacing:2}}>{settings.store_name}</p>
-    </div>
-  )
-
   return(
-    <div style={{minHeight:'100vh',background:'#0a0a0a',color:'#fff',fontFamily:'Inter,sans-serif',maxWidth:600,margin:'0 auto',position:'relative',overflowX:'hidden'}}>
-
-      {/* Banner */}
-      {settings.store_banner_url?(
-        <div style={{width:'100%',height:180,overflow:'hidden',position:'relative'}}>
-          <img src={settings.store_banner_url} alt='Banner' style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-          <div style={{position:'absolute',inset:0,background:'linear-gradient(to bottom,transparent 40%,#0a0a0a)'}}/>
+    <div style={{minHeight:'100vh',background:'#0a0a0a',fontFamily:'Inter,sans-serif'}}>
+      {/* Header */}
+      <div style={{background:'#111',borderBottom:'1px solid #222',padding:'14px 16px',position:'sticky',top:0,zIndex:30}}>
+        <div style={{maxWidth:600,margin:'0 auto',display:'flex',alignItems:'center',gap:12}}>
+          {settings.store_logo_url&&<img src={settings.store_logo_url} alt='' style={{width:36,height:36,borderRadius:8,objectFit:'cover'}}/>}
+          <div style={{flex:1}}>
+            <h1 style={{fontFamily:'Bangers,cursive',fontSize:20,color:'#00ff41',letterSpacing:2,lineHeight:1}}>{settings.store_name||'DELIVERY'}</h1>
+            {!storeOpen&&<p style={{fontSize:10,color:'#ff5555',marginTop:1}}>🔒 Fechado · {storeHours}</p>}
+          </div>
+          {cartCount>0&&(
+            <button onClick={()=>setCartOpen(true)} style={{position:'relative',background:'#00ff41',border:'none',borderRadius:10,padding:'8px 14px',cursor:'pointer',display:'flex',alignItems:'center',gap:6,fontFamily:'Bangers,cursive',fontSize:14,color:'#000'}}>
+              <ShoppingCart size={16}/>{cartCount} · {fmt(cartTotal)}
+            </button>
+          )}
         </div>
-      ):(
-        <div style={{width:'100%',height:120,background:'linear-gradient(135deg,#0d1f0d,#1a3a1a)',display:'flex',alignItems:'center',justifyContent:'center',position:'relative'}}>
-          <div style={{position:'absolute',inset:0,background:'repeating-linear-gradient(45deg,transparent,transparent 20px,rgba(0,255,65,0.03) 20px,rgba(0,255,65,0.03) 40px)'}}/>
-          <Zap size={32} color='#00ff41' style={{opacity:0.3}}/>
+      </div>
+      {/* Closed banner */}
+      {!storeOpen&&(
+        <div style={{background:'rgba(255,51,51,0.08)',borderBottom:'1px solid rgba(255,51,51,0.2)',padding:'10px 16px',textAlign:'center'}}>
+          <p style={{fontSize:13,color:'#ff6666'}}>🔒 Estamos fechados no momento. Horário: {storeHours||'Consulte-nos'}</p>
         </div>
       )}
-
-      {/* Store header */}
-      <div style={{padding:'0 16px 16px',marginTop:-32,position:'relative',zIndex:2}}>
-        <div style={{display:'flex',alignItems:'flex-end',gap:12,marginBottom:10}}>
-          <div style={{width:64,height:64,borderRadius:16,overflow:'hidden',background:'#111',border:'2px solid #00ff41',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-            {settings.store_logo_url?<img src={settings.store_logo_url} alt='Logo' style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<Store size={28} color='#00ff41'/>}
-          </div>
-          <div>
-            <h1 style={{fontFamily:'Bangers,cursive',fontSize:26,color:'#00ff41',letterSpacing:2,lineHeight:1}}>{settings.store_name}</h1>
-            {settings.store_description&&<p style={{fontSize:12,color:'#666',marginTop:2}}>{settings.store_description}</p>}
-          </div>
-        </div>
-
-        {/* Store status banner */}
-      {storeOpen===false&&(
-        <div style={{background:'rgba(255,51,51,0.1)',border:'1px solid rgba(255,51,51,0.3)',borderRadius:12,padding:'12px 16px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
-          <span style={{fontSize:20}}>🔒</span>
-          <div>
-            <p style={{fontSize:14,fontWeight:700,color:'#ff5555'}}>Estamos fechados no momento</p>
-            <p style={{fontSize:12,color:'#888',marginTop:2}}>Horário de atendimento: {storeHours||'Consulte-nos'}</p>
-          </div>
-        </div>
-      )}
-      {/* Promo banner */}
+      <div style={{maxWidth:600,margin:'0 auto',padding:'0 16px 80px'}}>
+        {/* Banner */}
+        {settings.store_banner_url&&<img src={settings.store_banner_url} alt='' style={{width:'100%',borderRadius:12,marginTop:12,objectFit:'cover',maxHeight:160}}/>}
+        {/* Promo */}
         {settings.promo_title&&(
-          <div ref={promoRef} style={{background:'linear-gradient(135deg,rgba(245,158,11,0.15),rgba(245,158,11,0.05))',border:'1px solid rgba(245,158,11,0.3)',borderRadius:12,padding:'10px 14px',marginBottom:12,display:'flex',alignItems:'center',gap:10}}>
-            <Tag size={16} color='#f59e0b'/>
-            <div>
-              <p style={{fontSize:13,fontWeight:700,color:'#f59e0b'}}>{settings.promo_title}</p>
-              {settings.promo_description&&<p style={{fontSize:11,color:'#999',marginTop:2}}>{settings.promo_description}</p>}
-            </div>
+          <div style={{marginTop:12,padding:'10px 14px',background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.25)',borderRadius:10}}>
+            <p style={{fontSize:13,fontWeight:700,color:'#f59e0b',marginBottom:2}}>{settings.promo_title}</p>
+            {settings.promo_description&&<p style={{fontSize:12,color:'#999'}}>{settings.promo_description}</p>}
           </div>
         )}
-      </div>
-
-      {/* Promo products section */}
-      {promoProducts.length>0&&(
-        <div style={{padding:'0 16px 16px'}}>
-          <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:10}}>
-            <Tag size={14} color='#f59e0b'/>
-            <p style={{fontSize:14,fontWeight:700,color:'#f59e0b',letterSpacing:0.5}}>PROMOÇÕES</p>
-          </div>
-          <div style={{display:'flex',gap:10,overflowX:'auto',paddingBottom:4}}>
-            {promoProducts.map(p=>(
-              <div key={p.id} style={{minWidth:140,background:'#111',border:'1px solid rgba(245,158,11,0.3)',borderRadius:12,overflow:'hidden',flexShrink:0}}>
-                {p.image_url&&<img src={p.image_url} style={{width:'100%',height:90,objectFit:'cover'}} onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>}
-                <div style={{padding:'8px 10px'}}>
-                  <div style={{display:'inline-block',fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:4,background:'rgba(245,158,11,0.2)',color:'#f59e0b',marginBottom:4}}>OFERTA</div>
-                  <p style={{fontSize:12,fontWeight:600,color:'#fff',marginBottom:4,lineHeight:1.3}}>{p.name}</p>
-                  <div style={{display:'flex',alignItems:'center',gap:6}}>
-                    {p.promo_price&&<span style={{fontSize:14,fontWeight:700,color:'#f59e0b'}}>{fmt(p.promo_price)}</span>}
-                    <span style={{fontSize:11,color:'#555',textDecoration:p.promo_price?'line-through':'none'}}>{fmt(p.price)}</span>
-                  </div>
-                  <button onClick={()=>addToCart(p)} style={{marginTop:7,width:'100%',padding:'6px',borderRadius:7,border:'none',background:'#f59e0b',color:'#000',cursor:'pointer',fontSize:12,fontWeight:700}}>+ Adicionar</button>
-                </div>
-              </div>
-            ))}
-          </div>
+        {/* Search */}
+        <div style={{position:'relative',marginTop:12,marginBottom:8}}>
+          <Search size={14} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'#555'}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar produto...' style={{width:'100%',background:'#1a1a1a',border:'1px solid #2a2a2a',color:'#fff',borderRadius:10,padding:'10px 12px 10px 36px',fontSize:14,outline:'none',boxSizing:'border-box'}}/>
         </div>
-      )}
-
-      {/* Category filter */}
-      {categories.length>0&&(
-        <div style={{padding:'0 16px 12px',display:'flex',gap:7,overflowX:'auto',paddingBottom:12}}>
-          <button onClick={()=>setSelCat(null)} style={{padding:'6px 14px',borderRadius:20,border:'none',background:!selCat?'#00ff41':'#1a1a1a',color:!selCat?'#000':'#888',cursor:'pointer',fontSize:12,fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>Todos</button>
-          {categories.map(c=>(<button key={c.id} onClick={()=>setSelCat(c.id===selCat?null:c.id)} style={{padding:'6px 14px',borderRadius:20,border:'none',background:selCat===c.id?'#00ff41':'#1a1a1a',color:selCat===c.id?'#000':'#888',cursor:'pointer',fontSize:12,fontWeight:600,whiteSpace:'nowrap',flexShrink:0}}>{c.name}</button>))}
+        {/* Category tabs */}
+        <div style={{display:'flex',gap:6,overflowX:'auto',paddingBottom:4,marginBottom:8}}>
+          <button onClick={()=>setSelectedCat(null)} style={{padding:'5px 14px',borderRadius:16,border:selectedCat===null?'1px solid #00ff41':'1px solid #2a2a2a',background:selectedCat===null?'rgba(0,255,65,0.1)':'transparent',color:selectedCat===null?'#00ff41':'#666',cursor:'pointer',fontSize:12,fontWeight:600,whiteSpace:'nowrap',transition:'all 0.15s'}}>Todos</button>
+          {catsWithProds.map(c=>(
+            <button key={c.id} onClick={()=>setSelectedCat(selectedCat===c.id?null:c.id)} style={{padding:'5px 14px',borderRadius:16,border:selectedCat===c.id?'1px solid '+(c.color||'#00ff41'):'1px solid #2a2a2a',background:selectedCat===c.id?(c.color||'#00ff41')+'18':'transparent',color:selectedCat===c.id?(c.color||'#00ff41'):'#666',cursor:'pointer',fontSize:12,fontWeight:600,whiteSpace:'nowrap',flexShrink:0,transition:'all 0.15s'}}>{c.name}</button>
+          ))}
         </div>
-      )}
-
-      {/* Products grid */}
-      <div style={{padding:'0 16px',paddingBottom:100}}>
-        {filtered.length===0?(
-          <div style={{textAlign:'center',padding:48,color:'#444'}}><p style={{fontSize:16}}>Nenhum produto disponível</p></div>
-        ):filtered.map(p=>{
-          const price=p.is_promo&&p.promo_price?p.promo_price:p.price
-          const inCart=cart.find(i=>i.id===p.id)
+        {/* Products by category */}
+        {loading?<div style={{textAlign:'center',padding:48,color:'#555'}}>Carregando cardápio...</div>:
+        catsWithProds.filter(c=>!selectedCat||c.id===selectedCat).map(cat=>{
+          const prods=filteredProds(cat.id)
+          if(prods.length===0)return null
           return(
-            <div key={p.id} style={{display:'flex',gap:12,padding:'12px 0',borderBottom:'1px solid #111',alignItems:'center'}}>
-              <div style={{flex:1}}>
-                {p.is_promo&&<span style={{fontSize:9,fontWeight:700,padding:'2px 6px',borderRadius:4,background:'rgba(245,158,11,0.2)',color:'#f59e0b',display:'inline-block',marginBottom:4}}>OFERTA</span>}
-                <p style={{fontSize:14,fontWeight:600,color:'#fff',marginBottom:3,lineHeight:1.3}}>{p.name}</p>
-                {p.description&&<p style={{fontSize:12,color:'#666',marginBottom:5,lineHeight:1.4}}>{p.description}</p>}
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:16,fontWeight:700,color:p.is_promo?'#f59e0b':'#00ff41'}}>{fmt(price)}</span>
-                  {p.is_promo&&p.promo_price&&<span style={{fontSize:12,color:'#444',textDecoration:'line-through'}}>{fmt(p.price)}</span>}
-                </div>
+            <div key={cat.id} style={{marginBottom:20}}>
+              <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,paddingTop:4}}>
+                <div style={{width:4,height:18,borderRadius:2,background:cat.color||'#00ff41',flexShrink:0}}/>
+                <h2 style={{fontFamily:'Bangers,cursive',fontSize:18,color:'#fff',letterSpacing:1}}>{cat.name}</h2>
               </div>
-              {p.image_url&&<div style={{width:80,height:80,borderRadius:10,overflow:'hidden',flexShrink:0}}><img src={p.image_url} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/></div>}
-              <div style={{flexShrink:0}}>
-                {inCart?(
-                  <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:4}}>
-                    <button onClick={()=>updQty(p.id,1)} style={{width:32,height:32,borderRadius:'50%',border:'none',background:'#00ff41',color:'#000',cursor:'pointer',fontSize:18,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center'}}><Plus size={14}/></button>
-                    <span style={{fontSize:13,fontWeight:700,color:'#fff'}}>{inCart.qty}</span>
-                    <button onClick={()=>updQty(p.id,-1)} style={{width:32,height:32,borderRadius:'50%',border:'1px solid #333',background:'transparent',color:'#fff',cursor:'pointer',fontSize:18,display:'flex',alignItems:'center',justifyContent:'center'}}><Minus size={14}/></button>
-                  </div>
-                ):(
-                  <button onClick={()=>addToCart(p)} style={{width:32,height:32,borderRadius:'50%',border:'none',background:'#00ff41',color:'#000',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Plus size={14}/></button>
-                )}
+              <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:10}}>
+                {prods.map(p=>{
+                  const variants=variantsMap[p.id]||[]
+                  const price=p.is_promo&&p.promo_price?p.promo_price:p.price
+                  const inStock=p.has_sizes?(variants.some(v=>v.stock>0)):(p.stock>0)
+                  const cartItem=cart.find(i=>i.product_id===p.id&&!i.variant_id)
+                  return(
+                    <div key={p.id} onClick={()=>{if(!storeOpen)return;if(!inStock)return;openProduct(p)}} style={{background:'#161616',borderRadius:12,overflow:'hidden',cursor:inStock&&storeOpen?'pointer':'default',opacity:inStock?1:0.5,border:'1px solid #1e1e1e',transition:'transform 0.15s,border-color 0.15s'}}
+                      onMouseEnter={e=>{if(inStock&&storeOpen)(e.currentTarget as HTMLElement).style.border='1px solid '+(cat.color||'#333')}}
+                      onMouseLeave={e=>{(e.currentTarget as HTMLElement).style.border='1px solid #1e1e1e'}}>
+                      {p.image_url?<img src={p.image_url} alt={p.name} style={{width:'100%',height:110,objectFit:'cover',display:'block'}}/>
+                        :<div style={{height:110,background:'#1a1a1a',display:'flex',alignItems:'center',justifyContent:'center'}}><span style={{fontSize:32}}>📦</span></div>}
+                      <div style={{padding:'8px 10px'}}>
+                        <p style={{fontSize:12,fontWeight:600,color:'#e5e5e5',marginBottom:2,lineHeight:1.3}}>{p.name}</p>
+                        {p.has_sizes&&variants.length>0&&<p style={{fontSize:10,color:'#666',marginBottom:4,display:'flex',alignItems:'center',gap:3}}><Layers size={9}/>{variants.filter(v=>v.stock>0).length} sabores</p>}
+                        {p.description&&<p style={{fontSize:10,color:'#666',marginBottom:4,lineHeight:1.3,display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{p.description}</p>}
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginTop:4}}>
+                          <div>
+                            {p.is_promo&&<p style={{fontSize:10,color:'#666',textDecoration:'line-through'}}>{fmt(p.price)}</p>}
+                            <p style={{fontSize:14,fontWeight:700,color:p.is_promo?'#f59e0b':'#00ff41'}}>{fmt(price)}</p>
+                          </div>
+                          {!inStock?<span style={{fontSize:9,color:'#ff5555',fontWeight:600}}>ESGOTADO</span>:
+                          !storeOpen?<span style={{fontSize:9,color:'#ff5555'}}>FECHADO</span>:
+                          <div style={{width:28,height:28,borderRadius:8,background:cat.color||'#00ff41',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                            <Plus size={14} color='#000'/>
+                          </div>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )
         })}
       </div>
-
-      {/* Cart FAB */}
-      {itemCount>0&&!checkoutOpen&&(
-        <div style={{position:'fixed',bottom:16,left:'50%',transform:'translateX(-50%)',width:'calc(min(480px,100vw) - 32px)',zIndex:40}}>
-          <button onClick={()=>{if(storeOpen===false){alert('Loja fechada no momento. Tente mais tarde.');return}setCheckoutOpen(true)}} style={{width:'100%',padding:'14px 20px',borderRadius:16,border:'none',background:'#00ff41',color:'#000',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',fontSize:14,fontWeight:700,boxShadow:'0 4px 24px rgba(0,255,65,0.3)'}}>
-            <div style={{display:'flex',alignItems:'center',gap:8}}>
-              <span style={{background:'#000',color:'#00ff41',borderRadius:'50%',width:24,height:24,fontSize:12,fontWeight:700,display:'inline-flex',alignItems:'center',justifyContent:'center'}}>{itemCount}</span>
-              <span>Ver carrinho</span>
+      {/* VARIANT MODAL — choose flavor */}
+      {variantModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:50}}>
+          <div style={{width:'100%',maxWidth:500,background:'#151515',borderRadius:'20px 20px 0 0',padding:20,paddingBottom:32}}>
+            <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:16}}>
+              {variantModal.image_url&&<img src={variantModal.image_url} alt='' style={{width:48,height:48,borderRadius:8,objectFit:'cover'}}/>}
+              <div style={{flex:1}}>
+                <p style={{fontSize:16,fontWeight:700,color:'#fff'}}>{variantModal.name}</p>
+                <p style={{fontSize:13,color:'#00ff41',fontWeight:600}}>{fmt(variantModal.is_promo&&variantModal.promo_price?variantModal.promo_price:variantModal.price)}</p>
+              </div>
+              <button onClick={()=>setVariantModal(null)} style={{background:'#222',border:'none',borderRadius:8,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#888'}}><X size={16}/></button>
             </div>
-            <span>{fmt(subtotal)}</span>
-          </button>
-        </div>
-      )}
-
-      {/* Checkout drawer */}
-      {checkoutOpen&&(
-        <div style={{position:'fixed',inset:0,zIndex:50,display:'flex',flexDirection:'column',justifyContent:'flex-end',background:'rgba(0,0,0,0.7)'}}>
-          <div style={{background:'#111',borderRadius:'20px 20px 0 0',maxHeight:'90vh',overflowY:'auto',padding:20}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
-              <h2 style={{fontFamily:'Bangers,cursive',fontSize:22,color:'#00ff41',letterSpacing:1}}>SEU PEDIDO</h2>
-              <button onClick={()=>setCheckoutOpen(false)} style={{background:'#222',border:'none',color:'#888',cursor:'pointer',borderRadius:8,padding:8}}><X size={16}/></button>
-            </div>
-            {/* Cart items */}
-            <div style={{marginBottom:16}}>
-              {cart.map(item=>{
-                const p=item.is_promo&&item.promo_price?item.promo_price:item.price
-                return(
-                  <div key={item.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:'1px solid #1a1a1a'}}>
-                    <div style={{flex:1}}>
-                      <p style={{fontSize:13,fontWeight:600,color:'#fff'}}>{item.name}</p>
-                      <p style={{fontSize:12,color:'#00ff41'}}>{fmt(p)}</p>
+            <p style={{fontSize:11,color:'#666',marginBottom:10,fontWeight:600,letterSpacing:0.5}}>ESCOLHA O SABOR</p>
+            <div style={{display:'flex',flexDirection:'column',gap:6,maxHeight:240,overflowY:'auto',marginBottom:14}}>
+              {(variantsMap[variantModal.id]||[]).filter(v=>v.stock>0).map(v=>(
+                <button key={v.id} onClick={()=>setSelectedVariant(v.id)} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderRadius:10,border:selectedVariant===v.id?'2px solid #00ff41':'1px solid #2a2a2a',background:selectedVariant===v.id?'rgba(0,255,65,0.08)':'#1a1a1a',cursor:'pointer',textAlign:'left',transition:'all 0.15s'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{width:16,height:16,borderRadius:'50%',border:'2px solid '+(selectedVariant===v.id?'#00ff41':'#444'),display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      {selectedVariant===v.id&&<div style={{width:8,height:8,borderRadius:'50%',background:'#00ff41'}}/>}
                     </div>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
-                      <button onClick={()=>updQty(item.id,-1)} style={{width:28,height:28,borderRadius:'50%',border:'1px solid #333',background:'transparent',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Minus size={12}/></button>
-                      <span style={{fontSize:14,fontWeight:700,color:'#fff',width:20,textAlign:'center'}}>{item.qty}</span>
-                      <button onClick={()=>updQty(item.id,1)} style={{width:28,height:28,borderRadius:'50%',border:'none',background:'#00ff41',color:'#000',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Plus size={12}/></button>
-                    </div>
-                    <span style={{fontSize:13,fontWeight:700,color:'#fff',minWidth:60,textAlign:'right'}}>{fmt(p*item.qty)}</span>
+                    <span style={{fontSize:13,color:selectedVariant===v.id?'#fff':'#ccc',fontWeight:selectedVariant===v.id?600:400}}>{v.name}</span>
                   </div>
-                )
-              })}
-            </div>
-            {/* Type toggle */}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:14}}>
-              <button onClick={()=>setOrderType('delivery')} style={{padding:'10px',borderRadius:10,border:orderType==='delivery'?'2px solid #00ff41':'1px solid #333',background:orderType==='delivery'?'rgba(0,255,65,0.1)':'#1a1a1a',color:orderType==='delivery'?'#00ff41':'#666',cursor:'pointer',fontWeight:600,fontSize:13}}>🛵 Delivery</button>
-              <button onClick={()=>setOrderType('retirada')} style={{padding:'10px',borderRadius:10,border:orderType==='retirada'?'2px solid #00ff41':'1px solid #333',background:orderType==='retirada'?'rgba(0,255,65,0.1)':'#1a1a1a',color:orderType==='retirada'?'#00ff41':'#666',cursor:'pointer',fontWeight:600,fontSize:13}}>🏪 Retirar</button>
-            </div>
-            {/* Form */}
-            <div style={{display:'flex',flexDirection:'column',gap:10,marginBottom:14}}>
-              <div><label style={LBL}>SEU NOME *</label><input value={name} onChange={e=>setName(e.target.value)} placeholder='João Silva' style={INP}/></div>
-              <div><label style={LBL}>WHATSAPP *</label><input value={phone} onChange={e=>setPhone(fmtWA(e.target.value))} placeholder='(27) 99999-9999' style={INP} type='tel'/></div>
-              {orderType==='delivery'&&(<>
-                <div>
-                  <label style={LBL}>CEP *</label>
-                  <div style={{position:'relative'}}>
-                    <input value={fmtCEP(cep)} onChange={e=>handleCEP(e.target.value)} placeholder='00000-000' style={INP} type='tel' maxLength={9}/>
-                    {cepLoading&&<Loader2 size={14} color='#00ff41' style={{position:'absolute',right:12,top:'50%',transform:'translateY(-50%)',animation:'spin 1s linear infinite'}}/>}
+                  <div style={{textAlign:'right'}}>
+                    {v.price_modifier!==0&&<p style={{fontSize:11,color:'#888'}}>{v.price_modifier>0?'+':''}{fmt(v.price_modifier)}</p>}
+                    <p style={{fontSize:10,color:'#555'}}>estoque: {v.stock}</p>
                   </div>
+                </button>
+              ))}
+              {(variantsMap[variantModal.id]||[]).filter(v=>v.stock===0).map(v=>(
+                <div key={v.id} style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',borderRadius:10,border:'1px solid #1a1a1a',background:'#111',opacity:0.5}}>
+                  <span style={{fontSize:13,color:'#555'}}>{v.name}</span>
+                  <span style={{fontSize:10,color:'#ff5555'}}>ESGOTADO</span>
                 </div>
-                {addr&&(<>
-                  <div style={{display:'grid',gridTemplateColumns:'1fr 80px',gap:8}}>
-                    <div><label style={LBL}>ENDEREÇO</label><input value={addr} onChange={e=>setAddr(e.target.value)} style={INP}/></div>
-                    <div><label style={LBL}>NÚMERO *</label><input value={numero} onChange={e=>setNumero(e.target.value)} placeholder='123' style={INP}/></div>
-                  </div>
-                  <div><label style={LBL}>COMPLEMENTO</label><input value={complemento} onChange={e=>setComplemento(e.target.value)} placeholder='Apto, Bloco...' style={INP}/></div>
-                  {matchedZone?(
-                    <div style={{padding:'10px 14px',background:'rgba(0,255,65,0.08)',borderRadius:8,border:'1px solid rgba(0,255,65,0.2)',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                      <div><p style={{fontSize:13,color:'#fff',fontWeight:600}}>{matchedZone.name}</p><p style={{fontSize:11,color:'#666'}}>{matchedZone.min_time}-{matchedZone.max_time} min</p></div>
-                      <p style={{fontSize:16,fontWeight:700,color:'#00ff41'}}>{matchedZone.fee===0?'Grátis':fmt(matchedZone.fee)}</p>
-                    </div>
-                  ):(
-                    <div style={{padding:'8px 12px',background:'rgba(255,51,51,0.08)',borderRadius:8,border:'1px solid rgba(255,51,51,0.2)',fontSize:12,color:'#ff5555'}}>
-                      Bairro fora da área de entrega. Entre em contato com a loja.
-                    </div>
-                  )}
-                </>)}
-              </>)}
+              ))}
             </div>
-            {/* Forma de pagamento */}
-        <div style={{marginBottom:14}}>
-          <p style={{...LBL,marginBottom:8}}>FORMA DE PAGAMENTO *</p>
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
-            {[
-              {key:'pix',label:'PIX',icon:'💚'},
-              {key:'dinheiro',label:'Dinheiro',icon:'💵'},
-              {key:'debito',label:'Débito',icon:'💳'},
-              {key:'credito',label:'Crédito',icon:'💳'},
-            ].map(m=>(
-              <button key={m.key} onClick={()=>setPaymentMethod(m.key)}
-                style={{padding:'10px 8px',borderRadius:10,border:paymentMethod===m.key?'2px solid #00ff41':'1px solid #333',background:paymentMethod===m.key?'rgba(0,255,65,0.1)':'#1a1a1a',color:paymentMethod===m.key?'#00ff41':'#666',cursor:'pointer',fontSize:13,fontWeight:600,display:'flex',alignItems:'center',justifyContent:'center',gap:5}}>
-                <span>{m.icon}</span>{m.label}
-              </button>
-            ))}
+            {/* Qty */}
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <span style={{fontSize:12,color:'#888'}}>Quantidade</span>
+              <div style={{display:'flex',alignItems:'center',gap:12}}>
+                <button onClick={()=>setQty(q=>Math.max(1,q-1))} style={{width:32,height:32,borderRadius:8,border:'1px solid #333',background:'#222',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Minus size={14}/></button>
+                <span style={{fontSize:16,fontWeight:700,color:'#fff',minWidth:20,textAlign:'center'}}>{qty}</span>
+                <button onClick={()=>setQty(q=>q+1)} style={{width:32,height:32,borderRadius:8,border:'1px solid #333',background:'#222',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Plus size={14}/></button>
+              </div>
+            </div>
+            <button onClick={addVariantToCart} disabled={!selectedVariant} style={{width:'100%',padding:'14px',borderRadius:12,background:selectedVariant?'#00ff41':'#2a2a2a',color:selectedVariant?'#000':'#555',border:'none',cursor:selectedVariant?'pointer':'not-allowed',fontFamily:'Bangers,cursive',fontSize:16,letterSpacing:1,transition:'background 0.2s'}}>
+              {selectedVariant?'ADICIONAR AO CARRINHO':'SELECIONE UM SABOR'}
+            </button>
           </div>
         </div>
-        {/* Cupom de desconto */}
-        <div style={{marginBottom:14}}>
-          <p style={{...LBL,marginBottom:8}}>CUPOM DE DESCONTO</p>
-          {couponData?(
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'10px 14px',background:'rgba(0,255,65,0.08)',borderRadius:10,border:'1px solid rgba(0,255,65,0.3)'}}>
-              <div>
-                <p style={{fontSize:13,fontWeight:700,color:'#00ff41'}}>{couponData.code}</p>
-                <p style={{fontSize:11,color:'#888'}}>-{couponData.discount_type==='percent'?couponData.discount_value+'%':fmt(couponData.discount_value)} de desconto</p>
+      )}
+      {/* CART DRAWER */}
+      {cartOpen&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:50}}>
+          <div style={{width:'100%',maxWidth:500,background:'#151515',borderRadius:'20px 20px 0 0',padding:20,paddingBottom:32,maxHeight:'80vh',display:'flex',flexDirection:'column'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <h3 style={{fontFamily:'Bangers,cursive',fontSize:20,color:'#00ff41',letterSpacing:1}}>SEU PEDIDO</h3>
+              <button onClick={()=>setCartOpen(false)} style={{background:'#222',border:'none',borderRadius:8,width:32,height:32,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#888'}}><X size={16}/></button>
+            </div>
+            <div style={{flex:1,overflowY:'auto',marginBottom:12}}>
+              {cart.map((item,i)=>(
+                <div key={i} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:'1px solid #1e1e1e'}}>
+                  <div style={{flex:1}}>
+                    <p style={{fontSize:13,color:'#e5e5e5',fontWeight:500}}>{item.name}</p>
+                    {item.variant_name&&<p style={{fontSize:11,color:'#888'}}>Sabor: {item.variant_name}</p>}
+                    <p style={{fontSize:12,color:'#00ff41',fontWeight:700,marginTop:2}}>{fmt(item.price)}</p>
+                  </div>
+                  <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <button onClick={()=>updateCartQty(item.product_id,item.variant_id,-1)} style={{width:24,height:24,borderRadius:6,border:'1px solid #333',background:'#222',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Minus size={11}/></button>
+                    <span style={{fontSize:13,color:'#fff',minWidth:16,textAlign:'center'}}>{item.qty}</span>
+                    <button onClick={()=>updateCartQty(item.product_id,item.variant_id,1)} style={{width:24,height:24,borderRadius:6,border:'1px solid #333',background:'#222',color:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Plus size={11}/></button>
+                    <button onClick={()=>removeFromCart(item.product_id,item.variant_id)} style={{width:24,height:24,borderRadius:6,border:'none',background:'rgba(255,51,51,0.1)',color:'#ff5555',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><X size={11}/></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div style={{borderTop:'1px solid #2a2a2a',paddingTop:10,marginBottom:12}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                <span style={{fontSize:14,color:'#888'}}>Total</span>
+                <span style={{fontSize:20,fontWeight:700,color:'#00ff41',fontFamily:'JetBrains Mono,monospace'}}>{fmt(cartTotal)}</span>
               </div>
-              <button onClick={()=>{setCouponData(null);setCouponCode('')}} style={{background:'#333',border:'none',color:'#ff5555',cursor:'pointer',borderRadius:6,padding:'4px 8px',fontSize:11}}>Remover</button>
+              {settings.min_order>0&&cartTotal<settings.min_order&&<p style={{fontSize:11,color:'#ff9955',marginTop:4}}>⚠️ Pedido mínimo: {fmt(settings.min_order)}</p>}
             </div>
-          ):(
-            <div style={{display:'flex',gap:8}}>
-              <input value={couponCode} onChange={e=>setCouponCode(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&applyCoupon()} placeholder='CÓDIGO DO CUPOM' style={{...INP,flex:1,letterSpacing:1,fontFamily:'monospace',textTransform:'uppercase'}}/>
-              <button onClick={applyCoupon} disabled={couponLoading||!couponCode.trim()} style={{padding:'10px 16px',borderRadius:8,border:'none',background:couponCode.trim()?'#00ff41':'#333',color:couponCode.trim()?'#000':'#666',cursor:couponCode.trim()?'pointer':'default',fontSize:13,fontWeight:700,whiteSpace:'nowrap',minWidth:60}}>{couponLoading?'...':'OK'}</button>
-            </div>
-          )}
-        </div>
-        {/* Totals */}
-            <div style={{padding:'12px 14px',background:'#1a1a1a',borderRadius:10,marginBottom:14}}>
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'#888',marginBottom:5}}><span>Subtotal</span><span>{fmt(subtotal)}</span></div>
-              {orderType==='delivery'&&fee>0&&<div style={{display:'flex',justifyContent:'space-between',fontSize:13,color:'#888',marginBottom:5}}><span>Entrega</span><span style={{color:'#f59e0b'}}>{fmt(fee)}</span></div>}
-              {orderType==='delivery'&&!matchedZone&&cep.length>=8&&<div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'#ff5555',marginBottom:5}}><span>Entrega</span><span>Consultar</span></div>}
-              <div style={{display:'flex',justifyContent:'space-between',fontSize:18,fontWeight:700,color:'#00ff41',borderTop:'1px solid #333',paddingTop:8,marginTop:4}}><span>TOTAL</span><span>{fmt(total)}</span></div>
-            </div>
-            <button onClick={sendOrder} disabled={sending} style={{width:'100%',padding:16,borderRadius:12,border:'none',background:sending?'#555':'#00ff41',color:'#000',cursor:sending?'not-allowed':'pointer',fontSize:16,fontWeight:700,letterSpacing:0.5}}>
-              {sending?'ENVIANDO...':'FAZER PEDIDO'}
+            <button onClick={()=>{setCartOpen(false);setCheckoutOpen(true)}} style={{width:'100%',padding:'14px',borderRadius:12,background:'#00ff41',color:'#000',border:'none',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:16,letterSpacing:1}}>
+              FINALIZAR PEDIDO
             </button>
-            <p style={{fontSize:11,color:'#555',textAlign:'center',marginTop:8}}>Após confirmar, aguarde o contato da loja pelo WhatsApp</p>
+          </div>
+        </div>
+      )}
+      {/* CHECKOUT */}
+      {checkoutOpen&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.95)',zIndex:60,overflowY:'auto',padding:16}}>
+          <div style={{maxWidth:500,margin:'0 auto',paddingBottom:32}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20,paddingTop:8}}>
+              <button onClick={()=>{setCheckoutOpen(false);setCartOpen(true)}} style={{background:'#1a1a1a',border:'1px solid #2a2a2a',borderRadius:8,padding:'6px 10px',color:'#888',cursor:'pointer',display:'flex',alignItems:'center',gap:4,fontSize:12}}><ChevronLeft size={14}/>Voltar</button>
+              <h2 style={{fontFamily:'Bangers,cursive',fontSize:22,color:'#00ff41',letterSpacing:1}}>FINALIZAR PEDIDO</h2>
+            </div>
+            {[{label:'NOME *',field:'name',placeholder:'Seu nome completo'},{label:'WHATSAPP *',field:'phone',placeholder:'(27) 99999-9999'},{label:'ENDEREÇO',field:'address',placeholder:'Rua, número'},{label:'BAIRRO',field:'neighborhood',placeholder:'Bairro'},{label:'COMPLEMENTO',field:'complement',placeholder:'Apto, bloco...'},{label:'OBSERVAÇÕES',field:'notes',placeholder:'Alguma obs do pedido?'}].map(f=>(
+              <div key={f.field} style={{marginBottom:10}}>
+                <label style={{fontSize:10,color:'#666',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.5}}>{f.label}</label>
+                <input value={(customer as any)[f.field]} onChange={e=>setCustomer(c=>({...c,[f.field]:e.target.value}))} placeholder={f.placeholder} style={{width:'100%',background:'#1a1a1a',border:'1px solid #2a2a2a',color:'#fff',borderRadius:10,padding:'10px 12px',fontSize:14,outline:'none',boxSizing:'border-box'}}/>
+              </div>
+            ))}
+            <div style={{marginBottom:14}}>
+              <label style={{fontSize:10,color:'#666',display:'block',marginBottom:8,fontWeight:600,letterSpacing:0.5}}>FORMA DE PAGAMENTO</label>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:6}}>
+                {[{k:'pix',l:'💚 PIX'},{k:'dinheiro',l:'💵 Dinheiro'},{k:'debito',l:'💳 Débito'},{k:'credito',l:'💳 Crédito'}].map(m=>(
+                  <button key={m.k} onClick={()=>setPayMethod(m.k)} style={{padding:'10px',borderRadius:10,border:payMethod===m.k?'2px solid #00ff41':'1px solid #2a2a2a',background:payMethod===m.k?'rgba(0,255,65,0.08)':'#1a1a1a',color:payMethod===m.k?'#00ff41':'#888',cursor:'pointer',fontSize:13,fontWeight:600}}>{m.l}</button>
+                ))}
+              </div>
+              {payMethod==='dinheiro'&&(
+                <div style={{marginTop:8}}>
+                  <label style={{fontSize:10,color:'#666',display:'block',marginBottom:4}}>TROCO PARA QUANTO?</label>
+                  <input type='number' value={needChange} onChange={e=>setNeedChange(e.target.value)} placeholder='Ex: 100,00 (deixe vazio se não precisar)' style={{width:'100%',background:'#1a1a1a',border:'1px solid #2a2a2a',color:'#fff',borderRadius:10,padding:'10px 12px',fontSize:14,outline:'none',boxSizing:'border-box'}}/>
+                </div>
+              )}
+            </div>
+            {/* Order summary */}
+            <div style={{background:'#1a1a1a',borderRadius:12,padding:'12px 14px',marginBottom:16}}>
+              {cart.map((item,i)=>(
+                <div key={i} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'2px 0'}}>
+                  <span style={{color:'#ccc'}}>{item.qty}x {item.name}{item.variant_name?' ('+item.variant_name+')':''}</span>
+                  <span style={{color:'#00ff41',fontFamily:'JetBrains Mono,monospace'}}>{fmt(item.price*item.qty)}</span>
+                </div>
+              ))}
+              <div style={{borderTop:'1px solid #2a2a2a',marginTop:8,paddingTop:8,display:'flex',justifyContent:'space-between'}}>
+                <span style={{fontSize:14,color:'#888'}}>Total</span>
+                <span style={{fontSize:16,fontWeight:700,color:'#00ff41',fontFamily:'JetBrains Mono,monospace'}}>{fmt(cartTotal)}</span>
+              </div>
+            </div>
+            <button onClick={submitOrder} disabled={submitting} style={{width:'100%',padding:'16px',borderRadius:12,background:submitting?'#2a2a2a':'#00ff41',color:submitting?'#555':'#000',border:'none',cursor:submitting?'not-allowed':'pointer',fontFamily:'Bangers,cursive',fontSize:18,letterSpacing:1}}>
+              {submitting?'ENVIANDO...':'CONFIRMAR PEDIDO'}
+            </button>
           </div>
         </div>
       )}
