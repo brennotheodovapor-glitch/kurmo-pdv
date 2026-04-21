@@ -295,7 +295,7 @@ export default function PublicMenuPage(){
             <div style={{position:'fixed',bottom:0,left:0,right:0,padding:'10px 14px',background:'rgba(10,10,10,0.97)',borderTop:'1px solid #1e1e1e',zIndex:30}}>
               <div style={{maxWidth:600,margin:'0 auto'}}>
                 <button onClick={()=>setScreen('cart')} style={{width:'100%',padding:'14px',borderRadius:12,background:'#00ff41',color:'#000',border:'none',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:17,letterSpacing:1,display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
-                  <ShoppingCart size={18}/>{cartCount} {cartCount===1?'item':'itens'} — VER CARRINHO — {fmt(cartTotal)}
+                  <ShoppingCart size={18}/>{cartCount} {cartCount===1?'item':'itens'} — VER CARRINHO — {fmt(subtotal)}
                 </button>
               </div>
             </div>
