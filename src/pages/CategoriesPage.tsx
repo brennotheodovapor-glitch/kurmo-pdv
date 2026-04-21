@@ -1,178 +1,137 @@
 import{useState,useEffect,useRef}from 'react'
-import{Tag,Plus,Edit2,Trash2,X,Check,Image,Camera}from 'lucide-react'
+import{Tag,Plus,Edit2,Trash2,X,Check,GripVertical}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
-
-type Category={id:string;name:string;color:string;image_url?:string;active:boolean;count?:number}
-const COLORS=['#00ff41','#06b6d4','#7c3aed','#f59e0b','#10b981','#ef4444','#f97316','#ec4899','#64748b','#ffffff']
-const EMPTY={name:'',color:'#00ff41',image_url:'',active:true}
-
+type Category={id:string;name:string;color:string;sort_order:number}
+const COLORS=['#00ff41','#06b6d4','#f59e0b','#7c3aed','#ff3333','#10b981','#f472b6','#fb923c']
 export default function CategoriesPage(){
   const[cats,setCats]=useState<Category[]>([])
   const[loading,setLoading]=useState(true)
   const[modal,setModal]=useState(false)
-  const[dragIdx,setDragIdx]=useState<number|null>(null)
+  const[editing,setEditing]=useState<Category|null>(null)
+  const[form,setForm]=useState({name:'',color:'#00ff41'})
+  const[saving,setSaving]=useState(false)
+  const dragIdx=useRef<number|null>(null)
+  const dragOverIdx=useRef<number|null>(null)
+  const[dragActive,setDragActive]=useState<number|null>(null)
   const[dragOver,setDragOver]=useState<number|null>(null)
-  const[edit,setEdit]=useState<Category|null>(null)
-  const[form,setForm]=useState(EMPTY)
-  const[preview,setPreview]=useState<string|null>(null)
-  const[uploading,setUploading]=useState(false)
-  const fileRef=useRef<HTMLInputElement>(null)
-
-  useEffect(()=>{loadCats()},[])
-
-  async function loadCats(){
+  useEffect(()=>{load()},[])
+  async function load(){
     setLoading(true)
-    const{data:cs}=await supabase.from('categories').select('*').order('name')
-    const{data:ps}=await supabase.from('products').select('category_id')
-    const counts:Record<string,number>={}
-    ;(ps||[]).forEach(p=>{if(p.category_id)counts[p.category_id]=(counts[p.category_id]||0)+1})
-    setCats((cs||[]).map(c=>({...c,count:counts[c.id]||0})))
+    const{data}=await supabase.from('categories').select('*').order('sort_order',{ascending:true}).order('name',{ascending:true})
+    setCats(data||[])
     setLoading(false)
   }
-
-  function openC(){setEdit(null);setForm(EMPTY);setPreview(null);setModal(true)}
-  function openE(c:Category){setEdit(c);setForm({name:c.name,color:c.color,image_url:c.image_url||'',active:c.active});setPreview(c.image_url||null);setModal(true)}
-
-  async function handleImg(e:React.ChangeEvent<HTMLInputElement>){
-    const file=e.target.files?.[0];if(!file)return
-    const r=new FileReader();r.onload=ev=>setPreview(ev.target?.result as string);r.readAsDataURL(file)
-    setUploading(true)
-    try{
-      const ext=file.name.split('.').pop()
-      const fn='categories/'+Date.now()+'.'+ext
-      const{data,error}=await supabase.storage.from('category-images').upload(fn,file,{upsert:true})
-      if(!error&&data){
-        const{data:{publicUrl}}=supabase.storage.from('category-images').getPublicUrl(fn)
-        setForm(f=>({...f,image_url:publicUrl}))
-        toast.success('Foto enviada!')
-      } else {
-        toast.error('Erro ao enviar foto. Verifique o bucket category-images.')
-      }
-    }catch(e:any){toast.error('Erro: '+e.message)}
-    finally{setUploading(false)}
+  // Drag and drop handlers
+  function onDragStart(i:number){dragIdx.current=i;setDragActive(i)}
+  function onDragOver(e:React.DragEvent,i:number){e.preventDefault();dragOverIdx.current=i;setDragOver(i)}
+  async function onDrop(){
+    const from=dragIdx.current;const to=dragOverIdx.current
+    if(from===null||to===null||from===to){setDragActive(null);setDragOver(null);return}
+    const newCats=[...cats]
+    const[moved]=newCats.splice(from,1)
+    newCats.splice(to,0,moved)
+    const updated=newCats.map((c,i)=>({...c,sort_order:i}))
+    setCats(updated)
+    setDragActive(null);setDragOver(null)
+    dragIdx.current=null;dragOverIdx.current=null
+    // Save order to DB
+    for(const c of updated){
+      await supabase.from('categories').update({sort_order:c.sort_order}).eq('id',c.id)
+    }
+    toast.success('Ordem salva! O catálogo será atualizado.')
   }
-
+  function openNew(){setEditing(null);setForm({name:'',color:'#00ff41'});setModal(true)}
+  function openEdit(c:Category){setEditing(c);setForm({name:c.name,color:c.color||'#00ff41'});setModal(true)}
   async function save(){
-    if(!form.name.trim()){toast.error('Nome obrigatorio');return}
-    const payload={name:form.name,color:form.color,image_url:form.image_url||null,active:form.active,icon:''}
-    if(edit){
-      const{error}=await supabase.from('categories').update(payload).eq('id',edit.id)
-      if(error){toast.error('Erro: '+error.message);return}
+    if(!form.name.trim()){toast.error('Nome obrigatório');return}
+    setSaving(true)
+    if(editing){
+      const{error}=await supabase.from('categories').update({name:form.name,color:form.color}).eq('id',editing.id)
+      if(error){toast.error(error.message);setSaving(false);return}
       toast.success('Categoria atualizada!')
     }else{
-      const{error}=await supabase.from('categories').insert(payload)
-      if(error){toast.error('Erro: '+error.message);return}
+      const maxSort=cats.length>0?Math.max(...cats.map(c=>c.sort_order||0))+1:0
+      const{error}=await supabase.from('categories').insert({name:form.name,color:form.color,sort_order:maxSort})
+      if(error){toast.error(error.message);setSaving(false);return}
       toast.success('Categoria criada!')
     }
-    setModal(false);loadCats()
+    setSaving(false);setModal(false);load()
   }
-
   async function del(id:string){
-    if(!confirm('Remover categoria?'))return
+    if(!confirm('Deletar categoria? Os produtos não serão deletados.'))return
     await supabase.from('categories').delete().eq('id',id)
-    toast.success('Removida');loadCats()
+    toast.success('Removida!')
+    load()
   }
-
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
-      <div style={{padding:'14px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:12}}>
-        <Tag size={20} color="var(--neon)"/>
-        <h1 className="font-bangers neon-text-sm" style={{fontSize:26}}>CATEGORIAS</h1>
-        <span style={{fontSize:12,color:'var(--muted)',background:'var(--card)',padding:'4px 10px',borderRadius:20}}>{cats.length} categorias</span>
-        <button onClick={openC} className="btn-neon-fill" style={{marginLeft:'auto',fontSize:13,padding:'8px 16px'}}>
-          <Plus size={14} style={{display:'inline',marginRight:6}}/>NOVA CATEGORIA
+      <div style={{padding:'12px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10}}>
+        <Tag size={20} color='var(--neon)'/>
+        <h1 className='font-bangers neon-text-sm' style={{fontSize:26}}>CATEGORIAS</h1>
+        <button onClick={openNew} className='btn-neon-fill' style={{marginLeft:'auto',fontSize:12,padding:'7px 14px'}}>
+          <Plus size={13} style={{display:'inline',marginRight:5}}/>NOVA CATEGORIA
         </button>
       </div>
-
-      <div style={{flex:1,overflowY:'auto',padding:'20px'}}>
-        {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:(
-          <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(200px,1fr))',gap:16}}>
-            {cats.map(c=>(
-              <div key={c.id} className="card" style={{overflow:'hidden',border:'1px solid var(--border)',transition:'border-color 0.2s'}} onMouseEnter={e=>(e.currentTarget.style.borderColor=c.color)} onMouseLeave={e=>(e.currentTarget.style.borderColor='var(--border)')}>
-                {/* Image area */}
-                <div style={{position:'relative',height:130,background:'var(--surface)',overflow:'hidden'}}>
-                  {c.image_url?(
-                    <img src={c.image_url} alt={c.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>
-                  ):(
-                    <div style={{width:'100%',height:'100%',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8}}>
-                      <Camera size={28} color="var(--muted)" style={{opacity:0.4}}/>
-                      <p style={{fontSize:11,color:'var(--muted)',opacity:0.6}}>Sem foto</p>
-                    </div>
-                  )}
-                  {/* Color bar */}
-                  <div style={{position:'absolute',bottom:0,left:0,right:0,height:4,background:c.color}}/>
-                </div>
-                <div style={{padding:'12px 14px'}}>
-                  <p style={{fontSize:14,fontWeight:700,color:'var(--white)',marginBottom:3}}>{c.name}</p>
-                  <p style={{fontSize:12,color:'var(--muted)',marginBottom:10}}>{c.count} produto{c.count!==1?'s':''}</p>
-                  <div style={{display:'flex',gap:8}}>
-                    <button onClick={()=>openE(c)} style={{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:6,padding:'7px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontSize:12}}>
-                      <Edit2 size={13}/>Editar
-                    </button>
-                    <button onClick={()=>del(c.id)} style={{width:34,height:34,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'#ff3333',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      <Trash2 size={14}/>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+      <div style={{flex:1,overflowY:'auto',padding:'16px 20px'}}>
+        <div style={{padding:'10px 14px',background:'rgba(0,255,65,0.04)',border:'1px solid var(--neon-dim)',borderRadius:10,marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+          <GripVertical size={14} color='var(--neon)'/>
+          <p style={{fontSize:12,color:'var(--muted)'}}>Arraste as categorias para mudar a ordem no catálogo. A ordem aqui é a ordem que o cliente vê.</p>
+        </div>
+        {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:
+        cats.length===0?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Nenhuma categoria. Crie a primeira!</div>:
+        cats.map((c,i)=>(
+          <div
+            key={c.id}
+            draggable
+            onDragStart={()=>onDragStart(i)}
+            onDragOver={e=>onDragOver(e,i)}
+            onDrop={onDrop}
+            onDragEnd={()=>{setDragActive(null);setDragOver(null)}}
+            className='card'
+            style={{
+              marginBottom:8,padding:'12px 16px',
+              display:'flex',alignItems:'center',gap:12,
+              cursor:'grab',userSelect:'none',
+              opacity:dragActive===i?0.4:1,
+              border:dragOver===i&&dragActive!==i?'2px solid var(--neon)':'1px solid var(--border)',
+              transform:dragOver===i&&dragActive!==i?'translateY(-2px)':'none',
+              transition:'border 0.1s, transform 0.1s, opacity 0.1s',
+            }}>
+            <GripVertical size={16} color='var(--muted)' style={{flexShrink:0}}/>
+            <div style={{width:14,height:14,borderRadius:'50%',background:c.color||'#00ff41',flexShrink:0,boxShadow:'0 0 6px '+(c.color||'#00ff41')+'80'}}/>
+            <span style={{fontSize:14,fontWeight:600,color:'var(--white)',flex:1}}>{c.name}</span>
+            <span style={{fontSize:10,color:'var(--muted)',fontFamily:'JetBrains Mono,monospace',background:'var(--surface)',padding:'2px 7px',borderRadius:4}}>#{i+1}</span>
+            <div style={{display:'flex',gap:6}}>
+              <button onClick={()=>openEdit(c)} style={{width:30,height:30,borderRadius:7,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <Edit2 size={13}/>
+              </button>
+              <button onClick={()=>del(c.id)} style={{width:30,height:30,borderRadius:7,border:'1px solid var(--border)',background:'transparent',color:'#ff3333',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                <Trash2 size={13}/>
+              </button>
+            </div>
           </div>
-        )}
+        ))}
       </div>
-
       {modal&&(
-        <div className="animate-fade-in" style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
-          <div className="animate-slide-in card" style={{width:'100%',maxWidth:460,padding:24,border:'1px solid var(--border-bright)',boxShadow:'0 0 40px rgba(0,255,65,0.1)'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
-              <h2 className="font-bangers neon-text-sm" style={{fontSize:22}}>{edit?'EDITAR':'NOVA'} CATEGORIA</h2>
-              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={20}/></button>
+        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.85)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
+          <div className='card' style={{width:'100%',maxWidth:400,padding:24,border:'1px solid var(--border-bright)'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+              <h2 className='font-bangers' style={{fontSize:20,color:'var(--neon)'}}>{editing?'EDITAR':'NOVA'} CATEGORIA</h2>
+              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={18}/></button>
             </div>
-
-            {/* Image upload */}
-            <div style={{marginBottom:16}}>
-              <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:8,letterSpacing:1}}>FOTO DA CATEGORIA</label>
-              <div onClick={()=>fileRef.current?.click()} style={{position:'relative',height:140,borderRadius:12,border:'2px dashed var(--border)',overflow:'hidden',cursor:'pointer',background:'var(--surface)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:8,transition:'border-color 0.2s'}} onMouseEnter={e=>e.currentTarget.style.borderColor='var(--neon)'} onMouseLeave={e=>e.currentTarget.style.borderColor='var(--border)'}>
-                {preview?(
-                  <>
-                    <img src={preview} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover'}}/>
-                    <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.4)',display:'flex',alignItems:'center',justifyContent:'center',opacity:0,transition:'opacity 0.2s'}} className="img-hover-overlay">
-                      <p style={{color:'white',fontSize:13,fontWeight:600}}>Trocar foto</p>
-                    </div>
-                  </>
-                ):(
-                  <>
-                    <Image size={28} color="var(--muted)"/>
-                    <p style={{fontSize:13,color:'var(--muted)'}}>{uploading?'Enviando...':'Clique para adicionar foto'}</p>
-                    <p style={{fontSize:11,color:'var(--muted)',opacity:0.6}}>JPG, PNG ou WebP</p>
-                  </>
-                )}
-                {uploading&&<div style={{position:'absolute',bottom:0,left:0,right:0,height:3,background:'var(--neon)',animation:'neon-pulse 1s infinite'}}/>}
-              </div>
-              <input ref={fileRef} type="file" accept="image/*" onChange={handleImg} style={{display:'none'}}/>
-              {preview&&<button onClick={()=>{setPreview(null);setForm(f=>({...f,image_url:''}))}} style={{fontSize:11,color:'#ff3333',background:'none',border:'none',cursor:'pointer',marginTop:6,display:'block'}}>Remover foto</button>}
+            <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:0.8}}>NOME</label>
+            <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder='Ex: Pods Descartáveis' autoFocus style={{width:'100%',fontSize:14,marginBottom:14}}/>
+            <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:8,letterSpacing:0.8}}>COR</label>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:16}}>
+              {COLORS.map(col=>(
+                <div key={col} onClick={()=>setForm(f=>({...f,color:col}))} style={{width:30,height:30,borderRadius:8,background:col,cursor:'pointer',border:form.color===col?'3px solid #fff':'2px solid transparent',boxShadow:form.color===col?'0 0 8px '+col:'none',transition:'all 0.15s'}}/>
+              ))}
             </div>
-
-            {/* Name */}
-            <div style={{marginBottom:14}}>
-              <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:5,letterSpacing:1}}>NOME DA CATEGORIA</label>
-              <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="Ex: Descartaveis, Vapes, Pods..."/>
-            </div>
-
-            {/* Color picker */}
-            <div style={{marginBottom:20}}>
-              <label style={{fontSize:11,color:'var(--muted)',display:'block',marginBottom:8,letterSpacing:1}}>COR DE DESTAQUE</label>
-              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-                {COLORS.map(col=>(
-                  <button key={col} onClick={()=>setForm(f=>({...f,color:col}))} style={{width:28,height:28,borderRadius:8,background:col,border:form.color===col?'3px solid white':'2px solid transparent',cursor:'pointer',transition:'transform 0.15s',transform:form.color===col?'scale(1.2)':'scale(1)'}}/>
-                ))}
-              </div>
-            </div>
-
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setModal(false)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
-              <button onClick={save} className="btn-neon-fill" style={{flex:2,fontSize:14}} disabled={uploading}>
-                <Check size={13} style={{display:'inline',marginRight:5}}/>{uploading?'AGUARDE...':'SALVAR'}
+              <button onClick={save} disabled={saving} className='btn-neon-fill' style={{flex:2,fontSize:14}}>
+                <Check size={13} style={{display:'inline',marginRight:5}}/>{saving?'SALVANDO...':'SALVAR'}
               </button>
             </div>
           </div>
