@@ -33,7 +33,7 @@ export default function PublicMenuPage(){
     setLoading(true)
     const[p,c,s,sched,v]=await Promise.all([
       supabase.from('products').select('*').eq('active',true),
-      supabase.from('categories').select('*').order('sort_order',{ascending:true}).order('name'),
+      supabase.from('categories').select('*').eq('active',true).order('sort_order',{ascending:true}).order('name'),
       supabase.from('store_settings').select('*').limit(1).maybeSingle(),
       supabase.from('store_schedule').select('*').order('day_of_week'),
       supabase.from('product_variants').select('*').eq('active',true).order('sort_order')
