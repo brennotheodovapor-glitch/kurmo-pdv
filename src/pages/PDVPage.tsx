@@ -71,8 +71,15 @@ export default function PDVPage(){
     const r=customers.filter((c:any)=>c.name.toLowerCase().includes(q.toLowerCase())||(c.phone||'').includes(q)).slice(0,8)
     setCustSearch(r);setShowCustDrop(r.length>0)
   }
-  function selectCustomer(cust:any){
-    setCustomerName(cust.name);setSelectedCustomer(cust)
+  async function selectCustomer(cust:any){
+    setCustomerName(cust.name)
+    // Busca contagem real só de pedidos finalizados
+    const{data:ords}=await supabase.from('orders')
+      .select('id',{count:'exact'})
+      .eq('customer_id',cust.id)
+      .in('status',['completed','delivered'])
+    const realCount=ords?.length||0
+    setSelectedCustomer({...cust,order_count:realCount,total_orders:realCount})
     setCustSearch([]);setShowCustDrop(false)
   }
   function handleProductClick(p:any){
