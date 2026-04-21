@@ -21,6 +21,10 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
   const[cart,setCart]=useState<CartItem[]>([])
   const[search,setSearch]=useState('')
   const[customerName,setCustomerName]=useState('')
+  const[customers,setCustomers]=useState<any[]>([])
+  const[custSearch,setCustSearch]=useState<any[]>([])
+  const[showCustDrop,setShowCustDrop]=useState(false)
+  const[selectedCustomer,setSelectedCustomer]=useState<any|null>(null)
   const[discount,setDiscount]=useState(0)
   const[payments,setPayments]=useState<Payment[]>([{method:'pix',amount:0}])
   const[processing,setProcessing]=useState(false)
@@ -172,7 +176,32 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
         }
       </div>
       <div style={{padding:'10px 12px',borderTop:'1px solid var(--border)',flexShrink:0}}>
-        <input value={customerName} onChange={e=>setCustomerName(e.target.value)} placeholder='Nome do cliente (opcional)' style={{marginBottom:8,fontSize:13,width:'100%'}}/>
+        <div style={{position:'relative',marginBottom:8}}>
+          <div style={{position:'relative'}}>
+            <User size={13} style={{position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',color:'var(--muted)',pointerEvents:'none'}}/>
+            <input
+              value={customerName}
+              onChange={e=>searchCustomers(e.target.value)}
+              onFocus={()=>{if(custSearch.length>0)setShowCustDrop(true)}}
+              onBlur={()=>setTimeout(()=>setShowCustDrop(false),150)}
+              placeholder='Nome do cliente (opcional)'
+              style={{paddingLeft:28,fontSize:13,width:'100%',boxSizing:'border-box' as const,borderColor:selectedCustomer?'var(--neon)':'undefined'}}
+            />
+            {selectedCustomer&&<div style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',width:8,height:8,borderRadius:'50%',background:'var(--neon)'}}/>}
+          </div>
+          {showCustDrop&&custSearch.length>0&&(
+            <div style={{position:'absolute',top:'100%',left:0,right:0,background:'var(--surface)',border:'1px solid var(--neon-dim)',borderRadius:8,zIndex:100,boxShadow:'0 4px 20px rgba(0,0,0,0.4)',overflow:'hidden',marginTop:2}}>
+              {custSearch.map((cust:any)=>(
+                <div key={cust.id} onMouseDown={()=>selectCustomer(cust)} style={{padding:'8px 12px',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.04)'}}
+                  onMouseEnter={e=>(e.currentTarget as HTMLElement).style.background='rgba(0,255,65,0.06)'}
+                  onMouseLeave={e=>(e.currentTarget as HTMLElement).style.background='transparent'}>
+                  <span style={{fontSize:13,color:'var(--white)',fontWeight:500}}>{cust.name}</span>
+                  {cust.phone&&<span style={{fontSize:11,color:'var(--muted)'}}>{cust.phone}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <div style={{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--muted)',marginBottom:4}}><span>Subtotal</span><span style={{fontFamily:'JetBrains Mono,monospace'}}>{fmt(subtotal)}</span></div>
         {/* Discount + Coupon */}
         <div style={{background:'rgba(26,46,26,0.4)',borderRadius:9,padding:'8px 10px',marginBottom:8,border:'1px solid var(--border)'}}>
