@@ -35,11 +35,14 @@ export default function ProductsPage(){
   }
   async function loadVariants(pid:string){
     if(variantsCache[pid])return
-    const{data}=await supabase.from('product_variants').select('*').eq('product_id',pid).eq('active',true).order('sort_order')
-    setVariantsCache(c=>({...c,[pid]:data||[]}))
+    const{data}=await supabase.from('product_variants').select('*').eq('product_id',pid).eq('active',true).order('created_at',{ascending:false})
+    // Deduplicate by name
+    const seen=new Set()
+    const unique=(data||[]).filter((v:any)=>{if(seen.has(v.name))return false;seen.add(v.name);return true})
+    setVariantsCache(c=>({...c,[pid]:unique}))
   }
   async function toggleExpand(id:string){
-    if(expandedId===id){setExpanded(null);return}
+    if(expandedId===id){setExpandedId(null);return}
     setExpandedId(id)
     loadVariants(id)
   }
