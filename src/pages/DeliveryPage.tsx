@@ -124,7 +124,7 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
         }
       }catch(e){console.error('Erro ao restaurar estoque:',e)}
     }
-    load()
+    loadData()
   }
 
   async function confirmCancel(){
