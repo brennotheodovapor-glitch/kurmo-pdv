@@ -2,7 +2,7 @@ import{useState,useEffect,useRef}from 'react'
 import{Tag,Plus,Edit2,Trash2,X,Check,GripVertical}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
-type Category={id:string;name:string;color:string;sort_order:number}
+type Category={id:string;name:string;color:string;sort_order:number;active:boolean}
 const COLORS=['#00ff41','#06b6d4','#f59e0b','#7c3aed','#ff3333','#10b981','#f472b6','#fb923c']
 export default function CategoriesPage(){
   const[cats,setCats]=useState<Category[]>([])
@@ -40,6 +40,11 @@ export default function CategoriesPage(){
       await supabase.from('categories').update({sort_order:c.sort_order}).eq('id',c.id)
     }
     toast.success('Ordem salva! O catálogo será atualizado.')
+  }
+  async function toggleActive(cat:Category){
+    await supabase.from('categories').update({active:!cat.active}).eq('id',cat.id)
+    setCats(cs=>cs.map(c=>c.id===cat.id?{...c,active:!cat.active}:c))
+    toast.success(cat.active?'Categoria ocultada do catálogo!':'Categoria ativada no catálogo!')
   }
   function openNew(){setEditing(null);setForm({name:'',color:'#00ff41'});setModal(true)}
   function openEdit(c:Category){setEditing(c);setForm({name:c.name,color:c.color||'#00ff41'});setModal(true)}
@@ -93,7 +98,7 @@ export default function CategoriesPage(){
               marginBottom:8,padding:'12px 16px',
               display:'flex',alignItems:'center',gap:12,
               cursor:'grab',userSelect:'none',
-              opacity:dragActive===i?0.4:1,
+              opacity:dragActive===i?0.4:c.active?1:0.55,
               border:dragOver===i&&dragActive!==i?'2px solid var(--neon)':'1px solid var(--border)',
               transform:dragOver===i&&dragActive!==i?'translateY(-2px)':'none',
               transition:'border 0.1s, transform 0.1s, opacity 0.1s',
@@ -102,6 +107,9 @@ export default function CategoriesPage(){
             <div style={{width:14,height:14,borderRadius:'50%',background:c.color||'#00ff41',flexShrink:0,boxShadow:'0 0 6px '+(c.color||'#00ff41')+'80'}}/>
             <span style={{fontSize:14,fontWeight:600,color:'var(--white)',flex:1}}>{c.name}</span>
             <span style={{fontSize:10,color:'var(--muted)',fontFamily:'JetBrains Mono,monospace',background:'var(--surface)',padding:'2px 7px',borderRadius:4}}>#{i+1}</span>
+              <button onClick={e=>{e.stopPropagation();toggleActive(c)}} title={c.active?'Ocultar do catálogo':'Mostrar no catálogo'} style={{padding:'3px 10px',borderRadius:20,border:'1px solid '+(c.active?'var(--neon)':'var(--border)'),background:c.active?'rgba(0,255,65,0.08)':'transparent',color:c.active?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:10,fontFamily:'Bangers,cursive',letterSpacing:0.5,whiteSpace:'nowrap',flexShrink:0}}>
+                {c.active?'VISÍVEL':'OCULTA'}
+              </button>
             <div style={{display:'flex',gap:6}}>
               <button onClick={()=>openEdit(c)} style={{width:30,height:30,borderRadius:7,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
                 <Edit2 size={13}/>
