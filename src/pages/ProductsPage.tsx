@@ -242,13 +242,13 @@ export default function ProductsPage(){
             {/* PREÇO CUSTO + VENDA */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
               <div>
-                <label style={{fontSize:10,color:'#ff8888',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.8,display:'flex',alignItems:'center',gap:4}}>
+                <label style={{fontSize:10,color:'#ff8888',marginBottom:4,fontWeight:600,letterSpacing:0.8,display:'flex',alignItems:'center',gap:4}}>
                   <DollarSign size={10}/> PREÇO DE CUSTO (R$)
                 </label>
                 <input type='number' min='0' step='0.01' value={form.cost_price||''} onChange={e=>upd('cost_price',e.target.value)} placeholder='0,00' style={{width:'100%',fontSize:13,borderColor:'rgba(255,136,136,0.3)'}}/>
               </div>
               <div>
-                <label style={{fontSize:10,color:'var(--neon)',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.8,display:'flex',alignItems:'center',gap:4}}>
+                <label style={{fontSize:10,color:'var(--neon)',marginBottom:4,fontWeight:600,letterSpacing:0.8,display:'flex',alignItems:'center',gap:4}}>
                   <TrendingUp size={10}/> PREÇO DE VENDA (R$) *
                 </label>
                 <input type='number' min='0' step='0.01' value={form.price||''} onChange={e=>upd('price',e.target.value)} placeholder='0,00' style={{width:'100%',fontSize:13}}/>
