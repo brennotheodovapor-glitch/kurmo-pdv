@@ -173,7 +173,7 @@ export default function PDVPage(){
     }catch(e:any){toast.error(e.message||'Erro ao finalizar')}
     finally{setProcessing(false)}
   }
-  function printLast(){if(lastOrder)printReceipt(lastOrder,cart,total)}
+  function printLast(){if(lastOrder)printReceipt(lastOrder,cart,subtotal)}
   const filtered=products.filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()))
   return(
     <div style={{display:'flex',height:'100%',background:'var(--bg)',overflow:'hidden'}}>
@@ -359,7 +359,7 @@ export default function PDVPage(){
             <input type='number' min='0' step='0.01' value={cash.openBal} onChange={e=>cash.setOpenBal(e.target.value)} placeholder='0,00' autoFocus style={{fontSize:20,textAlign:'center' as const,fontFamily:'JetBrains Mono,monospace',marginBottom:16,width:'100%'}}/>
             <div style={{display:'flex',gap:8}}>
               <button onClick={()=>cash.setOpenModal(false)} style={{flex:1,padding:11,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
-              <button onClick={cash.openRegister} className='btn-neon-fill' style={{flex:2,fontSize:14}}>ABRIR</button>
+              <button onClick={cash.openCash} className='btn-neon-fill' style={{flex:2,fontSize:14}}>ABRIR</button>
             </div>
           </div>
         </div>
