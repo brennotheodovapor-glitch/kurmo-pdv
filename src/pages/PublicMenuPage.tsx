@@ -73,7 +73,6 @@ export default function PublicMenuPage(){
   }
 
   async function handleCep(val:string){
-    // Mask: 00000-000
     const digits=val.replace(/\D/g,'').substring(0,8)
     const masked=digits.length>5?digits.substring(0,5)+'-'+digits.substring(5):digits
     setCep(masked)
@@ -83,26 +82,54 @@ export default function PublicMenuPage(){
     if(digits.length!==8)return
     setCepLoading(true)
     try{
+      // 1. Busca endereço no ViaCEP
       const r=await fetch('https://viacep.com.br/ws/'+digits+'/json/')
       const d=await r.json()
       if(d.erro){setCepStatus('err');setCepLoading(false);return}
       setStreet(d.logradouro||'')
-      setCepStatus('ok')
-      // Match bairro do CEP com bairros cadastrados
-      const bairroViaCep=(d.bairro||'').toLowerCase().trim()
-      const allZ:Zone[]=zones.length>0?zones:(await supabase.from('delivery_zones').select('id,name,fee').eq('active',true).order('name').then(r=>r.data||[]))
-      if(allZ.length>0&&zones.length===0)setZones(allZ)
-      // Tenta match: bairro do cep contém nome cadastrado OU nome cadastrado contém bairro do cep
-      let matched=allZ.filter((z:Zone)=>{
-        const zn=z.name.toLowerCase().trim()
-        return bairroViaCep.includes(zn)||zn.includes(bairroViaCep)||
-          bairroViaCep.split(' ').some((w:string)=>w.length>3&&zn.includes(w))
+      // 2. Pega o bairro EXATO que o ViaCEP retornou
+      const bairroExato=(d.bairro||'').trim()
+      if(!bairroExato){
+        // CEP sem bairro (faixa geral) -> mostra todos para cliente escolher
+        const allZ:Zone[]=zones.length>0?zones:(await supabase.from('delivery_zones').select('id,name,fee').eq('active',true).order('name').then(r2=>r2.data||[]))
+        if(zones.length===0)setZones(allZ)
+        setMatchedZones(allZ)
+        setCepStatus('ok')
+        setCepLoading(false)
+        return
+      }
+      // 3. Busca esse bairro exato na tabela delivery_zones
+      const bairroLower=bairroExato.toLowerCase()
+      const{data:zData}=await supabase
+        .from('delivery_zones')
+        .select('id,name,fee')
+        .eq('active',true)
+        .ilike('name',bairroExato)
+        .limit(1)
+      if(zData&&zData.length>0){
+        // Achou exato -> seleciona direto, sem nem mostrar lista
+        setMatchedZones(zData)
+        setZone(zData[0])
+        setCepStatus('ok')
+        setCepLoading(false)
+        return
+      }
+      // 4. Não achou nome exato -> tenta busca parcial (bairro contém o nome ou vice-versa)
+      const allZ:Zone[]=zones.length>0?zones:(await supabase.from('delivery_zones').select('id,name,fee').eq('active',true).order('name').then(r2=>r2.data||[]))
+      if(zones.length===0)setZones(allZ)
+      const partial=allZ.filter((z:Zone)=>{
+        const zn=z.name.toLowerCase()
+        return bairroLower===zn||bairroLower.includes(zn)||zn.includes(bairroLower)
       })
-      // Se não achou nenhum, mostra todos (fallback)
-      if(matched.length===0)matched=allZ
-      setMatchedZones(matched)
-      // Auto-seleciona se só tiver 1
-      if(matched.length===1)setZone(matched[0])
+      if(partial.length>0){
+        setMatchedZones(partial)
+        if(partial.length===1)setZone(partial[0])
+      }else{
+        // Não entregamos nessa área
+        setMatchedZones([])
+        setZone(null)
+      }
+      setCepStatus('ok')
     }catch{setCepStatus('err')}
     setCepLoading(false)
   }
@@ -390,9 +417,11 @@ export default function PublicMenuPage(){
           {/* BAIRRO E FRETE — aparece só após CEP válido */}
           {cepStatus==='ok'&&(
             <div style={{marginBottom:24}}>
-              <p style={{fontSize:11,color:'#888',fontWeight:700,letterSpacing:0.8,margin:'0 0 6px'}}>BAIRRO / FRETE DE ENTREGA</p>
+              <p style={{fontSize:11,color:'#888',fontWeight:700,letterSpacing:0.8,margin:'0 0 6px'}}>
+                {zone&&matchedZones.length===1?'ENTREGA — '+zone.name:'BAIRRO / FRETE DE ENTREGA'}
+              </p>
               {matchedZones.length===0?(
-                <p style={{fontSize:13,color:'#555'}}>Nenhum bairro encontrado para este CEP.</p>
+                <p style={{fontSize:13,color:'#ff5555',padding:'12px',background:'rgba(255,51,51,0.06)',borderRadius:10,border:'1px solid rgba(255,51,51,0.2)'}}>❌ Não entregamos nesse bairro ainda. Entre em contato pelo WhatsApp.</p>
               ):(
                 <div style={{display:'flex',flexDirection:'column',gap:8}}>
                   {matchedZones.map((z:Zone)=>(
