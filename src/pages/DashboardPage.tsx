@@ -16,8 +16,8 @@ export default function DashboardPage(){
     const fromStr=from.toISOString()
     const fromPrevStr=fromPrev.toISOString()
     const[curr,prev,items]=await Promise.all([
-      supabase.from('orders').select('id,total,subtotal,type,status,payment_method,created_at').gte('created_at',fromStr),
-      supabase.from('orders').select('id,total,status').gte('created_at',fromPrevStr).lt('created_at',fromStr),
+      supabase.from('orders').select('id,total,subtotal,type,status,payment_method,created_at').gte('created_at',fromStr).in('status',['completed','delivered']),
+      supabase.from('orders').select('id,total,status').gte('created_at',fromPrevStr).lt('created_at',fromStr).in('status',['completed','delivered']),
       supabase.from('order_items').select('product_name,quantity,total_price,order_id').gte('created_at',fromStr)
     ])
     const orders=(curr.data||[])
