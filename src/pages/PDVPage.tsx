@@ -15,6 +15,9 @@ type Props={sellerId?:string|null;sellerName?:string}
 export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName}:Props={}){
   const cash=useCashRegister()
   const[products,setProducts]=useState<Product[]>([])
+  const[variantPickerModal,setVariantPickerModal]=useState<any|null>(null)
+  const[pickerVariant,setPickerVariant]=useState('')
+  const[pickerQty,setPickerQty]=useState(1)
   const[discountModal,setDiscountModal]=useState<string|null>(null)
   const[discountValue,setDiscountValue]=useState('')
   const[discountType,setDiscountType]=useState<'pct'|'fixed'>('pct')
@@ -40,8 +43,26 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
   useEffect(()=>{loadData()},[])
 
   async function loadData(){
-    const{data}=await supabase.from('products').select('*').eq('active',true).order('name')
-    setProducts(data||[])
+    const[p,v]=await Promise.all([
+      supabase.from('products').select('*').eq('active',true).order('name'),
+      supabase.from('product_variants').select('*').eq('active',true)
+    ])
+    const prods=p.data||[]
+    const vars=v.data||[]
+    // For has_sizes products, sum variant stock into product.stock
+    const enriched=prods.map((prod:any)=>{
+      if(prod.has_sizes){
+        const pv=vars.filter((vr:any)=>vr.product_id===prod.id)
+        const totalStock=pv.reduce((s:number,vr:any)=>s+(vr.stock||0),0)
+        return{...prod,stock:totalStock,_variants:pv}
+      }
+      return{...prod,_variants:[]}
+    })
+    setProducts(enriched)
+    setVariantsMap(Object.fromEntries(vars.reduce((m:any,v:any)=>{
+      if(!m.has(v.product_id))m.set(v.product_id,[])
+      m.get(v.product_id).push(v);return m
+    },new Map())))
   }
 
   const filtered=products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()))
@@ -153,7 +174,7 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
       </div>
       <div style={{flex:1,overflowY:'auto',padding:10,display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(120px,1fr))',gap:8,alignContent:'start'}}>
         {filtered.map(p=>(
-          <button key={p.id} onClick={()=>addToCart(p)} disabled={p.stock===0}
+          <button key={p.id} onClick={()=>handleProductClick(p)} disabled={p.stock===0}
             style={{background:'var(--card)',border:'1px solid var(--border)',borderRadius:12,padding:8,cursor:p.stock===0?'not-allowed':'pointer',textAlign:'left',opacity:p.stock===0?0.4:1,WebkitTapHighlightColor:'transparent'}}
             className='card-hover'>
             {p.image_url&&p.image_url.startsWith('http')
@@ -204,7 +225,7 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
             <input
               value={customerName}
               onChange={e=>searchCustomers(e.target.value)}
-              onFocus={()=>{if(custSearch.length>0)setShowCustDrop(true)}}
+              onFocus={()=>{if(customers.length>0){setCustSearch(customers.slice(0,8));setShowCustDrop(true)}}}
               onBlur={()=>setTimeout(()=>setShowCustDrop(false),150)}
               placeholder='Nome do cliente (opcional)'
               style={{paddingLeft:28,fontSize:13,width:'100%',boxSizing:'border-box' as const,borderColor:selectedCustomer?'var(--neon)':'undefined'}}
@@ -363,5 +384,44 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
         </div>
       )}
     </div>
+
+      {/* VARIANT PICKER MODAL for PDV */}
+      {variantPickerModal&&(
+        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:60,padding:16}}>
+          <div className='card' style={{width:'100%',maxWidth:420,padding:24,border:'1px solid var(--neon-dim)'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+              <div>
+                <h2 className='font-bangers neon-text-sm' style={{fontSize:20}}>ESCOLHA O SABOR</h2>
+                <p style={{fontSize:12,color:'var(--muted)'}}>{variantPickerModal.name} — {new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(variantPickerModal.price)}</p>
+              </div>
+              <button onClick={()=>setVariantPickerModal(null)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer',fontSize:20}}>✕</button>
+            </div>
+            <div style={{display:'flex',flexDirection:'column',gap:6,marginBottom:14,maxHeight:240,overflowY:'auto'}}>
+              {(variantPickerModal._variants||[]).filter((v:any)=>v.stock>0).map((v:any)=>(
+                <button key={v.id} onClick={()=>setPickerVariant(v.id)} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',borderRadius:8,border:pickerVariant===v.id?'2px solid var(--neon)':'1px solid var(--border)',background:pickerVariant===v.id?'var(--neon-glow)':'transparent',cursor:'pointer',textAlign:'left' as const}}>
+                  <span style={{fontSize:13,color:pickerVariant===v.id?'var(--neon)':'var(--white)',fontWeight:pickerVariant===v.id?700:400}}>{v.name}</span>
+                  <span style={{fontSize:11,color:'var(--muted)'}}>estoque: {v.stock}</span>
+                </button>
+              ))}
+              {(variantPickerModal._variants||[]).filter((v:any)=>v.stock===0).map((v:any)=>(
+                <div key={v.id} style={{display:'flex',justifyContent:'space-between',padding:'10px 14px',borderRadius:8,border:'1px solid var(--border)',opacity:0.4}}>
+                  <span style={{fontSize:13,color:'var(--muted)'}}>{v.name}</span>
+                  <span style={{fontSize:11,color:'#ff3333'}}>Esgotado</span>
+                </div>
+              ))}
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              <span style={{fontSize:12,color:'var(--muted)'}}>Qtd:</span>
+              <button onClick={()=>setPickerQty(q=>Math.max(1,q-1))} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--white)',cursor:'pointer'}}>-</button>
+              <span style={{fontSize:16,fontWeight:700,color:'var(--white)',minWidth:20,textAlign:'center' as const}}>{pickerQty}</span>
+              <button onClick={()=>{const v=(variantPickerModal._variants||[]).find((x:any)=>x.id===pickerVariant);if(v&&pickerQty<v.stock)setPickerQty(q=>q+1)}} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--white)',cursor:'pointer'}}>+</button>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setVariantPickerModal(null)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
+              <button onClick={addVariantToCart} disabled={!pickerVariant} className='btn-neon-fill' style={{flex:2,fontSize:14,opacity:pickerVariant?1:0.5}}>ADICIONAR AO CARRINHO</button>
+            </div>
+          </div>
+        </div>
+      )}
   )
 }
