@@ -109,7 +109,7 @@ export default function App(){
       <Route path='/menu/*' element={<PublicMenuPage/>}/>
       <Route path='/' element={<Layout userRole={profile?.role} sellerName={sellerName} pendingOrders={pendingCount} soundEnabledRef={soundEnabledRef}/>}>
         <Route index element={<Navigate to='/pdv' replace/>}/>
-        <Route path='pdv' element={<PDVPage sellerId={sellerId} sellerName={sellerName}/>}/>
+        <Route path='pdv' element={<PDVPage/>}/>
         <Route path='delivery' element={<DeliveryPage/>}/>
         <Route path='historico' element={<HistoryPage sellerId={isAdmin?null:sellerId}/>}/>
         <Route path='fiado' element={<FiadoPage/>}/>
