@@ -423,5 +423,6 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
           </div>
         </div>
       )}
+    </div>
   )
 }
