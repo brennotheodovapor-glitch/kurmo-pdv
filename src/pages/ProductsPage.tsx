@@ -1,287 +1,317 @@
 import{useState,useEffect,useRef}from 'react'
-import{Plus,Search,Edit2,Trash2,X,Check,Image,Package,AlertTriangle,Shirt}from 'lucide-react'
+import{Package,Plus,Edit2,Trash2,X,Check,Search,Upload,ChevronDown,ChevronUp,Layers}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
 import toast from 'react-hot-toast'
-
-type Product={id:string;name:string;price:number;cost_price:number;stock:number;stock_alert?:number;category_id:string|null;active:boolean;image_url?:string;description?:string;has_sizes?:boolean;sizes?:string[];sizes_stock?:Record<string,number>}
 type Category={id:string;name:string;color:string}
-
-const EMPTY:Omit<Product,'id'>={name:'',price:0,cost_price:0,stock:0,stock_alert:5,category_id:null,active:true,image_url:'',description:'',has_sizes:false,sizes:[],sizes_stock:{}}
+type Variant={id?:string;name:string;stock:number;price_modifier:number;active:boolean}
+type Product={id:string;name:string;description:string;price:number;stock:number;category_id:string;image_url:string;active:boolean;has_sizes:boolean;stock_alert:number;is_promo:boolean;promo_price:number}
 const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
-const SIZE_PRESETS=[
-  {label:'P-GG',sizes:['P','M','G','GG']},
-  {label:'P-XGG',sizes:['P','M','G','GG','XGG']},
-  {label:'34-44',sizes:['34','36','38','40','42','44']},
-  {label:'36-46',sizes:['36','38','40','42','44','46']},
-  {label:'Único',sizes:['Único']},
-]
-
+const EMPTY_PROD={name:'',description:'',price:0,stock:0,category_id:'',image_url:'',active:true,has_sizes:false,stock_alert:3,is_promo:false,promo_price:0}
 export default function ProductsPage(){
   const[products,setProducts]=useState<Product[]>([])
   const[categories,setCategories]=useState<Category[]>([])
-  const[search,setSearch]=useState('')
-  const[catFilter,setCatFilter]=useState<string|null>(null)
-  const[modal,setModal]=useState(false)
-  const[edit,setEdit]=useState<Product|null>(null)
-  const[form,setForm]=useState<Omit<Product,'id'>>(EMPTY)
-  const[uploading,setUploading]=useState(false)
-  const[preview,setPreview]=useState<string|null>(null)
   const[loading,setLoading]=useState(true)
-  const[newSize,setNewSize]=useState('')
-  const fileRef=useRef<HTMLInputElement>(null)
-
-  useEffect(()=>{loadData()},[])
-
-  async function loadData(){
+  const[search,setSearch]=useState('')
+  const[catFilter,setCatFilter]=useState('all')
+  const[modal,setModal]=useState(false)
+  const[editing,setEditing]=useState<Product|null>(null)
+  const[form,setForm]=useState<any>(EMPTY_PROD)
+  const[variants,setVariants]=useState<Variant[]>([])
+  const[saving,setSaving]=useState(false)
+  const[uploading,setUploading]=useState(false)
+  const[expandedId,setExpandedId]=useState<string|null>(null)
+  const[variantsCache,setVariantsCache]=useState<Record<string,Variant[]>>({})
+  const imgRef=useRef<HTMLInputElement>(null)
+  useEffect(()=>{load()},[])
+  async function load(){
     setLoading(true)
     const[p,c]=await Promise.all([
-      supabase.from('products').select('id,name,price,cost_price,stock,stock_alert,category_id,active,image_url,description,has_sizes,sizes,sizes_stock').order('name'),
-      supabase.from('categories').select('*').order('name')
+      supabase.from('products').select('*').order('name'),
+      supabase.from('categories').select('*').order('sort_order').order('name')
     ])
     setProducts(p.data||[])
     setCategories(c.data||[])
     setLoading(false)
   }
-
-  const filtered=products.filter(p=>{
-    if(catFilter&&p.category_id!==catFilter)return false
-    if(search)return p.name.toLowerCase().includes(search.toLowerCase())
-    return true
-  })
-  const lowStock=products.filter(p=>p.active&&p.stock>0&&p.stock<=(p.stock_alert??5))
-  const outStock=products.filter(p=>p.active&&p.stock===0)
-
-  const openNew=()=>{setEdit(null);setForm(EMPTY);setPreview(null);setNewSize('');setModal(true)}
-  const openEdit=(p:Product)=>{
-    setEdit(p)
-    setForm({name:p.name,price:p.price,cost_price:p.cost_price,stock:p.stock,stock_alert:p.stock_alert??5,category_id:p.category_id,active:p.active,image_url:p.image_url||'',description:p.description||'',has_sizes:p.has_sizes||false,sizes:p.sizes||[],sizes_stock:p.sizes_stock||{}})
-    setPreview(p.image_url&&p.image_url.startsWith('http')?p.image_url:null)
-    setNewSize('');setModal(true)
+  async function loadVariants(productId:string){
+    if(variantsCache[productId])return
+    const{data}=await supabase.from('product_variants').select('*').eq('product_id',productId).eq('active',true).order('sort_order')
+    setVariantsCache(c=>({...c,[productId]:data||[]}))
   }
-
-  function toggleSize(s:string){
-    const cur=form.sizes||[]
-    setForm(f=>({...f,sizes:cur.includes(s)?cur.filter(x=>x!==s):[...cur,s]}))
+  async function toggleExpand(id:string){
+    if(expandedId===id){setExpandedId(null);return}
+    setExpandedId(id)
+    loadVariants(id)
   }
-  function applyPreset(sizes:string[]){setForm(f=>({...f,sizes}))}
-  function addCustomSize(){
-    const s=newSize.trim().toUpperCase();if(!s)return
-    if(!(form.sizes||[]).includes(s))setForm(f=>({...f,sizes:[...(f.sizes||[]),s]}))
-    setNewSize('')
+  function openNew(){
+    setEditing(null)
+    setForm({...EMPTY_PROD})
+    setVariants([])
+    setModal(true)
   }
-
-  async function handleImg(e:React.ChangeEvent<HTMLInputElement>){
-    const file=e.target.files?.[0];if(!file)return
-    const reader=new FileReader();reader.onload=ev=>setPreview(ev.target?.result as string);reader.readAsDataURL(file)
+  async function openEdit(p:Product){
+    setEditing(p)
+    setForm({...p})
+    // Load existing variants
+    const{data}=await supabase.from('product_variants').select('*').eq('product_id',p.id).eq('active',true).order('sort_order')
+    setVariants((data||[]).map((v:any)=>({id:v.id,name:v.name,stock:v.stock,price_modifier:v.price_modifier||0,active:true})))
+    setModal(true)
+  }
+  function addVariant(){setVariants(v=>[...v,{name:'',stock:0,price_modifier:0,active:true}])}
+  function updateVariant(i:number,field:string,value:any){setVariants(v=>v.map((x,j)=>j===i?{...x,[field]:value}:x))}
+  function removeVariant(i:number){setVariants(v=>v.filter((_,j)=>j!==i))}
+  async function uploadImg(file:File){
     setUploading(true)
     try{
-      const ext=file.name.split('.').pop()?.toLowerCase()||'jpg'
-      const path='products/'+Date.now()+'_'+Math.random().toString(36).slice(2)+'.'+ext
-      const{error}=await supabase.storage.from('product-images').upload(path,file,{upsert:false,contentType:file.type})
+      const ext=file.name.split('.').pop()
+      const path='prod-'+Date.now()+'.'+ext
+      const{error}=await supabase.storage.from('product-images').upload(path,file,{upsert:true})
       if(error)throw error
-      const{data:{publicUrl}}=supabase.storage.from('product-images').getPublicUrl(path)
-      setForm(f=>({...f,image_url:publicUrl}))
-      toast.success('Foto enviada! Clique SALVAR para confirmar.')
-    }catch(err:any){toast.error('Erro upload: '+err.message)}finally{setUploading(false)}
+      const{data}=supabase.storage.from('product-images').getPublicUrl(path)
+      setForm((f:any)=>({...f,image_url:data.publicUrl}))
+      toast.success('Imagem enviada!')
+    }catch(e:any){toast.error(e.message)}
+    finally{setUploading(false)}
   }
-
   async function save(){
     if(!form.name.trim()){toast.error('Nome obrigatório');return}
-    const payload:any={
-      name:form.name,description:form.description||'',
-      price:Number(form.price)||0,cost_price:Number(form.cost_price)||0,
-      stock:Number(form.stock)||0,stock_alert:Number(form.stock_alert)||5,
-      category_id:form.category_id||null,active:form.active,image_url:form.image_url||'',
-      has_sizes:form.has_sizes||false,
-      sizes:form.has_sizes?(form.sizes||[]):[],
-      sizes_stock:form.has_sizes?(form.sizes_stock||{}):{},
-      // Auto-calc total stock from sizes_stock if has_sizes
-      ...(form.has_sizes&&Object.keys(form.sizes_stock||{}).length>0?{stock:Object.values(form.sizes_stock||{}).reduce((s:number,v:any)=>s+Number(v||0),0)}:{})
-    }
-    if(edit){
-      const{error}=await supabase.from('products').update(payload).eq('id',edit.id)
-      if(error){toast.error('Erro: '+error.message);return}
-      toast.success('Atualizado!')
-    }else{
-      const{error}=await supabase.from('products').insert(payload)
-      if(error){toast.error('Erro: '+error.message);return}
-      toast.success('Cadastrado!')
-    }
-    setModal(false);loadData()
+    if(!form.category_id){toast.error('Selecione a categoria');return}
+    setSaving(true)
+    try{
+      const payload={
+        name:form.name.trim(),description:form.description||'',
+        price:parseFloat(form.price)||0,
+        stock:form.has_sizes?0:parseInt(form.stock)||0,
+        category_id:form.category_id,image_url:form.image_url||'',
+        active:form.active,has_sizes:!!form.has_sizes,
+        stock_alert:parseInt(form.stock_alert)||3,
+        is_promo:!!form.is_promo,
+        promo_price:form.is_promo?parseFloat(form.promo_price)||0:null
+      }
+      let productId=editing?.id
+      if(editing){
+        const{error}=await supabase.from('products').update(payload).eq('id',editing.id)
+        if(error)throw error
+      }else{
+        const{data,error}=await supabase.from('products').insert(payload).select().single()
+        if(error)throw error
+        productId=data.id
+      }
+      // Save variants
+      if(form.has_sizes&&productId){
+        // Deactivate old
+        await supabase.from('product_variants').update({active:false}).eq('product_id',productId)
+        // Upsert new
+        const toInsert=variants.filter(v=>v.name.trim()).map((v,i)=>({
+          product_id:productId,name:v.name.trim(),stock:parseInt(String(v.stock))||0,
+          price_modifier:parseFloat(String(v.price_modifier))||0,active:true,sort_order:i
+        }))
+        if(toInsert.length>0)await supabase.from('product_variants').insert(toInsert)
+        // Clear cache
+        setVariantsCache(c=>{const n={...c};delete n[productId!];return n})
+      }
+      toast.success(editing?'Produto atualizado!':'Produto criado!')
+      setModal(false);load()
+    }catch(e:any){toast.error(e.message)}
+    finally{setSaving(false)}
   }
-
   async function del(id:string){
-    if(!confirm('Remover produto?'))return
+    if(!confirm('Deletar produto?'))return
     await supabase.from('products').delete().eq('id',id)
-    toast.success('Removido');loadData()
+    toast.success('Produto removido')
+    load()
   }
-
-  const getCat=(id:string|null)=>categories.find(c=>c.id===id)
-  const mg=(p:Product)=>p.price>0?Math.round((p.price-p.cost_price)/p.price*100):0
-
+  async function toggleActive(p:Product){
+    await supabase.from('products').update({active:!p.active}).eq('id',p.id)
+    setProducts(ps=>ps.map(x=>x.id===p.id?{...x,active:!p.active}:x))
+  }
+  const filtered=products.filter(p=>{
+    if(catFilter!=='all'&&p.category_id!==catFilter)return false
+    if(search&&!p.name.toLowerCase().includes(search.toLowerCase()))return false
+    return true
+  })
   return(
     <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
-      {(lowStock.length>0||outStock.length>0)&&(
-        <div style={{padding:'7px 16px',background:'rgba(255,170,0,0.08)',borderBottom:'1px solid rgba(255,170,0,0.2)',display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flexShrink:0}}>
-          <AlertTriangle size={13} color='#ffaa00'/>
-          {outStock.length>0&&<span style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,51,51,0.15)',color:'#ff3333'}}>{outStock.length} sem estoque</span>}
-          {lowStock.map(p=>(<span key={p.id} style={{fontSize:11,padding:'2px 8px',borderRadius:20,background:'rgba(255,170,0,0.15)',color:'#ffaa00'}}>{p.name} ({p.stock})</span>))}
-        </div>
-      )}
-      <div style={{padding:'10px 14px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',flexShrink:0}}>
-        <Package size={18} color='var(--neon)'/>
-        <h1 className='font-bangers neon-text-sm' style={{fontSize:24}}>PRODUTOS</h1>
+      <div style={{padding:'12px 20px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap'}}>
+        <Package size={20} color='var(--neon)'/>
+        <h1 className='font-bangers neon-text-sm' style={{fontSize:26}}>PRODUTOS</h1>
         <div style={{position:'relative',flex:1,minWidth:160,maxWidth:280}}>
           <Search size={13} style={{position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar...' style={{paddingLeft:30,fontSize:13}}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar produto...' style={{paddingLeft:28,fontSize:13}}/>
         </div>
-        <div style={{display:'flex',gap:5,flexWrap:'wrap'}}>
-          <button onClick={()=>setCatFilter(null)} style={{padding:'4px 10px',borderRadius:8,border:!catFilter?'1px solid var(--neon)':'1px solid var(--border)',background:!catFilter?'var(--neon-glow)':'transparent',color:!catFilter?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:12}}>Todos</button>
-          {categories.map(c=>(<button key={c.id} onClick={()=>setCatFilter(c.id===catFilter?null:c.id)} style={{padding:'4px 10px',borderRadius:8,border:catFilter===c.id?'1px solid var(--neon)':'1px solid var(--border)',background:catFilter===c.id?'var(--neon-glow)':'transparent',color:catFilter===c.id?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:12}}>{c.name}</button>))}
-        </div>
-        <button onClick={openNew} className='btn-neon-fill' style={{fontSize:12,padding:'7px 14px',marginLeft:'auto',display:'flex',alignItems:'center',gap:5}}><Plus size={13}/>NOVO</button>
+        <button onClick={openNew} className='btn-neon-fill' style={{fontSize:12,padding:'7px 14px',whiteSpace:'nowrap'}}>
+          <Plus size={13} style={{display:'inline',marginRight:5}}/>NOVO PRODUTO
+        </button>
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:'12px 14px'}}>
-        {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:(
-          <div className='card' style={{overflow:'hidden'}}>
-            <table style={{width:'100%',borderCollapse:'collapse'}}>
-              <thead><tr style={{borderBottom:'1px solid var(--border)',background:'var(--surface)'}}>
-                {['PRODUTO','CAT','VENDA','MARGEM','ESTQ',''].map(h=><th key={h} style={{padding:'9px 12px',textAlign:'left',fontSize:11,color:'var(--muted)',fontWeight:600}}>{h}</th>)}
-              </tr></thead>
-              <tbody>{filtered.map(p=>{
-                const m=mg(p)
-                return(<tr key={p.id} style={{borderBottom:'1px solid rgba(26,46,26,0.5)',opacity:p.active?1:0.5}}>
-                  <td style={{padding:'9px 12px'}}>
-                    <div style={{display:'flex',alignItems:'center',gap:10}}>
-                      <div style={{width:38,height:38,borderRadius:8,overflow:'hidden',background:'var(--surface)',border:'1px solid var(--border)',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        {p.image_url&&p.image_url.startsWith('http')?<img src={p.image_url} style={{width:'100%',height:'100%',objectFit:'cover'}} onError={e=>{(e.target as HTMLImageElement).style.display='none'}}/>:<Package size={16} color='var(--muted)' style={{opacity:0.4}}/>}
-                      </div>
-                      <div>
-                        <div style={{display:'flex',alignItems:'center',gap:6}}>
-                          <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{p.name}</p>
-                          {p.has_sizes&&<Shirt size={11} color='#06b6d4'/>}
-                        </div>
-                        {p.description&&<p style={{fontSize:11,color:'var(--muted)'}}>{p.description}</p>}
-                        {p.has_sizes&&(p.sizes||[]).length>0&&(
-                          <div style={{display:'flex',gap:3,marginTop:2,flexWrap:'wrap'}}>
-                            {(p.sizes||[]).map(s=><span key={s} style={{fontSize:9,padding:'1px 5px',borderRadius:4,background:'rgba(6,182,212,0.12)',color:'#06b6d4',fontWeight:600}}>{s}</span>)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{padding:'9px 12px',fontSize:12,color:'var(--muted)'}}>{getCat(p.category_id)?.name||'—'}</td>
-                  <td style={{padding:'9px 12px',fontFamily:'JetBrains Mono,monospace',fontSize:13,fontWeight:600,color:'var(--neon)'}}>{fmt(p.price)}</td>
-                  <td style={{padding:'9px 12px'}}><span style={{fontSize:11,fontWeight:700,padding:'2px 7px',borderRadius:20,background:m>=40?'rgba(0,255,65,0.1)':m>=25?'rgba(255,170,0,0.1)':'rgba(255,51,51,0.1)',color:m>=40?'var(--neon)':m>=25?'#ffaa00':'#ff3333'}}>{m}%</span></td>
-                  <td style={{padding:'9px 12px',fontSize:12,color:p.stock===0?'#ff3333':p.stock<=(p.stock_alert??5)&&p.stock>0?'#ffaa00':'var(--muted)'}}>{p.stock===0?'⚠️ ':''}{p.stock}</td>
-                  <td style={{padding:'9px 12px'}}><div style={{display:'flex',gap:5}}>
-                    <button onClick={()=>openEdit(p)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Edit2 size={12}/></button>
-                    <button onClick={()=>del(p.id)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'#ff3333',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={12}/></button>
-                  </div></td>
-                </tr>)
-              })}</tbody>
-            </table>
-            {filtered.length===0&&<div style={{padding:48,textAlign:'center',color:'var(--muted)'}}><Package size={32} style={{opacity:0.2,marginBottom:8}}/><p>Nenhum produto</p></div>}
-          </div>
-        )}
+      {/* Category filter */}
+      <div style={{padding:'8px 20px',borderBottom:'1px solid var(--border)',background:'var(--card)',display:'flex',gap:6,overflowX:'auto',flexShrink:0}}>
+        <button onClick={()=>setCatFilter('all')} style={{padding:'4px 12px',borderRadius:16,border:catFilter==='all'?'1px solid var(--neon)':'1px solid var(--border)',background:catFilter==='all'?'var(--neon-glow)':'transparent',color:catFilter==='all'?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive',whiteSpace:'nowrap'}}>Todos</button>
+        {categories.map(c=>(
+          <button key={c.id} onClick={()=>setCatFilter(c.id)} style={{padding:'4px 12px',borderRadius:16,border:catFilter===c.id?'1px solid '+(c.color||'var(--neon)'):'1px solid var(--border)',background:catFilter===c.id?(c.color||'var(--neon)')+'15':'transparent',color:catFilter===c.id?(c.color||'var(--neon)'):'var(--muted)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive',whiteSpace:'nowrap'}}>{c.name}</button>
+        ))}
       </div>
-      {modal&&(
-        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-end',justifyContent:'center',zIndex:50}}>
-          <div className='card' style={{width:'100%',maxWidth:560,padding:20,margin:12,border:'1px solid var(--border-bright)',borderRadius:16,maxHeight:'94vh',overflowY:'auto'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
-              <h2 className='font-bangers neon-text-sm' style={{fontSize:22}}>{edit?'EDITAR':'NOVO'} PRODUTO</h2>
-              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={18}/></button>
-            </div>
-            <div style={{display:'flex',gap:12,marginBottom:12}}>
-              <div>
-                <div onClick={()=>!uploading&&fileRef.current?.click()} style={{width:90,height:90,borderRadius:12,border:'2px dashed var(--border)',overflow:'hidden',cursor:'pointer',background:'var(--surface)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,position:'relative',flexShrink:0}}>
-                  {preview?<img src={preview} style={{position:'absolute',inset:0,width:'100%',height:'100%',objectFit:'cover'}}/>:<><Image size={20} color='var(--muted)'/><p style={{fontSize:10,color:'var(--muted)'}}>+ Foto</p></>}
-                  {uploading&&<div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.7)',display:'flex',alignItems:'center',justifyContent:'center'}}><p style={{color:'var(--neon)',fontSize:10}}>Enviando...</p></div>}
-                </div>
-                <input ref={fileRef} type='file' accept='image/*' onChange={handleImg} style={{display:'none'}}/>
-                {preview&&<button onClick={()=>{setPreview(null);setForm(f=>({...f,image_url:''}))}} style={{fontSize:10,color:'#ff3333',background:'none',border:'none',cursor:'pointer',marginTop:2,width:'100%',textAlign:'center'}}>Remover</button>}
-              </div>
-              <div style={{flex:1,display:'flex',flexDirection:'column',gap:9}}>
-                <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:2}}>NOME *</label><input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder='Ex: Camiseta Básica'/></div>
-                <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:2}}>DESCRIÇÃO</label><input value={form.description||''} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder='Cor, modelo...'/></div>
-                <div><label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:2}}>CATEGORIA</label>
-                  <select value={form.category_id||''} onChange={e=>setForm(f=>({...f,category_id:e.target.value||null}))}>
-                    <option value=''>Sem categoria</option>
-                    {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr',gap:6}}>
-                  <div><label style={{fontSize:9,color:'var(--muted)',display:'block',marginBottom:2}}>VENDA R$</label><input type='number' min='0' step='0.01' value={form.price||''} onChange={e=>setForm(f=>({...f,price:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
-                  <div><label style={{fontSize:9,color:'var(--muted)',display:'block',marginBottom:2}}>CUSTO R$</label><input type='number' min='0' step='0.01' value={form.cost_price||''} onChange={e=>setForm(f=>({...f,cost_price:parseFloat(e.target.value)||0}))} placeholder='0,00'/></div>
-                  <div><label style={{fontSize:9,color:'var(--muted)',display:'block',marginBottom:2}}>ESTOQUE</label><input type='number' min='0' value={form.stock||''} onChange={e=>setForm(f=>({...f,stock:parseInt(e.target.value)||0}))} placeholder='0'/></div>
-                  <div><label style={{fontSize:9,color:'var(--muted)',display:'block',marginBottom:2}}>ALERTA</label><input type='number' min='1' value={form.stock_alert??5} onChange={e=>setForm(f=>({...f,stock_alert:parseInt(e.target.value)||5}))}/></div>
-                </div>
-              </div>
-            </div>
-            {(form.price>0||form.cost_price>0)&&(
-              <div style={{padding:'6px 12px',background:'var(--surface)',borderRadius:7,display:'flex',justifyContent:'space-between',marginBottom:10,fontSize:12}}>
-                <span style={{color:'var(--muted)'}}>Margem</span>
-                <span style={{fontWeight:700,color:form.price>0&&((form.price-form.cost_price)/form.price*100)>=40?'var(--neon)':'#ffaa00',fontFamily:'JetBrains Mono,monospace'}}>
-                  {form.price>0?((form.price-form.cost_price)/form.price*100).toFixed(1):0}% — Lucro: {fmt((form.price||0)-(form.cost_price||0))}
-                </span>
-              </div>
-            )}
-            <div style={{marginBottom:14,border:form.has_sizes?'1px solid #06b6d4':'1px solid var(--border)',borderRadius:10,overflow:'hidden'}}>
-              <div onClick={()=>setForm(f=>({...f,has_sizes:!f.has_sizes,sizes:f.has_sizes?[]:f.sizes||[]}))} style={{padding:'10px 14px',display:'flex',alignItems:'center',justifyContent:'space-between',cursor:'pointer',background:form.has_sizes?'rgba(6,182,212,0.06)':'var(--surface)'}}>
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <Shirt size={15} color={form.has_sizes?'#06b6d4':'var(--muted)'}/>
-                  <span style={{fontSize:13,fontWeight:600,color:form.has_sizes?'#06b6d4':'var(--muted)',fontFamily:'Bangers,cursive',letterSpacing:0.5}}>PRODUTO COM TAMANHOS</span>
-                  <span style={{fontSize:11,color:'var(--muted)'}}>roupas, calçados...</span>
-                </div>
-                <div style={{width:36,height:20,borderRadius:10,background:form.has_sizes?'#06b6d4':'#333',position:'relative',transition:'all 0.2s',flexShrink:0}}>
-                  <div style={{position:'absolute',top:2,left:form.has_sizes?16:2,width:16,height:16,borderRadius:'50%',background:'#fff',transition:'left 0.2s'}}/>
-                </div>
-              </div>
-              {form.has_sizes&&(
-                <div style={{padding:'12px 14px',borderTop:'1px solid rgba(6,182,212,0.2)'}}>
-                  <p style={{fontSize:10,color:'var(--muted)',marginBottom:7,letterSpacing:0.5}}>GRADES PRONTAS — clique para aplicar:</p>
-                  <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:10}}>
-                    {SIZE_PRESETS.map(preset=>(
-                      <button key={preset.label} onClick={()=>applyPreset(preset.sizes)} style={{padding:'5px 12px',borderRadius:7,border:'1px solid var(--border)',background:'var(--card)',color:'var(--white)',cursor:'pointer',fontSize:12,fontFamily:'Bangers,cursive',letterSpacing:0.5}}>{preset.label}</button>
-                    ))}
+      <div style={{flex:1,overflowY:'auto',padding:'12px 20px'}}>
+        {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:
+        filtered.length===0?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}><Package size={32} style={{opacity:0.2,marginBottom:8}}/><p>Nenhum produto</p></div>:
+        filtered.map(p=>{
+          const cat=categories.find(c=>c.id===p.category_id)
+          const vlist=variantsCache[p.id]||[]
+          const totalStock=p.has_sizes?vlist.reduce((s,v)=>s+v.stock,0):p.stock
+          const isExpanded=expandedId===p.id
+          return(
+            <div key={p.id} className='card' style={{marginBottom:8,overflow:'hidden',opacity:p.active?1:0.5}}>
+              <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:10}}>
+                {p.image_url?<img src={p.image_url} alt='' style={{width:44,height:44,borderRadius:8,objectFit:'cover',flexShrink:0}}/>
+                  :<div style={{width:44,height:44,borderRadius:8,background:'var(--surface)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}><Package size={18} color='var(--muted)'/></div>}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}>
+                    <p style={{fontSize:13,fontWeight:600,color:'var(--white)'}}>{p.name}</p>
+                    {p.has_sizes&&<span style={{fontSize:9,padding:'1px 6px',borderRadius:8,background:'rgba(124,58,237,0.15)',color:'#7c3aed',fontWeight:600}}>SABORES</span>}
+                    {p.is_promo&&<span style={{fontSize:9,padding:'1px 6px',borderRadius:8,background:'rgba(245,158,11,0.15)',color:'#f59e0b',fontWeight:600}}>PROMO</span>}
                   </div>
-                  {(form.sizes||[]).length>0&&(
-                    <>
-                      <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:8}}>
-                        {(form.sizes||[]).map(s=>(
-                          <button key={s} onClick={()=>toggleSize(s)} style={{padding:'5px 10px',borderRadius:8,border:'2px solid #06b6d4',background:'rgba(6,182,212,0.15)',color:'#06b6d4',cursor:'pointer',fontSize:12,fontWeight:700,fontFamily:'Bangers,cursive',display:'flex',alignItems:'center',gap:4}}>
-                            {s} <span style={{fontSize:14,lineHeight:1}}>×</span>
-                          </button>
-                        ))}
-                      </div>
-                      {/* Qty per size */}
-                      <div style={{background:'rgba(6,182,212,0.04)',borderRadius:8,padding:'8px 10px',marginBottom:8,border:'1px solid rgba(6,182,212,0.15)'}}>
-                        <p style={{fontSize:10,color:'var(--muted)',marginBottom:7,letterSpacing:0.5}}>QUANTIDADE POR TAMANHO:</p>
-                        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
-                          {(form.sizes||[]).map(s=>(
-                            <div key={s} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}>
-                              <span style={{fontSize:10,color:'#06b6d4',fontWeight:700}}>{s}</span>
-                              <input type='number' min='0' value={(form.sizes_stock||{})[s]??''} onChange={e=>{const v=parseInt(e.target.value)||0;setForm(f=>({...f,sizes_stock:{...(f.sizes_stock||{}),[s]:v}}))}} style={{width:52,textAlign:'center',fontSize:13,padding:'4px 6px'}} placeholder='0'/>
-                            </div>
-                          ))}
-                        </div>
-                        {Object.values(form.sizes_stock||{}).some(v=>Number(v)>0)&&(
-                          <p style={{fontSize:10,color:'var(--muted)',marginTop:6}}>Total calculado: <strong style={{color:'var(--neon)'}}>{Object.values(form.sizes_stock||{}).reduce((s:number,v:any)=>s+Number(v||0),0)} unidades</strong></p>
-                        )}
-                      </div>
-                    </>
+                  <div style={{display:'flex',gap:8,marginTop:2,alignItems:'center',flexWrap:'wrap'}}>
+                    {cat&&<span style={{fontSize:10,color:cat.color||'var(--muted)',background:(cat.color||'#888')+'15',padding:'1px 6px',borderRadius:4}}>{cat.name}</span>}
+                    <span style={{fontSize:12,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace',fontWeight:700}}>{fmt(p.price)}</span>
+                    {p.is_promo&&p.promo_price>0&&<span style={{fontSize:11,color:'#f59e0b',fontFamily:'JetBrains Mono,monospace'}}>{fmt(p.promo_price)}</span>}
+                    <span style={{fontSize:11,color:totalStock<=( p.stock_alert||3)?'#ff3333':'var(--muted)'}}>estoque: {p.has_sizes?(isExpanded?'ver sabores':totalStock+' total'):totalStock}</span>
+                  </div>
+                </div>
+                <div style={{display:'flex',gap:5,alignItems:'center'}}>
+                  {p.has_sizes&&(
+                    <button onClick={()=>toggleExpand(p.id)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                      {isExpanded?<ChevronUp size={13}/>:<ChevronDown size={13}/>}
+                    </button>
                   )}
-                  <div style={{display:'flex',gap:6}}>
-                    <input value={newSize} onChange={e=>setNewSize(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&addCustomSize()} placeholder='Tamanho personalizado...' style={{flex:1,fontSize:13}}/>
-                    <button onClick={addCustomSize} style={{padding:'7px 14px',borderRadius:7,border:'1px solid #06b6d4',background:'rgba(6,182,212,0.1)',color:'#06b6d4',cursor:'pointer',fontSize:13,fontFamily:'Bangers,cursive',whiteSpace:'nowrap'}}>+ ADD</button>
-                  </div>
-                  {(form.sizes||[]).length===0&&<p style={{fontSize:11,color:'var(--muted)',marginTop:6}}>Clique em uma grade pronta ou adicione tamanhos acima</p>}
+                  <button onClick={()=>toggleActive(p)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:p.active?'rgba(0,255,65,0.08)':'transparent',color:p.active?'var(--neon)':'var(--muted)',cursor:'pointer',fontSize:8,fontFamily:'Bangers,cursive',letterSpacing:0.3}}>{p.active?'ON':'OFF'}</button>
+                  <button onClick={()=>openEdit(p)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Edit2 size={13}/></button>
+                  <button onClick={()=>del(p.id)} style={{width:28,height:28,borderRadius:6,border:'1px solid var(--border)',background:'transparent',color:'#ff3333',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={13}/></button>
+                </div>
+              </div>
+              {isExpanded&&p.has_sizes&&(
+                <div style={{borderTop:'1px solid var(--border)',padding:'8px 14px',background:'rgba(0,0,0,0.15)'}}>
+                  <p style={{fontSize:10,color:'var(--muted)',fontWeight:600,letterSpacing:0.5,marginBottom:6}}>SABORES/VARIANTES</p>
+                  {vlist.length===0?<p style={{fontSize:12,color:'var(--muted)'}}>Sem sabores cadastrados. Clique em editar para adicionar.</p>:
+                  vlist.map((v,i)=>(
+                    <div key={i} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'4px 0',borderBottom:'1px solid rgba(255,255,255,0.04)'}}>
+                      <span style={{fontSize:12,color:'var(--white)'}}>{v.name}</span>
+                      <span style={{fontSize:11,color:v.stock<=2?'#ff3333':v.stock<=5?'#ffaa00':'var(--muted)',fontFamily:'JetBrains Mono,monospace'}}>estoque: {v.stock}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
-            <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>setModal(false)} style={{flex:1,padding:11,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
-              <button onClick={save} disabled={uploading} className='btn-neon-fill' style={{flex:2,fontSize:14}}><Check size={13} style={{display:'inline',marginRight:5}}/>{uploading?'AGUARDE...':'SALVAR'}</button>
+          )
+        })}
+      </div>
+      {/* MODAL */}
+      {modal&&(
+        <div className='animate-fade-in' style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',backdropFilter:'blur(4px)',display:'flex',alignItems:'flex-start',justifyContent:'center',zIndex:50,padding:16,overflowY:'auto'}}>
+          <div className='card' style={{width:'100%',maxWidth:520,padding:24,border:'1px solid var(--border-bright)',marginTop:16,marginBottom:16}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+              <h2 className='font-bangers neon-text-sm' style={{fontSize:22}}>{editing?'EDITAR':'NOVO'} PRODUTO</h2>
+              <button onClick={()=>setModal(false)} style={{background:'none',border:'none',color:'var(--muted)',cursor:'pointer'}}><X size={18}/></button>
+            </div>
+            {/* Image */}
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+              {form.image_url?<img src={form.image_url} alt='' style={{width:64,height:64,borderRadius:10,objectFit:'cover',border:'1px solid var(--border)'}}/>
+                :<div style={{width:64,height:64,borderRadius:10,background:'var(--surface)',display:'flex',alignItems:'center',justifyContent:'center',border:'1px solid var(--border)'}}><Package size={24} color='var(--muted)'/></div>}
+              <div style={{flex:1}}>
+                <input ref={imgRef} type='file' accept='image/*' style={{display:'none'}} onChange={e=>{if(e.target.files?.[0])uploadImg(e.target.files[0])}}/>
+                <button onClick={()=>imgRef.current?.click()} disabled={uploading} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 12px',borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontSize:12,marginBottom:6}}>
+                  <Upload size={12}/>{uploading?'Enviando...':'Enviar Foto'}
+                </button>
+                <input value={form.image_url||''} onChange={e=>setForm((f:any)=>({...f,image_url:e.target.value}))} placeholder='ou cole URL da imagem' style={{width:'100%',fontSize:12}}/>
+              </div>
+            </div>
+            {/* Name */}
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.8}}>NOME DO PRODUTO *</label>
+              <input value={form.name} onChange={e=>setForm((f:any)=>({...f,name:e.target.value}))} placeholder='Ex: Elfbar BC1000' autoFocus style={{width:'100%',fontSize:14}}/>
+            </div>
+            {/* Description */}
+            <div style={{marginBottom:10}}>
+              <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.8}}>DESCRIÇÃO</label>
+              <textarea value={form.description||''} onChange={e=>setForm((f:any)=>({...f,description:e.target.value}))} placeholder='Descrição opcional...' rows={2} style={{width:'100%',fontSize:13,background:'var(--surface)',border:'1px solid var(--border)',color:'var(--text)',borderRadius:8,padding:'8px 12px',resize:'none' as const,outline:'none',boxSizing:'border-box' as const}}/>
+            </div>
+            {/* Category + Price */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:10}}>
+              <div>
+                <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.8}}>CATEGORIA *</label>
+                <select value={form.category_id} onChange={e=>setForm((f:any)=>({...f,category_id:e.target.value}))} style={{width:'100%',fontSize:13}}>
+                  <option value=''>Selecione...</option>
+                  {categories.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.8}}>PREÇO (R$) *</label>
+                <input type='number' min='0' step='0.01' value={form.price||''} onChange={e=>setForm((f:any)=>({...f,price:e.target.value}))} placeholder='0,00' style={{width:'100%',fontSize:13}}/>
+              </div>
+            </div>
+            {/* Promo */}
+            <div style={{marginBottom:10,display:'flex',alignItems:'center',gap:10}}>
+              <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'var(--muted)'}}>
+                <input type='checkbox' checked={!!form.is_promo} onChange={e=>setForm((f:any)=>({...f,is_promo:e.target.checked}))} style={{accentColor:'#f59e0b'}}/>
+                EM PROMOÇÃO
+              </label>
+              {form.is_promo&&<input type='number' min='0' step='0.01' value={form.promo_price||''} onChange={e=>setForm((f:any)=>({...f,promo_price:e.target.value}))} placeholder='Preço promo' style={{width:120,fontSize:13}}/>}
+            </div>
+            {/* Has Sizes toggle */}
+            <div style={{marginBottom:14,padding:'10px 14px',background:'rgba(124,58,237,0.06)',borderRadius:10,border:'1px solid rgba(124,58,237,0.2)'}}>
+              <label style={{display:'flex',alignItems:'center',gap:8,cursor:'pointer'}}>
+                <div onClick={()=>setForm((f:any)=>({...f,has_sizes:!f.has_sizes}))} style={{width:40,height:22,borderRadius:11,background:form.has_sizes?'#7c3aed':'#333',position:'relative',cursor:'pointer',transition:'background 0.2s',flexShrink:0}}>
+                  <div style={{position:'absolute',top:3,left:form.has_sizes?21:3,width:16,height:16,borderRadius:'50%',background:'#fff',transition:'left 0.2s'}}/>
+                </div>
+                <div>
+                  <p style={{fontSize:12,fontWeight:600,color:form.has_sizes?'#7c3aed':'var(--muted)'}}>TEM SABORES / VARIANTES</p>
+                  <p style={{fontSize:10,color:'var(--muted)'}}>Ativo = produto terá sabores com estoque individual (ex: Elfbar BC1000 → Morango, Menta...)</p>
+                </div>
+              </label>
+            </div>
+            {/* Stock or Variants */}
+            {!form.has_sizes?(
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:14}}>
+                <div>
+                  <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.8}}>ESTOQUE</label>
+                  <input type='number' min='0' value={form.stock||''} onChange={e=>setForm((f:any)=>({...f,stock:e.target.value}))} placeholder='0' style={{width:'100%',fontSize:13}}/>
+                </div>
+                <div>
+                  <label style={{fontSize:10,color:'var(--muted)',display:'block',marginBottom:4,fontWeight:600,letterSpacing:0.8}}>ALERTA DE ESTOQUE</label>
+                  <input type='number' min='0' value={form.stock_alert||''} onChange={e=>setForm((f:any)=>({...f,stock_alert:e.target.value}))} placeholder='3' style={{width:'100%',fontSize:13}}/>
+                </div>
+              </div>
+            ):(
+              <div style={{marginBottom:14}}>
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+                  <label style={{fontSize:10,color:'var(--muted)',fontWeight:600,letterSpacing:0.8}}>SABORES / VARIANTES</label>
+                  <button onClick={addVariant} style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#7c3aed',background:'rgba(124,58,237,0.08)',border:'1px solid rgba(124,58,237,0.3)',borderRadius:6,padding:'4px 10px',cursor:'pointer'}}>
+                    <Plus size={11}/>ADICIONAR SABOR
+                  </button>
+                </div>
+                {variants.length===0&&<p style={{fontSize:12,color:'var(--muted)',textAlign:'center',padding:'12px 0'}}>Clique em "Adicionar Sabor" para cadastrar os sabores</p>}
+                {variants.map((v,i)=>(
+                  <div key={i} style={{display:'flex',gap:6,marginBottom:6,alignItems:'center'}}>
+                    <input value={v.name} onChange={e=>updateVariant(i,'name',e.target.value)} placeholder='Nome do sabor (ex: Morango)' style={{flex:2,fontSize:12}}/>
+                    <input type='number' min='0' value={v.stock||''} onChange={e=>updateVariant(i,'stock',parseInt(e.target.value)||0)} placeholder='Estoque' style={{width:70,fontSize:12,textAlign:'center'}}/>
+                    <button onClick={()=>removeVariant(i)} style={{width:26,height:26,borderRadius:6,border:'none',background:'rgba(255,51,51,0.1)',color:'#ff3333',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                      <X size={11}/>
+                    </button>
+                  </div>
+                ))}
+                {variants.length>0&&<p style={{fontSize:10,color:'var(--muted)',marginTop:4}}>Preencha o nome e estoque de cada sabor</p>}
+              </div>
+            )}
+            {/* Active */}
+            <div style={{marginBottom:16,display:'flex',alignItems:'center',gap:8}}>
+              <label style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer',fontSize:12,color:'var(--muted)'}}>
+                <input type='checkbox' checked={!!form.active} onChange={e=>setForm((f:any)=>({...f,active:e.target.checked}))} style={{accentColor:'var(--neon)'}}/>
+                PRODUTO ATIVO (visível no catálogo)
+              </label>
+            </div>
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setModal(false)} style={{flex:1,padding:10,borderRadius:8,border:'1px solid var(--border)',background:'transparent',color:'var(--muted)',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14}}>CANCELAR</button>
+              <button onClick={save} disabled={saving} className='btn-neon-fill' style={{flex:2,fontSize:14}}>
+                <Check size={13} style={{display:'inline',marginRight:5}}/>{saving?'SALVANDO...':'SALVAR PRODUTO'}
+              </button>
             </div>
           </div>
         </div>
