@@ -173,7 +173,19 @@ export default function PDVPage(){
     }catch(e:any){toast.error(e.message||'Erro ao finalizar')}
     finally{setProcessing(false)}
   }
-  function printLast(){if(lastOrder)printReceipt(lastOrder,cart,subtotal)}
+  function printLast(){
+    if(!lastOrder)return
+    printReceipt({
+      ...lastOrder,
+      items:cart.map(i=>({
+        product_name:i.name,
+        quantity:i.qty,
+        unit_price:i.price,
+        total_price:i.price*i.qty
+      })),
+      payments:[{method:payments[0]?.method||'pix',amount:lastOrder.total}]
+    })
+  }
   const filtered=products.filter(p=>!search||p.name.toLowerCase().includes(search.toLowerCase()))
   return(
     <div style={{display:'flex',height:'100%',background:'var(--bg)',overflow:'hidden'}}>
