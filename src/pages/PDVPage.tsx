@@ -62,6 +62,28 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
   const setPayField=(i:number,field:string,val:any)=>setPayments(p=>p.map((pm,j)=>j===i?{...pm,[field]:val}:pm))
   const fillRemaining=(i:number)=>{const other=payments.reduce((s,p,j)=>j!==i?s+p.amount:s,0);setPayments(p=>p.map((pm,j)=>j===i?{...pm,amount:Math.max(0,+(total-other).toFixed(2))}:pm))}
 
+  async function loadCustomers(){
+    const{data}=await supabase.from('customers').select('id,name,phone').order('name')
+    setCustomers(data||[])
+  }
+  function searchCustomers(q:string){
+    setCustomerName(q)
+    setSelectedCustomer(null)
+    if(!q){setCustSearch([]);setShowCustDrop(false);return}
+    const filtered=(customers||[]).filter((x:any)=>
+      x.name.toLowerCase().includes(q.toLowerCase())||
+      (x.phone||'').includes(q)
+    ).slice(0,6)
+    setCustSearch(filtered)
+    setShowCustDrop(filtered.length>0)
+  }
+  function selectCustomer(cust:any){
+    setCustomerName(cust.name)
+    setSelectedCustomer(cust)
+    setCustSearch([])
+    setShowCustDrop(false)
+  }
+
   async function applyCoupon(){
     if(!couponCode.trim())return
     setCouponLoading(true)
