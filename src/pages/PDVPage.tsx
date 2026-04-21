@@ -383,7 +383,6 @@ export default function PDVPage({sellerId:propSellerId,sellerName:propSellerName
           </div>
         </div>
       )}
-    </div>
 
       {/* VARIANT PICKER MODAL for PDV */}
       {variantPickerModal&&(
