@@ -25,12 +25,28 @@ export default function ProductsPage(){
   useEffect(()=>{load()},[])
   async function load(){
     setLoading(true)
-    const[p,c]=await Promise.all([
+    const arr=await Promise.all([
       supabase.from('products').select('*').order('name'),
-      supabase.from('categories').select('*').order('sort_order',{ascending:true}).order('name')
+      supabase.from('categories').select('*').order('sort_order',{ascending:true}).order('name'),
+      supabase.from('product_variants').select('product_id,stock,name').eq('active',true)
     ])
-    setProducts(p.data||[])
-    setCategories(c.data||[])
+    const vars=arr[2].data||[]
+    // Build variant map (deduplicated by name)
+    const vm:Record<string,number>={}
+    const seen:Record<string,Set<string>>={}
+    vars.forEach((v:any)=>{
+      if(!seen[v.product_id])seen[v.product_id]=new Set()
+      if(!seen[v.product_id].has(v.name)){
+        seen[v.product_id].add(v.name)
+        vm[v.product_id]=(vm[v.product_id]||0)+(v.stock||0)
+      }
+    })
+    // Enrich products: for has_sizes, replace stock with sum of variants
+    const enriched=(arr[0].data||[]).map((pr:any)=>
+      pr.has_sizes?{...pr,stock:vm[pr.id]||0}:pr
+    )
+    setProducts(enriched)
+    setCategories(arr[1].data||[])
     setLoading(false)
   }
   async function loadVariants(pid:string){
