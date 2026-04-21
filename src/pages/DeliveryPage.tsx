@@ -107,14 +107,24 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
     }
   }
 
-  async function updateStatus(id:string,status:string){
-    await supabase.from('orders').update({status}).eq('id',id)
-    const order=orders.find(o=>o.id===id)
-    if(order?.customer_phone&&WA_MESSAGES[status]){
-      const msg=WA_MESSAGES[status](order.customer_name||'Cliente',order.order_number)
-      sendWhatsApp(order.customer_phone,msg).then(sent=>{if(sent)toast.success('WhatsApp enviado!')})
+  async function updateStatus(orderId:string,status:string){
+    await supabase.from('orders').update({status}).eq('id',orderId)
+    // Devolver estoque ao cancelar pedido
+    if(status==='cancelled'){
+      try{
+        const{data:items}=await supabase.from('order_items').select('product_id,quantity,variant_id').eq('order_id',orderId)
+        for(const item of(items||[])){
+          if(item.variant_id){
+            const{data:vr}=await supabase.from('product_variants').select('stock').eq('id',item.variant_id).single()
+            if(vr)await supabase.from('product_variants').update({stock:(vr.stock||0)+item.quantity}).eq('id',item.variant_id)
+          }else if(item.product_id){
+            const{data:pr}=await supabase.from('products').select('stock').eq('id',item.product_id).single()
+            if(pr)await supabase.from('products').update({stock:(pr.stock||0)+item.quantity}).eq('id',item.product_id)
+          }
+        }
+      }catch(e){console.error('Erro ao restaurar estoque:',e)}
     }
-    toast.success(STATUS_LABEL[status]);loadData()
+    load()
   }
 
   async function confirmCancel(){
