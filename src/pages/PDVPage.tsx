@@ -38,12 +38,17 @@ export default function PDVPage(){
   async function loadData(){
     const[p,v,s]=await Promise.all([
       supabase.from('products').select('*').eq('active',true).order('name'),
-      supabase.from('product_variants').select('*').eq('active',true).order('sort_order'),
+      supabase.from('product_variants').select('*').eq('active',true).order('created_at',{ascending:false}),
       supabase.from('sellers').select('*').eq('active',true).order('name')
     ])
     const vars=v.data||[]
     const vm:Record<string,any[]>={}
-    vars.forEach((vr:any)=>{if(!vm[vr.product_id])vm[vr.product_id]=[];vm[vr.product_id].push(vr)})
+    // Deduplicate: keep only one variant per product+name (newest first)
+    vars.forEach((vr:any)=>{
+      if(!vm[vr.product_id])vm[vr.product_id]=[]
+      const exists=vm[vr.product_id].find((x:any)=>x.name===vr.name)
+      if(!exists)vm[vr.product_id].push(vr)
+    })
     setVariantsMap(vm)
     const enriched=(p.data||[]).map((prod:any)=>{
       if(prod.has_sizes){
