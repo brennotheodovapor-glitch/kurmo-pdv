@@ -24,12 +24,26 @@ export default function ReportsPage(){
     const[o,p,prods]=await Promise.all([
       supabase.from('orders').select('*').in('status',['completed','delivered']).gte('created_at',dateFrom+'T00:00:00').lte('created_at',dateTo+'T23:59:59').order('created_at',{ascending:true}),
       supabase.from('order_payments').select('*'),
-      supabase.from('products').select('id,name,price,cost_price,stock,active').eq('active',true)
+      supabase.from('products').select('id,name,price,cost_price,stock,active,has_sizes').eq('active',true)
     ])
     const ords=o.data||[]
     setOrders(ords)
     setPayments(p.data||[])
-    setProducts(prods.data||[])
+    // Load variants to calculate real stock for has_sizes products
+    const{data:varData}=await supabase.from('product_variants').select('product_id,stock,name').eq('active',true)
+    const varMap:Record<string,number>={}
+    const varSeen:Record<string,Set<string>>={}
+    ;(varData||[]).forEach((v:any)=>{
+      if(!varSeen[v.product_id])varSeen[v.product_id]=new Set()
+      if(!varSeen[v.product_id].has(v.name)){
+        varSeen[v.product_id].add(v.name)
+        varMap[v.product_id]=(varMap[v.product_id]||0)+(v.stock||0)
+      }
+    })
+    const enrichedProds=(prods.data||[]).map((pr:any)=>
+      pr.has_sizes?{...pr,stock:varMap[pr.id]||0}:pr
+    )
+    setProducts(enrichedProds)
     if(ords.length>0){
       const ids=ords.map((x:any)=>x.id)
       const{data:it}=await supabase.from('order_items').select('*').in('order_id',ids)
