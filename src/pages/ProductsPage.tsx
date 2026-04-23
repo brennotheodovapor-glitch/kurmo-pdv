@@ -170,7 +170,7 @@ export default function ProductsPage(){
         filtered.map(p=>{
           const cat=categories.find(c=>c.id===p.category_id)
           const vlist=variantsCache[p.id]||[]
-          const totalStock=p.has_sizes?vlist.reduce((s,v)=>s+v.stock,0):p.stock
+          const totalStock=p.stock
           const isExp=expandedId===p.id
           const mg=margin(p)
           return(
