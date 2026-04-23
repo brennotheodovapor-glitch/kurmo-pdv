@@ -179,7 +179,8 @@ export default function PublicMenuPage(){
 
   async function submit(){
     if(!cName.trim()){alert('Informe seu nome completo');return}
-    if(!cPhone.trim()){alert('Informe seu WhatsApp');return}
+    const _ph=cPhone.replace(/\D/g,'')
+    if(!_ph||_ph.length<10){alert('Informe um WhatsApp válido com DDD (mínimo 10 dígitos)');return}
     if(!cep||cepStatus!=='ok'){alert('Informe um CEP válido');return}
     if(!zone){alert('Selecione seu bairro');return}
     setSubmitting(true)
@@ -215,7 +216,7 @@ export default function PublicMenuPage(){
           if(pr)await supabase.from('products').update({stock:Math.max(0,pr.stock-item.qty)}).eq('id',item.product_id)
         }
       }
-      setDone(order);setCart([]);setScreen('menu')
+      setDone({...order,_items:cart.map(i=>({...i,qty:i.qty}))});setCart([]);setScreen('menu')
       setCName('');setCPhone('');setCep('');setStreet('');setNum('');setComplement('')
       setZone(null);setMatchedZones([]);setNotes('');setChange('');setCepStatus('idle')
     }catch(e:any){alert('Erro: '+e.message)}
@@ -230,7 +231,15 @@ export default function PublicMenuPage(){
       <div style={{textAlign:'center',maxWidth:340}}>
         <div style={{width:72,height:72,borderRadius:'50%',background:'rgba(0,255,65,0.1)',border:'2px solid #00ff41',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 16px'}}><Check size={32} color='#00ff41'/></div>
         <h2 style={{fontFamily:'Bangers,cursive',fontSize:28,color:'#00ff41',letterSpacing:2,marginBottom:6}}>PEDIDO ENVIADO!</h2>
-        <p style={{fontSize:14,color:'#aaa',marginBottom:4}}>Pedido #{done.order_number}</p>
+        <p style={{fontSize:14,color:'#aaa',marginBottom:4}}>Pedido #{done.order_number||'#'+done.id?.substring(0,6)}</p>
+        <div style={{background:'#161616',borderRadius:10,padding:'10px 14px',marginBottom:12,textAlign:'left' as const,maxWidth:300,width:'100%'}}>
+          {(done._items||[]).map((it:any,i:number)=>(
+            <div key={i} style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <span style={{fontSize:12,color:'#ccc'}}>{it.qty||it.quantity}x {it.name}{it.variant_name?' ('+it.variant_name+')':''}</span>
+              <span style={{fontSize:12,color:'#00ff41',fontFamily:'monospace'}}>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(it.price*it.qty||it.total_price)}</span>
+            </div>
+          ))}
+        </div>
         <p style={{fontSize:12,color:'#666',marginBottom:20}}>Aguarde a confirmação pelo WhatsApp 📱</p>
         <button onClick={()=>setDone(null)} style={{padding:'12px 28px',borderRadius:10,background:'#00ff41',color:'#000',border:'none',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:16,letterSpacing:1}}>FAZER NOVO PEDIDO</button>
       </div>
