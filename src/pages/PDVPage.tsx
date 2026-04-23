@@ -295,7 +295,11 @@ export default function PDVPage(){
           {/* Desconto/Acréscimo */}
           <div style={{display:'flex',gap:8,marginBottom:8}}>
             <button onClick={()=>setDiscountModal('discount')} style={{flex:1,padding:'7px 10px',borderRadius:8,background:discount>0?'rgba(0,255,65,0.15)':'#1a1a1a',border:discount>0?'1px solid #00ff41':'1px solid #2a2a2a',color:discount>0?'#00ff41':'#888',cursor:'pointer',fontSize:12,fontWeight:600}}>
-              {discount>0?('Desc -R
+              {discount>0?('Desc -'+discount.toFixed(2)):'Desconto'}
+            </button>
+            <button onClick={()=>setDiscountModal('acrescimo')} style={{flex:1,padding:'7px 10px',borderRadius:8,background:acrescimo>0?'rgba(245,158,11,0.15)':'#1a1a1a',border:acrescimo>0?'1px solid #f59e0b':'1px solid #2a2a2a',color:acrescimo>0?'#f59e0b':'#888',cursor:'pointer',fontSize:12,fontWeight:600}}>
+              {acrescimo>0?('Acresc +'+acrescimo.toFixed(2)):'+Acréscimo'}
+            </button>
           </div>
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
             <span style={{fontSize:16,fontWeight:700,color:'var(--white)',fontFamily:'Bangers,cursive',letterSpacing:0.5}}>TOTAL</span>
