@@ -417,6 +417,5 @@ export default function PDVPage(){
         </div>
       )}
     </div>
-    </div>
   )
 }
