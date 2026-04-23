@@ -416,8 +416,6 @@ export default function PDVPage(){
         </div>
       )}
     </div>
-  )
-
           <div style={{display:'flex',justifyContent:'space-between',marginBottom:8}}>
             <span style={{fontSize:16,fontWeight:700,color:'var(--white)',fontFamily:'Bangers,cursive',letterSpacing:0.5}}>TOTAL</span>
             <span style={{fontSize:18,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(total)}</span>
