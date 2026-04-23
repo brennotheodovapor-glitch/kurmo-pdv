@@ -1,205 +1,268 @@
-import{useState,useEffect}from 'react'
-import{Users,Search,Phone,ShoppingBag,Gift,ChevronDown,ChevronUp,Award}from 'lucide-react'
+import{useState,useEffect,useMemo}from 'react'
 import{supabase}from '@/lib/supabase'
+import{Search,Edit2,Trash2,X,Check,Phone,MapPin,User,ShoppingBag,Star,ChevronDown,ChevronUp,Plus}from 'lucide-react'
 
-type Customer={id:string;name:string;phone:string;address?:string;neighborhood?:string;orders_count:number;total_spent:number;created_at:string}
-type Order={id:string;order_number:number;total:number;status:string;type:string;created_at:string}
-const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v)
-const GOAL=5
+const fmt=(v:number)=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0)
+
+type Customer={
+  id:string;name:string;phone:string;address:string;neighborhood:string;
+  notes:string;active:boolean;total_orders:number;total_spent:number;
+  loyalty_stamps:number;loyalty_goal:number;created_at:string
+}
+
+const BLANK={name:'',phone:'',address:'',neighborhood:'',notes:''}
 
 export default function CustomersPage(){
   const[customers,setCustomers]=useState<Customer[]>([])
   const[loading,setLoading]=useState(true)
   const[search,setSearch]=useState('')
   const[expanded,setExpanded]=useState<string|null>(null)
-  const[ordersMap,setOrdersMap]=useState<Record<string,Order[]>>({})
-  const[loadingId,setLoadingId]=useState<string|null>(null)
+  const[editModal,setEditModal]=useState<Customer|null>(null)
+  const[editForm,setEditForm]=useState(BLANK)
+  const[deleteModal,setDeleteModal]=useState<Customer|null>(null)
+  const[addModal,setAddModal]=useState(false)
+  const[addForm,setAddForm]=useState(BLANK)
+  const[saving,setSaving]=useState(false)
 
   useEffect(()=>{load()},[])
 
   async function load(){
     setLoading(true)
-    const{data}=await supabase.from('customers').select('*').order('total_spent',{ascending:false})
+    const{data}=await supabase.from('customers')
+      .select('id,name,phone,address,neighborhood,notes,active,total_orders,total_spent,loyalty_stamps,loyalty_goal,created_at')
+      .order('name')
     setCustomers(data||[])
     setLoading(false)
   }
 
-  async function toggle(c:Customer){
-    if(expanded===c.id){setExpanded(null);return}
-    setExpanded(c.id)
-    if(ordersMap[c.id])return
-    setLoadingId(c.id)
-    try{
-      const phone=c.phone.replace(/\D/g,'')
-      // Search by phone (with and without formatting) OR by name
-      const{data}=await supabase.from('orders')
-        .select('id,order_number,total,status,type,created_at')
-        .in('status',['completed','delivered'])
-        .or('customer_phone.eq.'+phone+',customer_phone.ilike.%'+phone+'%,customer_name.ilike.%'+c.name.split(' ')[0]+'%')
-        .order('created_at',{ascending:false})
-        .limit(50)
-      setOrdersMap(m=>({...m,[c.id]:data||[]}))
-    }catch(e){
-      setOrdersMap(m=>({...m,[c.id]:[]}))
-    }finally{
-      setLoadingId(null)
-    }
+  async function saveEdit(){
+    if(!editModal)return
+    if(!editForm.name.trim()||!editForm.phone.trim()){alert('Nome e telefone obrigatórios');return}
+    setSaving(true)
+    await supabase.from('customers').update({
+      name:editForm.name.trim(),
+      phone:editForm.phone.replace(/\D/g,''),
+      address:editForm.address,
+      neighborhood:editForm.neighborhood,
+      notes:editForm.notes
+    }).eq('id',editModal.id)
+    setCustomers(prev=>prev.map(c=>c.id===editModal.id?{...c,...editForm}:c))
+    setEditModal(null)
+    setSaving(false)
   }
 
-  const filtered=customers.filter(c=>
-    !search||c.name.toLowerCase().includes(search.toLowerCase())||c.phone.includes(search)
-  )
+  async function deleteCustomer(){
+    if(!deleteModal)return
+    setSaving(true)
+    await supabase.from('customers').delete().eq('id',deleteModal.id)
+    setCustomers(prev=>prev.filter(c=>c.id!==deleteModal.id))
+    setDeleteModal(null)
+    setSaving(false)
+  }
 
-  const totalRevenue=customers.reduce((s,c)=>s+Number(c.total_spent),0)
-  const avgTicket=customers.length>0?totalRevenue/customers.length:0
+  async function addCustomer(){
+    if(!addForm.name.trim()||!addForm.phone.trim()){alert('Nome e telefone obrigatórios');return}
+    setSaving(true)
+    const{data}=await supabase.from('customers').insert({
+      name:addForm.name.trim(),
+      phone:addForm.phone.replace(/\D/g,''),
+      address:addForm.address,
+      neighborhood:addForm.neighborhood,
+      notes:addForm.notes,
+      active:true,total_orders:0,total_spent:0,loyalty_stamps:0,loyalty_goal:10
+    }).select().single()
+    if(data)setCustomers(prev=>[...prev,data].sort((a,b)=>a.name.localeCompare(b.name)))
+    setAddModal(false)
+    setAddForm(BLANK)
+    setSaving(false)
+  }
 
-  function loyalty(count:number){
-    const inCycle=count%GOAL
-    const cycles=Math.floor(count/GOAL)
-    const readyForBrinde=count>0&&inCycle===0
-    return{inCycle,cycles,readyForBrinde,next:readyForBrinde?0:GOAL-inCycle}
+  async function toggleActive(c:Customer){
+    await supabase.from('customers').update({active:!c.active}).eq('id',c.id)
+    setCustomers(prev=>prev.map(x=>x.id===c.id?{...x,active:!c.active}:x))
+  }
+
+  const filtered=useMemo(()=>customers.filter(c=>{
+    if(!search)return true
+    const s=search.toLowerCase()
+    return c.name?.toLowerCase().includes(s)||c.phone?.includes(s)||c.neighborhood?.toLowerCase().includes(s)
+  }),[customers,search])
+
+  const inp:React.CSSProperties={width:'100%',background:'#1c1c1c',border:'1px solid #2a2a2a',color:'#fff',borderRadius:10,padding:'11px 14px',fontSize:14,outline:'none',boxSizing:'border-box'}
+  const lbl:React.CSSProperties={fontSize:11,color:'#888',fontWeight:600,letterSpacing:0.5,marginBottom:4,display:'block'}
+
+  function EditForm({form,setForm}:{form:typeof BLANK,setForm:any}){
+    return(
+      <div style={{display:'flex',flexDirection:'column',gap:12}}>
+        <div>
+          <span style={lbl}>Nome completo *</span>
+          <input value={form.name} onChange={e=>setForm((p:any)=>({...p,name:e.target.value}))} placeholder='Nome' style={inp}/>
+        </div>
+        <div>
+          <span style={lbl}>WhatsApp *</span>
+          <input value={form.phone} onChange={e=>setForm((p:any)=>({...p,phone:e.target.value}))} placeholder='(27) 99999-9999' inputMode='numeric' style={inp}/>
+        </div>
+        <div>
+          <span style={lbl}>Endereço</span>
+          <input value={form.address} onChange={e=>setForm((p:any)=>({...p,address:e.target.value}))} placeholder='Rua, número' style={inp}/>
+        </div>
+        <div>
+          <span style={lbl}>Bairro</span>
+          <input value={form.neighborhood} onChange={e=>setForm((p:any)=>({...p,neighborhood:e.target.value}))} placeholder='Bairro' style={inp}/>
+        </div>
+        <div>
+          <span style={lbl}>Observações</span>
+          <input value={form.notes} onChange={e=>setForm((p:any)=>({...p,notes:e.target.value}))} placeholder='Ex: alérgico a...' style={inp}/>
+        </div>
+      </div>
+    )
   }
 
   return(
-    <div style={{height:'100%',display:'flex',flexDirection:'column',background:'var(--bg)'}}>
+    <div style={{padding:'16px 12px',maxWidth:680,margin:'0 auto'}}>
       {/* Header */}
-      <div style={{padding:'10px 14px',borderBottom:'1px solid var(--border)',background:'var(--surface)',display:'flex',alignItems:'center',gap:10,flexWrap:'wrap',flexShrink:0}}>
-        <Users size={18} color='var(--neon)'/>
-        <h1 className='font-bangers neon-text-sm' style={{fontSize:24}}>CLIENTES</h1>
-        <div style={{position:'relative',flex:1,minWidth:160,maxWidth:300}}>
-          <Search size={13} style={{position:'absolute',left:9,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar nome ou telefone...' style={{paddingLeft:30,fontSize:13}}/>
-        </div>
+      <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:14}}>
+        <User size={20} color='#00ff41'/>
+        <h1 style={{fontFamily:'Bangers,cursive',fontSize:22,color:'#00ff41',letterSpacing:2,margin:0,flex:1}}>CLIENTES</h1>
+        <span style={{fontSize:12,color:'#555'}}>{filtered.length} clientes</span>
+        <button onClick={()=>{setAddModal(true);setAddForm(BLANK)}} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 14px',borderRadius:10,background:'#00ff41',border:'none',cursor:'pointer',fontFamily:'Bangers,cursive',fontSize:14,letterSpacing:1,color:'#000'}}>
+          <Plus size={14}/> NOVO
+        </button>
       </div>
 
-      {/* Stats */}
-      <div style={{display:'flex',borderBottom:'1px solid var(--border)',background:'var(--surface)',flexShrink:0}}>
-        <div style={{flex:1,padding:'10px 14px',borderRight:'1px solid var(--border)'}}>
-          <p style={{fontSize:18,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{customers.length}</p>
-          <p style={{fontSize:10,color:'var(--muted)'}}>Clientes</p>
-        </div>
-        <div style={{flex:1,padding:'10px 14px',borderRight:'1px solid var(--border)'}}>
-          <p style={{fontSize:18,fontWeight:700,color:'#f59e0b',fontFamily:'JetBrains Mono,monospace'}}>{fmt(totalRevenue)}</p>
-          <p style={{fontSize:10,color:'var(--muted)'}}>Receita total</p>
-        </div>
-        <div style={{flex:1,padding:'10px 14px',borderRight:'1px solid var(--border)'}}>
-          <p style={{fontSize:18,fontWeight:700,color:'#06b6d4',fontFamily:'JetBrains Mono,monospace'}}>{fmt(avgTicket)}</p>
-          <p style={{fontSize:10,color:'var(--muted)'}}>Ticket médio</p>
-        </div>
-        <div style={{padding:'10px 14px',display:'flex',alignItems:'center',gap:6}}>
-          <Gift size={14} color='#f59e0b'/>
-          <div>
-            <p style={{fontSize:11,fontWeight:600,color:'#f59e0b',fontFamily:'Bangers,cursive',letterSpacing:0.5}}>FIDELIDADE</p>
-            <p style={{fontSize:9,color:'var(--muted)'}}>Brinde a cada {GOAL} compras</p>
-          </div>
-        </div>
+      {/* Search */}
+      <div style={{position:'relative',marginBottom:14}}>
+        <Search size={14} style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'#555'}}/>
+        <input value={search} onChange={e=>setSearch(e.target.value)} placeholder='Buscar por nome, telefone ou bairro...'
+          style={{...inp,paddingLeft:36}}/>
       </div>
 
       {/* List */}
-      <div style={{flex:1,overflowY:'auto',padding:'10px 14px'}}>
-        {loading?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}>Carregando...</div>:
-        filtered.length===0?<div style={{textAlign:'center',padding:48,color:'var(--muted)'}}><Users size={32} style={{opacity:0.2,marginBottom:8}}/><p>Nenhum cliente</p></div>:
-        filtered.map(c=>{
-          // Use actual loaded completed orders count when available, fallback to DB count
-          const cos=ordersMap[c.id]||[]
-          const realCount=ordersMap.hasOwnProperty(c.id)?cos.length:(c.orders_count||0)
-          const realTotal=ordersMap.hasOwnProperty(c.id)?cos.reduce((s:number,o:any)=>s+Number(o.total),0):Number(c.total_spent)||0
-          const loy=loyalty(realCount)
-          const isExp=expanded===c.id
+      {loading?<p style={{textAlign:'center',padding:40,color:'#555'}}>Carregando...</p>:
+      filtered.length===0?<p style={{textAlign:'center',padding:40,color:'#555'}}>Nenhum cliente encontrado</p>:
+      filtered.map(cust=>{
+        const stamps=cust.loyalty_stamps||0
+        const goal=cust.loyalty_goal||10
+        const pct=Math.min(100,Math.round((stamps/goal)*100))
+        const isOpen=expanded===cust.id
+        return(
+          <div key={cust.id} style={{background:'#161616',borderRadius:12,marginBottom:8,border:'1px solid '+(cust.active?'#1e1e1e':'#2a1a1a'),opacity:cust.active?1:0.65}}>
+            {/* Card header */}
+            <div style={{display:'flex',alignItems:'center',gap:10,padding:'12px 14px',cursor:'pointer'}} onClick={()=>setExpanded(isOpen?null:cust.id)}>
+              <div style={{width:38,height:38,borderRadius:'50%',background:'rgba(0,255,65,0.1)',border:'1px solid rgba(0,255,65,0.2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <span style={{fontFamily:'Bangers,cursive',fontSize:15,color:'#00ff41'}}>{(cust.name||'?')[0].toUpperCase()}</span>
+              </div>
+              <div style={{flex:1,minWidth:0}}>
+                <p style={{fontSize:14,fontWeight:600,color:'#fff',margin:0,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{cust.name}</p>
+                <p style={{fontSize:12,color:'#888',margin:'1px 0 0'}}>{cust.phone}</p>
+              </div>
+              <div style={{textAlign:'right',flexShrink:0}}>
+                <p style={{fontSize:12,color:'#00ff41',fontWeight:700,margin:0,fontFamily:'JetBrains Mono,monospace'}}>{fmt(cust.total_spent||0)}</p>
+                <p style={{fontSize:10,color:'#555',margin:0}}>{cust.total_orders||0} pedidos</p>
+              </div>
+              {isOpen?<ChevronUp size={14} color='#555'/>:<ChevronDown size={14} color='#555'/>}
+            </div>
 
-          return(
-            <div key={c.id} className='card' style={{marginBottom:8,overflow:'hidden'}}>
-              <div onClick={()=>toggle(c)} style={{padding:'12px 14px',display:'flex',alignItems:'center',gap:12,cursor:'pointer'}}>
-                {/* Avatar */}
-                <div style={{width:40,height:40,borderRadius:12,background:loy.readyForBrinde?'rgba(245,158,11,0.15)':'rgba(0,255,65,0.08)',border:loy.readyForBrinde?'1px solid #f59e0b':'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,position:'relative'}}>
-                  <span style={{fontSize:16,fontWeight:700,color:loy.readyForBrinde?'#f59e0b':'var(--neon)',fontFamily:'Bangers,cursive'}}>{c.name.charAt(0).toUpperCase()}</span>
-                  {loy.readyForBrinde&&<div style={{position:'absolute',top:-4,right:-4,width:14,height:14,background:'#f59e0b',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center'}}><Gift size={8} color='#000'/></div>}
+            {/* Expanded */}
+            {isOpen&&(
+              <div style={{padding:'0 14px 14px',borderTop:'1px solid #1e1e1e'}}>
+                {/* Fidelidade */}
+                <div style={{marginTop:10,marginBottom:12}}>
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:11,color:'#888',display:'flex',alignItems:'center',gap:4}}><Star size={10} color='#f59e0b'/> Fidelidade</span>
+                    <span style={{fontSize:11,color:'#f59e0b'}}>{stamps}/{goal}</span>
+                  </div>
+                  <div style={{height:6,borderRadius:3,background:'#2a2a2a',overflow:'hidden'}}>
+                    <div style={{height:'100%',width:pct+'%',background:'linear-gradient(90deg,#f59e0b,#f97316)',borderRadius:3,transition:'width 0.3s'}}/>
+                  </div>
                 </div>
 
                 {/* Info */}
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-                    <p style={{fontSize:14,fontWeight:600,color:'var(--white)'}}>{c.name}</p>
-                    {loy.readyForBrinde&&<span style={{fontSize:10,fontWeight:700,padding:'1px 7px',borderRadius:20,background:'rgba(245,158,11,0.15)',color:'#f59e0b',display:'flex',alignItems:'center',gap:3}}><Gift size={9}/>DAR BRINDE!</span>}
-                  </div>
-                  <div style={{display:'flex',alignItems:'center',gap:8,marginTop:2,flexWrap:'wrap'}}>
-                    <span style={{fontSize:11,color:'var(--muted)',display:'flex',alignItems:'center',gap:3}}><Phone size={9}/>{c.phone}</span>
-                    <span style={{fontSize:11,color:'var(--muted)',display:'flex',alignItems:'center',gap:3}}><ShoppingBag size={9}/>{c.orders_count||0} compras</span>
-                  </div>
-                  {/* Loyalty bar */}
-                  {(c.orders_count||0)>0&&(
-                    <div style={{marginTop:5}}>
-                      <div style={{display:'flex',gap:3,marginBottom:2}}>
-                        {Array.from({length:GOAL}).map((_,i)=>(
-                          <div key={i} style={{flex:1,height:4,borderRadius:2,background:i<(loy.readyForBrinde?GOAL:loy.inCycle)?'#f59e0b':'var(--border)'}}/>
-                        ))}
-                      </div>
-                      <p style={{fontSize:9,color:'var(--muted)'}}>
-                        {loy.readyForBrinde
-                          ?'🎁 Brinde disponível!'+(loy.cycles>1?' ('+loy.cycles+'x)':'')
-                          :loy.next===1?'⚡ Falta 1 compra para o brinde!'
-                          :'Faltam '+loy.next+' para o brinde'+(loy.cycles>0?' — '+loy.cycles+'x já ganhou':'')}
-                      </p>
-                    </div>
-                  )}
-                </div>
+                {cust.neighborhood&&<p style={{fontSize:12,color:'#888',margin:'0 0 2px',display:'flex',alignItems:'center',gap:5}}><MapPin size={10}/>{cust.neighborhood}</p>}
+                {cust.address&&<p style={{fontSize:12,color:'#666',margin:'0 0 2px'}}>{cust.address}</p>}
+                {cust.notes&&<p style={{fontSize:12,color:'#666',fontStyle:'italic',margin:'4px 0 0'}}>"{cust.notes}"</p>}
 
-                <div style={{textAlign:'right',flexShrink:0}}>
-                  <p style={{fontSize:15,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(realTotal)}</p>
-                  <p style={{fontSize:10,color:'var(--muted)'}}>total gasto</p>
+                {/* Actions */}
+                <div style={{display:'flex',gap:8,marginTop:12}}>
+                  <button onClick={()=>toggleActive(cust)} style={{flex:1,padding:'8px',borderRadius:8,border:'1px solid #2a2a2a',background:'transparent',color:cust.active?'#888':'#00ff41',cursor:'pointer',fontSize:12}}>
+                    {cust.active?'Desativar':'Ativar'}
+                  </button>
+                  <button onClick={()=>{setEditModal(cust);setEditForm({name:cust.name||'',phone:cust.phone||'',address:cust.address||'',neighborhood:cust.neighborhood||'',notes:cust.notes||''})}}
+                    style={{flex:2,padding:'8px',borderRadius:8,border:'1px solid #3b82f6',background:'rgba(59,130,246,0.1)',color:'#3b82f6',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontWeight:600}}>
+                    <Edit2 size={13}/> Editar
+                  </button>
+                  <button onClick={()=>setDeleteModal(cust)}
+                    style={{flex:1,padding:'8px',borderRadius:8,border:'1px solid rgba(255,51,51,0.3)',background:'rgba(255,51,51,0.08)',color:'#ff5555',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:4}}>
+                    <Trash2 size={13}/>
+                  </button>
                 </div>
-                {isExp?<ChevronUp size={14} color='var(--muted)'/>:<ChevronDown size={14} color='var(--muted)'/>}
               </div>
+            )}
+          </div>
+        )
+      })}
 
-              {/* Orders history */}
-              {isExp&&(
-                <div style={{borderTop:'1px solid var(--border)',padding:'10px 14px',background:'rgba(0,0,0,0.2)'}}>
-                  <p style={{fontSize:11,fontWeight:700,color:'var(--muted)',letterSpacing:0.5,marginBottom:8,fontFamily:'Bangers,cursive'}}>HISTÓRICO DE COMPRAS FINALIZADAS</p>
-                  {loadingId===c.id
-                    ?<p style={{fontSize:12,color:'var(--muted)',textAlign:'center',padding:12}}>Carregando...</p>
-                    :cos.length===0
-                      ?<p style={{fontSize:12,color:'var(--muted)',textAlign:'center',padding:12}}>Nenhuma compra finalizada</p>
-                      :cos.map((o,idx)=>(
-                        <div key={o.id} style={{display:'flex',alignItems:'center',gap:10,padding:'7px 0',borderBottom:idx<cos.length-1?'1px solid rgba(26,46,26,0.4)':'none'}}>
-                          <div style={{width:22,height:22,borderRadius:6,background:'rgba(245,158,11,0.08)',border:'1px solid rgba(245,158,11,0.2)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                            <span style={{fontSize:9,fontWeight:700,color:'#f59e0b'}}>{cos.length-idx}</span>
-                          </div>
-                          <div style={{flex:1}}>
-                            <div style={{display:'flex',alignItems:'center',gap:6}}>
-                              <span style={{fontSize:12,fontWeight:600,color:'var(--white)',fontFamily:'JetBrains Mono,monospace'}}>#{o.order_number}</span>
-                              <span style={{fontSize:10,padding:'1px 6px',borderRadius:4,background:o.type==='delivery'?'rgba(6,182,212,0.1)':'rgba(0,255,65,0.08)',color:o.type==='delivery'?'#06b6d4':'var(--neon)'}}>{o.type==='delivery'?'Delivery':'PDV'}</span>
-                            </div>
-                            <p style={{fontSize:10,color:'var(--muted)',marginTop:1}}>
-                              {new Date(o.created_at).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit'})} às {new Date(o.created_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}
-                            </p>
-                          </div>
-                          <span style={{fontSize:13,fontWeight:700,color:'var(--neon)',fontFamily:'JetBrains Mono,monospace'}}>{fmt(Number(o.total))}</span>
-                        </div>
-                      ))
-                  }
-                  {cos.length>0&&(
-                    <div style={{marginTop:8,padding:'8px 12px',background:'rgba(245,158,11,0.06)',borderRadius:8,border:'1px solid rgba(245,158,11,0.15)',display:'flex',alignItems:'center',gap:8}}>
-                      <Award size={14} color='#f59e0b'/>
-                      <div style={{flex:1}}>
-                        <p style={{fontSize:11,color:'#f59e0b',fontWeight:600}}>
-                          {loy.readyForBrinde
-                            ?'🎁 BRINDE DISPONÍVEL!'+(loy.cycles>1?' ('+loy.cycles+'x já ganhou)':'')
-                            :loy.next===1?'⚡ Falta 1 compra para o brinde!'
-                            :'Faltam '+loy.next+' compras para o próximo brinde'+(loy.cycles>0?' — '+loy.cycles+'x já ganhou':'')}
-                        </p>
-                        <p style={{fontSize:9,color:'var(--muted)'}}>{cos.length} compras • {loy.inCycle}/{GOAL} no ciclo atual</p>
-                      </div>
-                      {loy.readyForBrinde&&(
-                        <span style={{padding:'4px 10px',borderRadius:6,background:'#f59e0b',fontSize:11,fontWeight:700,color:'#000',fontFamily:'Bangers,cursive',letterSpacing:0.5}}>DAR BRINDE</span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
+      {/* MODAL EDITAR */}
+      {editModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
+          <div style={{background:'#161616',borderRadius:16,padding:24,width:'100%',maxWidth:420,border:'1px solid #2a2a2a',maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
+              <Edit2 size={16} color='#3b82f6'/>
+              <h2 style={{fontFamily:'Bangers,cursive',fontSize:20,color:'#3b82f6',letterSpacing:1,margin:0,flex:1}}>EDITAR CLIENTE</h2>
+              <button onClick={()=>setEditModal(null)} style={{background:'#222',border:'none',borderRadius:8,width:30,height:30,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#888'}}><X size={14}/></button>
             </div>
-          )
-        })}
-      </div>
+            <EditForm form={editForm} setForm={setEditForm}/>
+            <div style={{display:'flex',gap:8,marginTop:20}}>
+              <button onClick={()=>setEditModal(null)} style={{flex:1,padding:'12px',borderRadius:10,border:'1px solid #2a2a2a',background:'transparent',color:'#888',cursor:'pointer'}}>Cancelar</button>
+              <button onClick={saveEdit} disabled={saving} style={{flex:2,padding:'12px',borderRadius:10,border:'none',background:saving?'#2a2a2a':'#3b82f6',color:saving?'#555':'#fff',cursor:saving?'not-allowed':'pointer',fontFamily:'Bangers,cursive',fontSize:16,letterSpacing:1}}>
+                {saving?'SALVANDO...':'SALVAR'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL EXCLUIR */}
+      {deleteModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
+          <div style={{background:'#161616',borderRadius:16,padding:24,width:'100%',maxWidth:360,border:'1px solid rgba(255,51,51,0.2)'}}>
+            <div style={{textAlign:'center',marginBottom:20}}>
+              <div style={{width:52,height:52,borderRadius:'50%',background:'rgba(255,51,51,0.1)',border:'2px solid rgba(255,51,51,0.3)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
+                <Trash2 size={22} color='#ff5555'/>
+              </div>
+              <h2 style={{fontFamily:'Bangers,cursive',fontSize:20,color:'#ff5555',letterSpacing:1,marginBottom:8}}>EXCLUIR CLIENTE</h2>
+              <p style={{fontSize:14,color:'#ccc',margin:0}}>{deleteModal.name}</p>
+              <p style={{fontSize:12,color:'#666',marginTop:6}}>Esta ação não pode ser desfeita. O histórico de pedidos será mantido.</p>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={()=>setDeleteModal(null)} style={{flex:1,padding:'12px',borderRadius:10,border:'1px solid #2a2a2a',background:'transparent',color:'#888',cursor:'pointer'}}>Cancelar</button>
+              <button onClick={deleteCustomer} disabled={saving} style={{flex:1,padding:'12px',borderRadius:10,border:'none',background:saving?'#2a2a2a':'#ff5555',color:saving?'#555':'#fff',cursor:saving?'not-allowed':'pointer',fontFamily:'Bangers,cursive',fontSize:16,letterSpacing:1}}>
+                {saving?'...':'EXCLUIR'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL ADICIONAR */}
+      {addModal&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.88)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:50,padding:16}}>
+          <div style={{background:'#161616',borderRadius:16,padding:24,width:'100%',maxWidth:420,border:'1px solid #2a2a2a',maxHeight:'90vh',overflowY:'auto'}}>
+            <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:20}}>
+              <Plus size={16} color='#00ff41'/>
+              <h2 style={{fontFamily:'Bangers,cursive',fontSize:20,color:'#00ff41',letterSpacing:1,margin:0,flex:1}}>NOVO CLIENTE</h2>
+              <button onClick={()=>setAddModal(false)} style={{background:'#222',border:'none',borderRadius:8,width:30,height:30,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',color:'#888'}}><X size={14}/></button>
+            </div>
+            <EditForm form={addForm} setForm={setAddForm}/>
+            <div style={{display:'flex',gap:8,marginTop:20}}>
+              <button onClick={()=>setAddModal(false)} style={{flex:1,padding:'12px',borderRadius:10,border:'1px solid #2a2a2a',background:'transparent',color:'#888',cursor:'pointer'}}>Cancelar</button>
+              <button onClick={addCustomer} disabled={saving} style={{flex:2,padding:'12px',borderRadius:10,border:'none',background:saving?'#2a2a2a':'#00ff41',color:saving?'#555':'#000',cursor:saving?'not-allowed':'pointer',fontFamily:'Bangers,cursive',fontSize:16,letterSpacing:1}}>
+                {saving?'SALVANDO...':'ADICIONAR'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
