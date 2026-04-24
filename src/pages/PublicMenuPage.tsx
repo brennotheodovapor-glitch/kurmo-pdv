@@ -204,7 +204,7 @@ export default function PublicMenuPage(){
       await supabase.from('order_items').insert(cart.map(i=>({
         order_id:order.id,product_id:i.product_id,
         product_name:i.name+(i.variant_name?' — '+i.variant_name:''),
-        quantity:i.qty,unit_price:i.price,total_price:i.price*i.qty,variant_id:i.variant_id||null
+        quantity:i.qty,unit_price:i.price,total_price:i.price*i.qty
       })))
       await supabase.from('order_payments').insert({order_id:order.id,method:pay,amount:total})
       for(const item of cart){
