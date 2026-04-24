@@ -18,7 +18,7 @@ export default function CustomersPage(){
   const[af,setAf]=useState({name:'',phone:'',address:'',neighborhood:''})
   const[busy,setBusy]=useState(false)
   const[loyalty,setLoyalty]=useState<Record<string,number>>({})
-  const GOAL=10
+  const GOAL=5
 
   useEffect(()=>{load()},[])
 
