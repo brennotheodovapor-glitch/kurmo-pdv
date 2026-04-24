@@ -211,11 +211,11 @@ export default function PublicMenuPage(){
         total,
         payment_method:pay,
         cash_requested:pay==='dinheiro'&&change?parseFloat(change):null,
-        notes:addr+(notes?' | '+notes:''),
-        delivery_zone_id:zone.id
+        notes:addr+(notes?' | '+notes:'')
       }).select().single()
 
       if(orderErr||!order){
+        console.error('ORDER_ERR:',orderErr)
         alert('Erro ao criar pedido: '+(orderErr?.message||'tente novamente'))
         setSubmitting(false)
         return
