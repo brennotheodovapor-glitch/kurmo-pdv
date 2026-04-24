@@ -179,48 +179,83 @@ export default function PublicMenuPage(){
 
   async function submit(){
     if(!cName.trim()){alert('Informe seu nome completo');return}
-    const _ph=cPhone.replace(/\D/g,'')
-    if(!_ph||_ph.length<10){alert('Informe um WhatsApp válido com DDD (mínimo 10 dígitos)');return}
-    if(!cep||cepStatus!=='ok'){alert('Informe um CEP válido');return}
-    if(!zone){alert('Selecione seu bairro');return}
+    const _ph=(cPhone||'').replace(/\D/g,'')
+    if(_ph.length<10){alert('Informe um WhatsApp valido com DDD');return}
+    if(!cep||cepStatus!=='ok'){alert('Informe um CEP valido');return}
+    if(!zone){alert('Selecione seu bairro de entrega');return}
     setSubmitting(true)
     try{
-      const ph=cPhone.replace(/\D/g,'')
+      // 1. Criar ou buscar cliente
       let cid:string|null=null
-      const{data:ec}=await supabase.from('customers').select('id').eq('phone',ph).maybeSingle()
-      if(ec){cid=ec.id}else{
-        const{data:nc}=await supabase.from('customers').insert({name:cName,phone:ph,address:street+(num?' nº'+num:''),neighborhood:zone.name}).select().single()
+      const{data:ec}=await supabase.from('customers').select('id').eq('phone',_ph).maybeSingle()
+      if(ec){
+        cid=ec.id
+      }else{
+        const{data:nc}=await supabase.from('customers').insert({
+          name:cName.trim(),phone:_ph,address:street+(num?' n'+num:''),neighborhood:zone.name,
+          orders_count:0,total_spent:0
+        }).select('id').single()
         if(nc)cid=nc.id
       }
-      const addr=[street,num?'nº'+num:'',complement,zone.name].filter(Boolean).join(', ')
-      const{data:order,error}=await supabase.from('orders').insert({
-        customer_name:cName,customer_phone:ph,customer_id:cid,
-        type:'delivery',status:'pending',
-        subtotal,delivery_fee:fee,total,payment_method:pay,
+
+      // 2. Criar pedido
+      const addr=[street,num?'n'+num:'',complement,zone.name].filter(Boolean).join(', ')
+      const{data:order,error:orderErr}=await supabase.from('orders').insert({
+        customer_name:cName.trim(),
+        customer_phone:_ph,
+        customer_id:cid,
+        type:'delivery',
+        status:'pending',
+        subtotal,
+        delivery_fee:fee,
+        total,
+        payment_method:pay,
         cash_requested:pay==='dinheiro'&&change?parseFloat(change):null,
-        notes:addr+(notes?' | '+notes:''),delivery_zone_id:zone.id
+        notes:addr+(notes?' | '+notes:''),
+        delivery_zone_id:zone.id
       }).select().single()
-      if(error||!order)throw error||new Error('Erro')
-      await supabase.from('order_items').insert(cart.map(i=>({
-        order_id:order.id,product_id:i.product_id,
-        product_name:i.name+(i.variant_name?' — '+i.variant_name:''),
-        quantity:i.qty,unit_price:i.price,total_price:i.price*i.qty
-      })))
+
+      if(orderErr||!order){
+        alert('Erro ao criar pedido: '+(orderErr?.message||'tente novamente'))
+        setSubmitting(false)
+        return
+      }
+
+      // 3. Inserir itens (sem variant_id - nao existe na tabela)
+      const itemsPayload=cart.map(i=>({
+        order_id:order.id,
+        product_id:i.product_id,
+        product_name:i.name+(i.variant_name?' - '+i.variant_name:''),
+        quantity:i.qty,
+        unit_price:i.price,
+        total_price:i.price*i.qty
+      }))
+      const{error:itemsErr}=await supabase.from('order_items').insert(itemsPayload)
+      if(itemsErr) console.error('Items error:',itemsErr.message)
+
+      // 4. Inserir pagamento
       await supabase.from('order_payments').insert({order_id:order.id,method:pay,amount:total})
+
+      // 5. Baixar estoque dos produtos simples
       for(const item of cart){
-        if(item.variant_id){
-          const{data:vr}=await supabase.from('product_variants').select('stock').eq('id',item.variant_id).single()
-          if(vr)await supabase.from('product_variants').update({stock:Math.max(0,vr.stock-item.qty)}).eq('id',item.variant_id)
-        }else{
-          const{data:pr}=await supabase.from('products').select('stock').eq('id',item.product_id).single()
-          if(pr)await supabase.from('products').update({stock:Math.max(0,pr.stock-item.qty)}).eq('id',item.product_id)
+        if(item.product_id){
+          const{data:pr}=await supabase.from('products').select('stock,has_sizes').eq('id',item.product_id).single()
+          if(pr&&!pr.has_sizes){
+            await supabase.from('products').update({stock:Math.max(0,(pr.stock||0)-item.qty)}).eq('id',item.product_id)
+          }
         }
       }
-      setDone({...order,_items:cart.map(i=>({...i,qty:i.qty}))});setCart([]);setScreen('menu')
+
+      setDone({...order,_items:cart.map(i=>({...i}))})
+      setCart([])
+      setScreen('menu')
       setCName('');setCPhone('');setCep('');setStreet('');setNum('');setComplement('')
       setZone(null);setMatchedZones([]);setNotes('');setChange('');setCepStatus('idle')
-    }catch(e:any){alert('Erro: '+e.message)}
-    finally{setSubmitting(false)}
+    }catch(e:any){
+      alert('Erro: '+e.message)
+    }finally{
+      setSubmitting(false)
+    }
   }
 
   const catsWithProds=cats.filter(c=>prods.some(p=>p.category_id===c.id&&(!search||p.name.toLowerCase().includes(search.toLowerCase()))&&(!catF||p.category_id===catF)))
