@@ -35,7 +35,7 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
     let q:any=supabase.from('orders').select('*').gte('created_at',dateFrom+'T00:00:00').lte('created_at',dateTo+'T23:59:59').order('created_at',{ascending:false})
     if(sellerId)q=q.eq('seller_id',sellerId)
     const{data}=await q
-    setOrders(data||[])
+    const _ords=data||[];setOrders(_ords);_ords.slice(0,50).forEach((o:any)=>{supabase.from('order_items').select('id,product_name,quantity,unit_price,total_price').eq('order_id',o.id).then(({data:it})=>{if(it?.length)setItemsCache((p:any)=>({...p,[o.id]:it}))})})
     setLoading(false)
   }
   async function expandOrder(id:string){
