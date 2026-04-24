@@ -1,4 +1,3 @@
-import{sendWhatsApp,WA_MESSAGES}from '@/lib/whatsapp'
 import{useState,useEffect,useRef,useCallback}from 'react'
 import{Truck,Plus,X,Check,Phone,MapPin,AlertTriangle,ChevronDown,ChevronUp,Search,Loader2,CheckCircle,Minus,ShoppingCart,Bell,BellOff,MessageCircle,Send,ExternalLink,Clock,Package,User,Copy}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
