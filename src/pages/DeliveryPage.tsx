@@ -100,7 +100,7 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
 
   async function expandOrder(id:string){
     if(expanded===id){setExpanded(null);return}
-    setExpanded(id);loadItems(id)
+    setExpanded(id);if(!itemsCache[id]){supabase.from('order_items').select('*').eq('order_id',id).then(({data})=>{if(data)setItemsCache((p:any)=>({...p,[id]:data}))})}
     if(!itemsCache[id]){
       const{data}=await supabase.from('order_items').select('*').eq('order_id',id)
       setItemsCache(c=>({...c,[id]:data||[]}))
