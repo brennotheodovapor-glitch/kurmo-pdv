@@ -51,9 +51,9 @@ export default function CustomersPage(){
         total_spent:orderMap[c.id]?.total||0,
         loyalty_stamps:orderMap[c.id]?.count||0
       }))
-      setCustomers(enriched)
+      setCustomers(enriched as Customer[])
     }else{
-      setCustomers(data||[])
+      setCustomers((data||[]) as Customer[])
     }
     setLoading(false)
   }
