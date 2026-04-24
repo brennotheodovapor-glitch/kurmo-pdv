@@ -69,7 +69,7 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
       supabase.from('delivery_zones').select('*').eq('active',true).order('name')
     ])
     const newOrders=o.data||[]
-    setOrders(newOrders);setProducts(p.data||[]);setZones(z.data||[])
+    setOrders(newOrders);newOrders.slice(0,50).forEach((o:any)=>{supabase.from('order_items').select('id,product_name,quantity,total_price').eq('order_id',o.id).then(({data:it})=>{if(it?.length)setItemsCache((p:any)=>({...p,[o.id]:it}))})});setProducts(p.data||[]);setZones(z.data||[])
     setLoading(false)
     const pending=newOrders.filter(x=>x.status==='pending').length
     setPendingCount(pending)
@@ -100,7 +100,7 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
 
   async function expandOrder(id:string){
     if(expanded===id){setExpanded(null);return}
-    setExpanded(id)
+    setExpanded(id);loadItems(id)
     if(!itemsCache[id]){
       const{data}=await supabase.from('order_items').select('*').eq('order_id',id)
       setItemsCache(c=>({...c,[id]:data||[]}))
