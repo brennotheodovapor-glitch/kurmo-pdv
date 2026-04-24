@@ -1,4 +1,4 @@
-import{NavLink,useLocation,Outlet,useNavigate}from 'react-router-dom'
+import{MessageSquare,NavLink,useLocation,Outlet,useNavigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
 import{ShoppingCart,Truck,History,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard,CreditCard,Clock,FileText,Bell,Link2}from 'lucide-react'
 import{useState,useEffect}from 'react'
@@ -14,6 +14,7 @@ const MAIN_NAV:NavItem[]=[
   {to:'/caixa',icon:DollarSign,label:'Caixa'},
   {to:'/cardapio',icon:QrCode,label:'Catalogo'},
   {to:'/bairros',icon:MapPin,label:'Bairros'},
+  {to:'/whatsapp',icon:MessageSquare,label:'WhatsApp'},
 ]
 
 const CONFIG_NAV:NavItem[]=[
