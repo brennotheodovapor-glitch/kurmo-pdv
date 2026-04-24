@@ -1,12 +1,13 @@
 const WA_URL='https://kurmo-whatsapp-api-production.up.railway.app'
 
-const STATUS_MSG:Record<string,string>={
-  accepted:'✅ Seu pedido foi *ACEITO*! Estamos preparando tudo com carinho. Em breve sairá para entrega.',
-  preparing:'👨‍🍳 Seu pedido está sendo *PREPARADO*! Em breve ficará pronto.',
-  ready:'🎁 Pedido *PRONTO*! Saiu para entrega agora mesmo.',
-  delivering:'🛵 Pedido *A CAMINHO*! Nosso entregador está indo até você.',
-  delivered:'🎉 Pedido *ENTREGUE*! Obrigado pela preferência. Volte sempre!',
-  cancelled:'❌ Seu pedido foi *CANCELADO*. Entre em contato para mais informações.'
+// Mensagens padrão caso tabela não exista
+const DEFAULT_MSGS:Record<string,string>={
+  accepted:'Ola {nome}! Pedido #{numero} foi ACEITO! Estamos preparando tudo.',
+  preparing:'Ola {nome}! Pedido #{numero} esta sendo PREPARADO!',
+  ready:'Ola {nome}! Pedido #{numero} esta PRONTO! O entregador vai sair agora.',
+  delivering:'Ola {nome}! Pedido #{numero} esta A CAMINHO! Fique de olho.',
+  delivered:'Ola {nome}! Pedido #{numero} foi ENTREGUE! Obrigado pela preferencia!',
+  cancelled:'Ola {nome}! Infelizmente seu pedido #{numero} foi CANCELADO. Entre em contato.'
 }
 
 export async function sendWhatsApp(phone:string,message:string):Promise<boolean>{
@@ -18,13 +19,50 @@ export async function sendWhatsApp(phone:string,message:string):Promise<boolean>
       body:JSON.stringify({phone:n,message})
     })
     return r.ok
-  }catch{return false}
+  }catch(e){
+    console.error('WhatsApp send error:',e)
+    return false
+  }
 }
 
-export async function notifyOrderStatus(phone:string,customerName:string,orderNumber:number,status:string,items?:any[]):Promise<boolean>{
-  const base=STATUS_MSG[status]
-  if(!base||!phone)return false
-  const itemsList=items&&items.length>0?'\n\n*Itens:*\n'+items.map(i=>i.quantity+'x '+i.product_name+' - R$'+Number(i.total_price).toFixed(2)).join('\n'):''
-  const msg=`🛍️ *UZT 021* - Pedido #${orderNumber}\n\nOlá ${customerName}!\n${base}${itemsList}`
-  return sendWhatsApp(phone,msg)
+export async function notifyOrderStatus(
+  phone:string,
+  customerName:string,
+  orderNumber:number,
+  status:string,
+  items?:any[]
+):Promise<boolean>{
+  if(!phone||!status)return false
+  try{
+    // Tentar buscar mensagem customizada do banco
+    const{createClient}=await import('@supabase/supabase-js')
+    const sb=createClient(
+      import.meta.env.VITE_SUPABASE_URL||'',
+      import.meta.env.VITE_SUPABASE_ANON_KEY||''
+    )
+    let template=DEFAULT_MSGS[status]||''
+    const{data:msg}=await sb.from('whatsapp_messages').select('message,active').eq('id',status).single()
+    if(msg?.active&&msg?.message)template=msg.message
+
+    if(!template)return false
+
+    // Substituir variáveis
+    let text=template
+      .replace(/{nome}/g,customerName||'Cliente')
+      .replace(/{numero}/g,String(orderNumber||0))
+
+    // Adicionar itens se entregando/pronto
+    if(items&&items.length>0&&['ready','delivering','delivered'].includes(status)){
+      text+='
+
+*Itens:*
+'+items.map(i=>i.quantity+'x '+i.product_name).join('
+')
+    }
+
+    return sendWhatsApp(phone,text)
+  }catch(e){
+    console.error('notifyOrderStatus error:',e)
+    return false
+  }
 }
