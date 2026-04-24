@@ -4,7 +4,14 @@ import { createClient } from '@supabase/supabase-js'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://hkepgdjjnooevdlmlfmr.supabase.co'
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhrZXBnZGpqbm9vZXZkbG1sZm1yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzUyNDAyMzgsImV4cCI6MjA5MDgxNjIzOH0.FA0-VucLdLJQixgIFvGS76D3jFVKICRa2D23Hk_0BP8'
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    storageKey: 'kurmo-pdv-auth'
+  }
+})
 export const isDemoMode = !import.meta.env.VITE_SUPABASE_URL
 
 export type Product = { id:string; name:string; price:number; cost_price:number; stock:number; category_id:string|null; image_url:string|null; barcode:string|null; active:boolean; created_at:string }
