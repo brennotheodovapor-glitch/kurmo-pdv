@@ -139,8 +139,8 @@ export default function CustomersPage(){
                 {c.neighborhood&&<p style={{fontSize:12,color:'#888',margin:'0 0 2px',display:'flex',alignItems:'center',gap:5}}><MapPin size={10}/>{c.neighborhood}</p>}
                 {c.address&&<p style={{fontSize:12,color:'#666',margin:'0 0 2px'}}>{c.address}</p>}
                 <div style={{display:'flex',gap:8,marginTop:12}}>
-                  <button onClick={()=>openEdit(c)} style={{flex:2,padding:'8px',borderRadius:8,border:'1px solid #3b82f6',background:'rgba(59,130,246,0.1)',color:'#3b82f6',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontWeight:600}}><Edit2 size={13}/>Editar</button>
-                  <button onClick={()=>openDelete(c)} style={{flex:1,padding:'8px',borderRadius:8,border:'1px solid rgba(255,51,51,0.3)',background:'rgba(255,51,51,0.08)',color:'#ff5555',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={13}/></button>
+                  <button onClick={e=>{e.stopPropagation();openEdit(c)}} style={{flex:2,padding:'8px',borderRadius:8,border:'1px solid #3b82f6',background:'rgba(59,130,246,0.1)',color:'#3b82f6',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center',gap:6,fontWeight:600}}><Edit2 size={13}/>Editar</button>
+                  <button onClick={e=>{e.stopPropagation();openDelete(c)}} style={{flex:1,padding:'8px',borderRadius:8,border:'1px solid rgba(255,51,51,0.3)',background:'rgba(255,51,51,0.08)',color:'#ff5555',cursor:'pointer',fontSize:12,display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={13}/></button>
                 </div>
               </div>
             )}
