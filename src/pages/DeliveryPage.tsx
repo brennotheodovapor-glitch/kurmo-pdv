@@ -69,7 +69,8 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
       supabase.from('delivery_zones').select('*').eq('active',true).order('name')
     ])
     const newOrders=o.data||[]
-    setOrders(newOrders);newOrders.slice(0,50).forEach((o:any)=>{supabase.from('order_items').select('id,product_name,quantity,total_price').eq('order_id',o.id).then(({data:it})=>{if(it?.length)setItemsCache((p:any)=>({...p,[o.id]:it}))})});setProducts(p.data||[]);setZones(z.data||[])
+    setOrders(newOrders);
+    if(newOrders.length>0){const oids=newOrders.map((o:any)=>o.id);const{data:ai}=await supabase.from('order_items').select('*').in('order_id',oids);if(ai){const ic:Record<string,any[]>={};ai.forEach((i:any)=>{if(!ic[i.order_id])ic[i.order_id]=[];ic[i.order_id].push(i)});setItemsCache(ic)}}newOrders.slice(0,50).forEach((o:any)=>{supabase.from('order_items').select('id,product_name,quantity,total_price').eq('order_id',o.id).then(({data:it})=>{if(it?.length)setItemsCache((p:any)=>({...p,[o.id]:it}))})});setProducts(p.data||[]);setZones(z.data||[])
     setLoading(false)
     const pending=newOrders.filter(x=>x.status==='pending').length
     setPendingCount(pending)
