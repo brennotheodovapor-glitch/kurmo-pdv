@@ -35,7 +35,8 @@ export default function HistoryPage({sellerId}:{sellerId?:string|null}){
     let q:any=supabase.from('orders').select('*').gte('created_at',dateFrom+'T00:00:00').lte('created_at',dateTo+'T23:59:59').order('created_at',{ascending:false})
     if(sellerId)q=q.eq('seller_id',sellerId)
     const{data}=await q
-    const _ords=data||[];setOrders(_ords);_ords.slice(0,50).forEach((o:any)=>{supabase.from('order_items').select('id,product_name,quantity,unit_price,total_price').eq('order_id',o.id).then(({data:it})=>{if(it?.length)setItemsCache((p:any)=>({...p,[o.id]:it}))})})
+    const _ords=data||[];setOrders(_ords);
+    if(_ords.length>0){const oids=_ords.map((o:any)=>o.id);const[{data:ai},{data:ap}]=await Promise.all([supabase.from('order_items').select('*').in('order_id',oids),supabase.from('order_payments').select('*').in('order_id',oids)]);if(ai){const ic:Record<string,any[]>={};ai.forEach((i:any)=>{if(!ic[i.order_id])ic[i.order_id]=[];ic[i.order_id].push(i)});setItemsCache(ic)}if(ap){const pc:Record<string,any[]>={};ap.forEach((p:any)=>{if(!pc[p.order_id])pc[p.order_id]=[];pc[p.order_id].push(p)});setPaymentsCache(pc)}}_ords.slice(0,50).forEach((o:any)=>{supabase.from('order_items').select('id,product_name,quantity,unit_price,total_price').eq('order_id',o.id).then(({data:it})=>{if(it?.length)setItemsCache((p:any)=>({...p,[o.id]:it}))})})
     setLoading(false)
   }
   async function expandOrder(id:string){
