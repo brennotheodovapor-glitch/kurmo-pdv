@@ -2,6 +2,7 @@ import{sendWhatsApp,WA_MESSAGES}from '@/lib/whatsapp'
 import{useState,useEffect,useRef,useCallback}from 'react'
 import{Truck,Plus,X,Check,Phone,MapPin,AlertTriangle,ChevronDown,ChevronUp,Search,Loader2,CheckCircle,Minus,ShoppingCart,Bell,BellOff,MessageCircle,Send,ExternalLink,Clock,Package,User,Copy}from 'lucide-react'
 import{supabase}from '@/lib/supabase'
+import{notifyOrderStatus}from '@/lib/whatsapp'
 import toast from 'react-hot-toast'
 
 type Order={id:string;order_number:number;customer_name:string;customer_phone:string;status:string;total:number;subtotal:number;discount:number;delivery_fee:number;created_at:string;notes:string|null;cash_requested?:number;change_amount?:number;payment_method?:string;coupon_code?:string|null}
@@ -110,6 +111,14 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
 
   async function updateStatus(orderId:string,status:string){
     await supabase.from('orders').update({status}).eq('id',orderId)
+    // Notificar cliente via WhatsApp
+    try{
+      const{data:ord}=await supabase.from('orders').select('customer_phone,customer_name,order_number').eq('id',orderId).single()
+      if(ord?.customer_phone){
+        const{data:its}=await supabase.from('order_items').select('product_name,quantity,total_price').eq('order_id',orderId)
+        await notifyOrderStatus(ord.customer_phone,ord.customer_name||'Cliente',ord.order_number||0,status,its||[])
+      }
+    }catch{}
     // Devolver estoque ao cancelar pedido
     if(status==='cancelled'){
       try{
