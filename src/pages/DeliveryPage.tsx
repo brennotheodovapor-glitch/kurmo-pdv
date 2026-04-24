@@ -147,7 +147,15 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
         }
       }
     }catch(e){console.error('Erro ao restaurar estoque:',e)}
-    toast.success('Pedido cancelado');setCancelModal(null);setCancelReason('');loadData()
+    toast.success('Pedido cancelado')
+    // Notificar cliente via WhatsApp
+    try{
+      if(cancelModal.customer_phone){
+        const{data:its}=await supabase.from('order_items').select('product_name,quantity,total_price').eq('order_id',cancelModal.id)
+        await notifyOrderStatus(cancelModal.customer_phone,cancelModal.customer_name||'Cliente',cancelModal.order_number||0,'cancelled',its||[])
+      }
+    }catch{}
+    setCancelModal(null);setCancelReason('');loadData()
   }
 
   // Chat functions
