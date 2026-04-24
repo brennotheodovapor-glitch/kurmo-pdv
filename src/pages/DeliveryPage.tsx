@@ -163,7 +163,7 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
     setChatSending(true)
     const msg=chatInput.trim();setChatInput('')
     setChatMsgs(m=>[...m,{id:Date.now()+'',role:'store',text:msg,ts:new Date().toISOString()}])
-    const sent=await sendWhatsApp(chatOrder.customer_phone,msg)
+    const sent=await null
     if(!sent)toast.error('Falha ao enviar WhatsApp — configure a API em Configuracoes')
     setChatSending(false)
   }
