@@ -113,12 +113,9 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
     // Devolver estoque ao cancelar pedido
     if(status==='cancelled'){
       try{
-        const{data:items}=await supabase.from('order_items').select('product_id,quantity,variant_id').eq('order_id',orderId)
+        const{data:items}=await supabase.from('order_items').select('product_id,quantity').eq('order_id',orderId)
         for(const item of(items||[])){
-          if(item.variant_id){
-            const{data:vr}=await supabase.from('product_variants').select('stock').eq('id',item.variant_id).single()
-            if(vr)await supabase.from('product_variants').update({stock:(vr.stock||0)+item.quantity}).eq('id',item.variant_id)
-          }else if(item.product_id){
+          if(item.product_id){
             const{data:pr}=await supabase.from('products').select('stock').eq('id',item.product_id).single()
             if(pr)await supabase.from('products').update({stock:(pr.stock||0)+item.quantity}).eq('id',item.product_id)
           }
@@ -134,12 +131,9 @@ export default function DeliveryPage({soundOnRef}:{soundOnRef?:React.MutableRefO
     await supabase.from('orders').update({status:'cancelled',cancel_reason:cancelReason,cancelled_at:new Date().toISOString()}).eq('id',cancelModal.id)
     // Restaurar estoque ao cancelar
     try{
-      const{data:items}=await supabase.from('order_items').select('product_id,quantity,variant_id').eq('order_id',cancelModal.id)
+      const{data:items}=await supabase.from('order_items').select('product_id,quantity').eq('order_id',cancelModal.id)
       for(const item of(items||[])){
-        if(item.variant_id){
-          const{data:vr}=await supabase.from('product_variants').select('stock').eq('id',item.variant_id).single()
-          if(vr)await supabase.from('product_variants').update({stock:(vr.stock||0)+item.quantity}).eq('id',item.variant_id)
-        }else if(item.product_id){
+        if(item.product_id){
           const{data:pr}=await supabase.from('products').select('stock').eq('id',item.product_id).single()
           if(pr)await supabase.from('products').update({stock:(pr.stock||0)+item.quantity}).eq('id',item.product_id)
         }
