@@ -42,6 +42,11 @@ export default function PublicMenuPage(){
   const[pay,setPay]=useState('pix')
   const[change,setChange]=useState('')
   const[submitting,setSubmitting]=useState(false)
+  const[couponCode,setCouponCode]=useState('')
+  const[couponInput,setCouponInput]=useState('')
+  const[couponDiscount,setCouponDiscount]=useState(0)
+  const[couponMsg,setCouponMsg]=useState('')
+  const[couponLoading,setCouponLoading]=useState(false)
 
   useEffect(()=>{load()},[])
 
@@ -136,7 +141,7 @@ export default function PublicMenuPage(){
 
   const fee=zone?.fee||0
   const subtotal=cart.reduce((s,i)=>s+i.price*i.qty,0)
-  const total=subtotal+fee
+  const total=Math.max(0,subtotal+fee-couponDiscount)
   const cartCount=cart.reduce((s,i)=>s+i.qty,0)
 
   function cartQty(pid:string,vid?:string){
@@ -177,6 +182,21 @@ export default function PublicMenuPage(){
     setVarModal(null)
   }
 
+  async function applyCoupon(){
+    const code=couponInput.trim().toUpperCase()
+    if(!code)return
+    setCouponLoading(true);setCouponMsg('')
+    const{data:cp}=await supabase.from('coupons').select('*').eq('code',code).eq('active',true).maybeSingle()
+    if(!cp){setCouponMsg('Cupom inválido ou inativo');setCouponLoading(false);return}
+    if(cp.expires_at&&new Date(cp.expires_at)<new Date()){setCouponMsg('Cupom expirado');setCouponLoading(false);return}
+    if(cp.max_uses&&cp.used_count>=cp.max_uses){setCouponMsg('Cupom esgotado');setCouponLoading(false);return}
+    if(cp.min_order&&subtotal<cp.min_order){setCouponMsg('Pedido mínimo: R$'+Number(cp.min_order).toFixed(2));setCouponLoading(false);return}
+    const disc=cp.discount_type==='percent'?subtotal*(cp.discount_value/100):Math.min(cp.discount_value,subtotal)
+    setCouponDiscount(disc);setCouponCode(code)
+    setCouponMsg('Cupom aplicado! -R$'+disc.toFixed(2))
+    setCouponLoading(false)
+  }
+  function removeCoupon(){setCouponDiscount(0);setCouponCode('');setCouponInput('');setCouponMsg('')}
   async function submit(){
     if(!cName.trim()){alert('Informe seu nome completo');return}
     const _ph=(cPhone||'').replace(/\D/g,'')
@@ -207,6 +227,7 @@ export default function PublicMenuPage(){
         customer_name:cName.trim(),
         customer_phone:_ph,
         customer_id:cid,
+        discount:couponDiscount,
         type:'delivery',
         status:'pending',
         subtotal,
@@ -224,6 +245,8 @@ export default function PublicMenuPage(){
         return
       }
 
+      // Incrementar uso do cupom
+      if(couponCode){await supabase.from('coupons').update({used_count:(await supabase.from('coupons').select('used_count').eq('code',couponCode).single()).data?.used_count+1||1}).eq('code',couponCode)}
       // 3. Inserir itens (sem variant_id - nao existe na tabela)
       const itemsPayload=cart.map(i=>({
         order_id:order.id,
@@ -529,7 +552,30 @@ export default function PublicMenuPage(){
                   <span style={{fontSize:12,color:fee===0?'#00ff41':'#aaa',fontFamily:'JetBrains Mono,monospace'}}>{fee===0?'Grátis':fmt(fee)}</span>
                 </div>
               )}
-              <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
+              {/* Cupom de desconto */}
+                <div style={{margin:'10px 0'}}>
+                  {!couponCode?(
+                    <div style={{display:'flex',gap:8}}>
+                      <input value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&applyCoupon()} placeholder='Cupom de desconto' style={{flex:1,background:'#1a1a1a',border:'1px solid #2a2a2a',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:13,outline:'none'}}/>
+                      <button onClick={applyCoupon} disabled={couponLoading} style={{padding:'10px 14px',borderRadius:10,background:'#1a1a1a',border:'1px solid #2a2a2a',color:couponLoading?'#555':'#aaa',cursor:'pointer',fontSize:13}}>
+                        {couponLoading?'...':'Aplicar'}
+                      </button>
+                    </div>
+                  ):(
+                    <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',background:'rgba(0,255,65,0.06)',border:'1px solid rgba(0,255,65,0.2)',borderRadius:10,padding:'8px 12px'}}>
+                      <span style={{fontSize:13,color:'#00ff41'}}>Cupom {couponCode} aplicado!</span>
+                      <button onClick={removeCoupon} style={{background:'transparent',border:'none',color:'#ff5555',cursor:'pointer',fontSize:12,padding:0}}>Remover</button>
+                    </div>
+                  )}
+                  {couponMsg&&<p style={{fontSize:11,color:couponCode?'#00ff41':'#ff5555',margin:'4px 0 0'}}>{couponMsg}</p>}
+                </div>
+                {couponDiscount>0&&(
+                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                    <span style={{fontSize:13,color:'#00ff41'}}>Desconto</span>
+                    <span style={{fontSize:13,color:'#00ff41',fontFamily:'JetBrains Mono,monospace'}}>-{fmt(couponDiscount)}</span>
+                  </div>
+                )}
+                          <div style={{display:'flex',justifyContent:'space-between',marginTop:6}}>
                 <span style={{fontSize:15,color:'#fff',fontWeight:700}}>Total</span>
                 <span style={{fontSize:18,color:'#00ff41',fontWeight:700,fontFamily:'JetBrains Mono,monospace'}}>{fmt(total)}</span>
               </div>
