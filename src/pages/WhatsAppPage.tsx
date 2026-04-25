@@ -4,8 +4,6 @@ import{MessageSquare,Save,RefreshCw,Wifi,WifiOff,Send}from 'lucide-react'
 
 const DEFAULT_MSGS:{id:string;label:string;message:string}[]=[
   {id:'accepted',label:'✅ Pedido Aceito',message:'Ola {nome}! Pedido #{numero} foi ACEITO! Estamos preparando tudo.'},
-  {id:'preparing',label:'👨 Em Preparo',message:'Ola {nome}! Pedido #{numero} esta sendo PREPARADO!'},
-  {id:'ready',label:'🎁 Pronto para Entrega',message:'Ola {nome}! Pedido #{numero} esta PRONTO! O entregador vai sair agora.'},
   {id:'delivering',label:'🛵 Saiu para Entrega',message:'Ola {nome}! Pedido #{numero} esta A CAMINHO! Fique de olho.'},
   {id:'delivered',label:'🎉 Entregue',message:'Ola {nome}! Pedido #{numero} foi ENTREGUE! Obrigado pela preferencia!'},
   {id:'cancelled',label:'❌ Cancelado',message:'Ola {nome}! Infelizmente seu pedido #{numero} foi CANCELADO. Entre em contato.'}
