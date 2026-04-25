@@ -556,8 +556,8 @@ export default function PublicMenuPage(){
                 <div style={{margin:'10px 0'}}>
                   {!couponCode?(
                     <div style={{display:'flex',gap:8}}>
-                      <input value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} onKeyDown={e=>e.key==='Enter'&&applyCoupon()} placeholder='Cupom de desconto' style={{flex:1,background:'#1a1a1a',border:'1px solid #2a2a2a',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:13,outline:'none'}}/>
-                      <button onClick={applyCoupon} disabled={couponLoading} style={{padding:'10px 14px',borderRadius:10,background:'#1a1a1a',border:'1px solid #2a2a2a',color:couponLoading?'#555':'#aaa',cursor:'pointer',fontSize:13}}>
+                      <input value={couponInput} onChange={e=>setCouponInput(e.target.value.toUpperCase())} onKeyDown={e=>{if(e.key==='Enter'){e.preventDefault();e.stopPropagation();applyCoupon()}}} placeholder='Cupom de desconto' style={{flex:1,background:'#1a1a1a',border:'1px solid #2a2a2a',borderRadius:10,padding:'10px 12px',color:'#fff',fontSize:13,outline:'none'}}/>
+                      <button type='button' onClick={e=>{e.preventDefault();applyCoupon()}} disabled={couponLoading} style={{padding:'10px 14px',borderRadius:10,background:'#1a1a1a',border:'1px solid #2a2a2a',color:couponLoading?'#555':'#aaa',cursor:'pointer',fontSize:13}}>
                         {couponLoading?'...':'Aplicar'}
                       </button>
                     </div>
