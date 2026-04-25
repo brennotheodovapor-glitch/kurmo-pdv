@@ -31,6 +31,7 @@ export default function CustomersPage(){
   const[af,setAf]=useState({name:'',phone:'',address:'',neighborhood:''})
   const[busy,setBusy]=useState(false)
   const[loyalty,setLoyalty]=useState<Record<string,number>>({})
+  const[spentMap,setSpentMap]=useState<Record<string,number>>({})
   const GOAL=5
 
   useEffect(()=>{load()},[])
@@ -41,11 +42,33 @@ export default function CustomersPage(){
     const custs=(data||[]) as Cust[]
     setList(custs)
     if(custs.length>0){
+      // Buscar pedidos finalizados linkados por customer_id OU por phone
       const ids=custs.map(c=>c.id)
-      const{data:ords}=await supabase.from('orders').select('customer_id').in('customer_id',ids).in('status',['completed','delivered'])
+      const phones=custs.map(c=>(c.phone||'').replace(/\D/g,'')).filter(Boolean)
+      const[{data:byId},{data:byPhone}]=await Promise.all([
+        supabase.from('orders').select('customer_id,total').in('customer_id',ids).in('status',['completed','delivered']),
+        supabase.from('orders').select('customer_phone,total').in('customer_phone',phones).in('status',['completed','delivered']).is('customer_id',null)
+      ])
       const m:Record<string,number>={}
-      ;(ords||[]).forEach((o:any)=>{m[o.customer_id]=(m[o.customer_id]||0)+1})
+      const spent:Record<string,number>={}
+      // Por customer_id
+      ;(byId||[]).forEach((o:any)=>{
+        m[o.customer_id]=(m[o.customer_id]||0)+1
+        spent[o.customer_id]=(spent[o.customer_id]||0)+(o.total||0)
+      })
+      // Por phone (pedidos delivery/catálogo sem customer_id)
+      custs.forEach((cust:Cust)=>{
+        const ph=(cust.phone||'').replace(/\D/g,'')
+        ;(byPhone||[]).forEach((o:any)=>{
+          const oph=(o.customer_phone||'').replace(/\D/g,'')
+          if(oph&&oph===ph){
+            m[cust.id]=(m[cust.id]||0)+1
+            spent[cust.id]=(spent[cust.id]||0)+(o.total||0)
+          }
+        })
+      })
       setLoyalty(m)
+      setSpentMap(spent)
     }
     setLoading(false)
   }
@@ -126,7 +149,7 @@ export default function CustomersPage(){
                 <p style={{fontSize:12,color:'#888',margin:'1px 0 0'}}>{c.phone}</p>
               </div>
               <div style={{textAlign:'right',flexShrink:0}}>
-                <p style={{fontSize:12,color:'#00ff41',fontWeight:700,margin:0,fontFamily:'monospace'}}>{fmt(c.total_spent||0)}</p>
+                <p style={{fontSize:12,color:'#00ff41',fontWeight:700,margin:0,fontFamily:'monospace'}}>{fmt(spentMap[c.id]||c.total_spent||0)}</p>
                 <p style={{fontSize:10,color:'#555',margin:0}}>{stamps}/{GOAL} fidelidade</p>
               </div>
               {isOpen?<ChevronUp size={13} color='#555'/>:<ChevronDown size={13} color='#555'/>}
