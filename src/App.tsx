@@ -24,6 +24,7 @@ import PublicMenuPage from '@/pages/PublicMenuPage'
 import DeliveryZonesPage from '@/pages/DeliveryZonesPage'
 import CashRegisterPage from '@/pages/CashRegisterPage'
 import FiadoPage from '@/pages/FiadoPage'
+import WhatsAppPage from '@/pages/WhatsAppPage'
 
 export default function App(){
   const[session,setSession]=useState<any>(null)
@@ -129,7 +130,8 @@ export default function App(){
         {isAdmin&&<Route path='agenda' element={<SchedulePage/>}/>}
         {isAdmin&&<Route path='auditoria' element={<AuditLogPage/>}/>}
         {isAdmin&&<Route path='combos' element={<CombosPage/>}/>}
-        <Route path='*' element={<Navigate to='/pdv' replace/>}/>
+        <Route path='whatsapp' element={<WhatsAppPage/>}/>
+            <Route path='*' element={<Navigate to='/pdv' replace/>}/>
       </Route>
     </Routes>
   )
