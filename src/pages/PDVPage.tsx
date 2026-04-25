@@ -67,7 +67,8 @@ export default function PDVPage(){
   }
   function searchCustomers(q:string){
     setCustomerName(q)
-    setSelectedCustomer(null)
+    // Só reseta o cliente selecionado se o usuário apagou/mudou o nome
+    if(!q||q!==selectedCustomer?.name)setSelectedCustomer(null)
     if(!q){setCustSearch(customers.slice(0,8));setShowCustDrop(true);return}
     const r=customers.filter((c:any)=>c.name.toLowerCase().includes(q.toLowerCase())||(c.phone||'').includes(q)).slice(0,8)
     setCustSearch(r);setShowCustDrop(r.length>0)
