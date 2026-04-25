@@ -187,7 +187,10 @@ export default function PublicMenuPage(){
     try{
       // 1. Criar ou buscar cliente
       let cid:string|null=null
-      const{data:ec}=await supabase.from('customers').select('id').eq('phone',_ph).maybeSingle()
+      // Buscar cliente por telefone — tentar com e sem DDI 55
+      const _ph11=_ph.startsWith('55')&&_ph.length>11?_ph.substring(2):_ph
+      const _ph13=_ph.length<=11?'55'+_ph:_ph
+      const{data:ec}=await supabase.from('customers').select('id').or('phone.eq.'+_ph+',phone.eq.'+_ph11+',phone.eq.'+_ph13).maybeSingle()
       if(ec){
         cid=ec.id
       }else{
