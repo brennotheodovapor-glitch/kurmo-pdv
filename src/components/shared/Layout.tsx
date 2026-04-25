@@ -1,6 +1,6 @@
-import{MessageSquare,NavLink,useLocation,Outlet,useNavigate}from 'react-router-dom'
+import{NavLink,useLocation,Outlet,useNavigate}from 'react-router-dom'
 import{supabase}from '@/lib/supabase'
-import{ShoppingCart,Truck,History,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard,CreditCard,Clock,FileText,Bell,Link2}from 'lucide-react'
+import{ShoppingCart,Truck,History,Settings,DollarSign,MapPin,QrCode,ChevronDown,ChevronRight,Package,Tag,Users,Percent,BarChart2,UserCheck,LayoutDashboard,CreditCard,Clock,FileText,Bell,Link2,MessageSquare}from 'lucide-react'
 import{useState,useEffect}from 'react'
 
 type NavItem={to:string;icon:any;label:string;adminOnly?:boolean}
