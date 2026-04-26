@@ -199,7 +199,8 @@ export default function PublicMenuPage(){
   function removeCoupon(){setCouponDiscount(0);setCouponCode('');setCouponInput('');setCouponMsg('')}
   async function submit(){
     if(!cName.trim()){alert('Informe seu nome completo');return}
-    const _ph=(cPhone||'').replace(/\D/g,'')
+    const _phRaw=(cPhone||'').replace(/\D/g,'')
+    const _ph=_phRaw.startsWith('55')&&_phRaw.length>11?_phRaw.substring(2):_phRaw
     if(_ph.length<10){alert('Informe um WhatsApp valido com DDD');return}
     if(!cep||cepStatus!=='ok'){alert('Informe um CEP valido');return}
     if(!zone){alert('Selecione seu bairro de entrega');return}
