@@ -214,6 +214,7 @@ export default function PublicMenuPage(){
       // Buscar cliente por telefone — tentar com e sem DDI 55
       // Normalizar: manter apenas DDD+numero (sem DDI 55)
       const _phNorm=_ph.startsWith('55')&&_ph.length>11?_ph.substring(2):_ph
+      const _phWa=_phNorm.length>=10&&!_phNorm.startsWith('55')?'55'+_phNorm:_phNorm
       const _ph13='55'+_phNorm
       const{data:ec}=await supabase.from('customers').select('id').or('phone.eq.'+_phNorm+',phone.eq.'+_ph+',phone.eq.'+_ph13).maybeSingle()
       if(ec){
@@ -230,7 +231,7 @@ export default function PublicMenuPage(){
       const addr=[street,num?'n'+num:'',complement,zone.name].filter(Boolean).join(', ')
       const{data:order,error:orderErr}=await supabase.from('orders').insert({
         customer_name:cName.trim(),
-        customer_phone:_phNorm,
+        customer_phone:_phWa,
         customer_id:cid,
         discount:couponDiscount,
         type:'delivery',
