@@ -10,7 +10,7 @@ const DAYS=['Dom','Seg','Ter','Qua','Qui','Sex','Sab']
 export default function DashboardPage(){
   const[stats,setStats]=useState({totalToday:0,totalWeek:0,totalMonth:0,ordersToday:0,ordersWeek:0,pdvToday:0,deliveryToday:0,ticketMedio:0})
   const[weekData,setWeekData]=useState<{day:string,total:number,orders:number}[]>([])
-  const[lowStock,setLowStock]=useState<{id:string,name:string,stock:number}[]>([])
+  const[lowStock,setLowStock]=useState<{id:string,name:string,stock:number,has_sizes?:boolean,_realStock?:number}[]>([])
   const[loading,setLoading]=useState(true)
   const[dismissedStock,setDismissedStock]=useState(false)
 
