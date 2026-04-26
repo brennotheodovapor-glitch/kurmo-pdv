@@ -151,7 +151,7 @@ export default function PDVPage(){
         customer_name:customerName||null,
         customer_id:selectedCustomer?.id||null,
         seller_id:activeSellerId||null,
-        cash_register_id:cash?.current?.id||null
+        cash_register_id:cash?.current?.id||(await supabase.from('cash_registers').select('id').eq('status','open').order('opened_at',{ascending:false}).limit(1).maybeSingle()).data?.id||null
       }).select().single()
       if(error||!order)throw error||new Error('Erro ao criar pedido')
       await supabase.from('order_items').insert(cart.map(i=>({
