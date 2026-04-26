@@ -27,7 +27,7 @@ export default function DashboardPage(){
 
     const[{data:orders},{data:products}]=await Promise.all([
       supabase.from('orders').select('id,type,status,total,payment_method,created_at').gte('created_at',weekStr+'T00:00:00').in('status',['completed','delivered']),
-      supabase.from('products').select('id,name,stock').eq('active',true).lte('stock',2).order('stock')
+      supabase.from('products').select('id,name,stock,has_sizes').eq('active',true).order('name')
     ])
 
     const allOrders=orders||[]
@@ -54,7 +54,19 @@ export default function DashboardPage(){
 
     setStats({totalToday,totalWeek,totalMonth,ordersToday,ordersWeek,pdvToday,deliveryToday,ticketMedio})
     setWeekData(chart)
-    setLowStock((products||[]).slice(0,10))
+    const withSizes=(products||[]).filter((p:any)=>p.has_sizes)
+    let variantStocks:Record<string,number>={}
+    if(withSizes.length>0){
+      const ids=withSizes.map((p:any)=>p.id)
+      const{data:vars}=await supabase.from('product_variants').select('product_id,stock').in('product_id',ids)
+      ;(vars||[]).forEach((v:any)=>{variantStocks[v.product_id]=(variantStocks[v.product_id]||0)+(v.stock||0)})
+    }
+    const lowOnes=(products||[]).filter((p:any)=>{
+      const realStock=p.has_sizes?(variantStocks[p.id]||0):(p.stock||0)
+      return realStock<=2
+    }).slice(0,10)
+    const lowWithReal=lowOnes.map((p:any)=>({...p,_realStock:p.has_sizes?(variantStocks[p.id]||0):p.stock}))
+    setLowStock(lowWithReal)
     setLoading(false)
   }
 
@@ -92,7 +104,7 @@ export default function DashboardPage(){
             {lowStock.map(p=>(
               <div key={p.id} style={{background:'rgba(245,158,11,0.1)',borderRadius:8,padding:'4px 10px',fontSize:12}}>
                 <span style={{color:'#e5e5e5'}}>{p.name}</span>
-                <span style={{color:p.stock===0?'#ff5555':'#f59e0b',marginLeft:6,fontWeight:700}}>{p.stock===0?'SEM ESTOQUE':'estq: '+p.stock}</span>
+                <span style={{color:p.stock===0?'#ff5555':'#f59e0b',marginLeft:6,fontWeight:700}}>{(p.has_sizes?(p as any)._realStock??p.stock:p.stock)===0?'SEM ESTOQUE':'estq: '+p.stock}</span>
               </div>
             ))}
           </div>
