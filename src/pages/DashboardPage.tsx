@@ -119,7 +119,7 @@ export default function DashboardPage(){
 
           {/* Gráfico semanal */}
           <div style={{background:'#161616',borderRadius:14,padding:'20px',border:'1px solid #1e1e1e',marginBottom:20}}>
-            <p style={{fontSize:13,fontWeight:700,color:'#fff',margin:'0 0 16px',fontFamily:'Bangers,cursive',letterSpacing:1,fontSize:16}}>VENDAS — ÚLTIMOS 7 DIAS</p>
+            <p style={{fontSize:16,fontWeight:700,color:'#fff',margin:'0 0 16px',fontFamily:'Bangers,cursive',letterSpacing:1}}>VENDAS — ÚLTIMOS 7 DIAS</p>
             <ResponsiveContainer width='100%' height={200}>
               <BarChart data={weekData} barSize={32}>
                 <CartesianGrid strokeDasharray='3 3' stroke='#1e1e1e'/>
