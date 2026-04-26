@@ -208,14 +208,15 @@ export default function PublicMenuPage(){
       // 1. Criar ou buscar cliente
       let cid:string|null=null
       // Buscar cliente por telefone — tentar com e sem DDI 55
-      const _ph11=_ph.startsWith('55')&&_ph.length>11?_ph.substring(2):_ph
-      const _ph13=_ph.length<=11?'55'+_ph:_ph
-      const{data:ec}=await supabase.from('customers').select('id').or('phone.eq.'+_ph+',phone.eq.'+_ph11+',phone.eq.'+_ph13).maybeSingle()
+      // Normalizar: manter apenas DDD+numero (sem DDI 55)
+      const _phNorm=_ph.startsWith('55')&&_ph.length>11?_ph.substring(2):_ph
+      const _ph13='55'+_phNorm
+      const{data:ec}=await supabase.from('customers').select('id').or('phone.eq.'+_phNorm+',phone.eq.'+_ph+',phone.eq.'+_ph13).maybeSingle()
       if(ec){
         cid=ec.id
       }else{
         const{data:nc}=await supabase.from('customers').insert({
-          name:cName.trim(),phone:_ph,address:street+(num?' n'+num:''),neighborhood:zone.name,
+          name:cName.trim(),phone:_phNorm,address:street+(num?' n'+num:''),neighborhood:zone.name,
           orders_count:0,total_spent:0
         }).select('id').single()
         if(nc)cid=nc.id
@@ -225,7 +226,7 @@ export default function PublicMenuPage(){
       const addr=[street,num?'n'+num:'',complement,zone.name].filter(Boolean).join(', ')
       const{data:order,error:orderErr}=await supabase.from('orders').insert({
         customer_name:cName.trim(),
-        customer_phone:_ph,
+        customer_phone:_phNorm,
         customer_id:cid,
         discount:couponDiscount,
         type:'delivery',
@@ -314,7 +315,10 @@ export default function PublicMenuPage(){
         <div style={{maxWidth:600,margin:'0 auto',display:'flex',alignItems:'center',gap:10}}>
           {screen!=='menu'&&<button onClick={()=>setScreen(screen==='checkout'?'cart':'menu')} style={{background:'none',border:'none',cursor:'pointer',color:'#888',padding:'2px 8px 2px 0',display:'flex',alignItems:'center',gap:3,fontSize:13,flexShrink:0}}><ChevronLeft size={16}/>Voltar</button>}
           {screen==='menu'&&settings.store_logo_url&&<img src={settings.store_logo_url} alt='' style={{width:34,height:34,borderRadius:8,objectFit:'cover',flexShrink:0}}/>}
-          <h1 style={{fontFamily:'Bangers,cursive',fontSize:screen==='menu'?20:16,color:'#00ff41',letterSpacing:2,flex:1,lineHeight:1,margin:0}}>
+          <div style={{position:'fixed',bottom:16,right:16,zIndex:40}}>
+        <button onClick={()=>{navigator.clipboard?.writeText(window.location.href);alert('Link copiado!')}} style={{background:'#25D366',border:'none',borderRadius:'50%',width:52,height:52,display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',boxShadow:'0 4px 12px rgba(37,211,102,0.4)',fontSize:24}}>🔗</button>
+      </div>
+      <h1 style={{fontFamily:'Bangers,cursive',fontSize:screen==='menu'?20:16,color:'#00ff41',letterSpacing:2,flex:1,lineHeight:1,margin:0}}>
             {screen==='menu'?settings.store_name:screen==='cart'?'SEU PEDIDO':'FINALIZAR PEDIDO'}
           </h1>
           {screen==='menu'&&cartCount>0&&(
